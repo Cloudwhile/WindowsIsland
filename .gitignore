@@ -1,69 +1,53 @@
-# Prerequisites
-*.d
+﻿# Centralized build, publish, package cache and verification output
+/artifacts/
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# .NET / WinUI generated output (including local IDE builds)
+[Bb]in/
+[Oo]bj/
+AppPackages/
+BundleArtifacts/
+Generated Files/
 
-# Precompiled Headers
-*.gch
-*.pch
+# Visual Studio and per-user settings
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.rsuser
+*.pubxml.user
 
-# Linker files
-*.ilk
+# Rider / ReSharper local state
+.idea/
+_ReSharper*/
+*.DotSettings.user
 
-# Debugger Files
-*.pdb
+# NuGet package archives and local caches
+*.nupkg
+*.snupkg
+.cache/
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
+# Test results and coverage reports
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
 
+# Local signing certificates
+*.pfx
+*.p12
 
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
-build/
-Build/
-build-*/
-
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
-
-# Temporary files
-*.tmp
+# Logs, temporary files and editor backups
 *.log
+*.tmp
 *.bak
 *.swp
+*.swo
+*~
 
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+# OS metadata
+Thumbs.db
+Desktop.ini
+.DS_Store
