@@ -1,9 +1,14 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace WindowsIsland.Services;
 
 internal static class NativeWindow
 {
+    private const uint FrameStyles = 0x00CF0000, FrameExtendedStyles = 0x00020301;
+    private const nuint FrameSubclassId = 3;
+    private static readonly SubclassProc FrameCallback = BorderlessWindowProc;
+
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(nint hwnd);
     [DllImport("gdi32.dll")] private static extern nint CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
     [DllImport("user32.dll")] private static extern int SetWindowRgn(nint hwnd, nint region, bool redraw);
@@ -12,20 +17,64 @@ internal static class NativeWindow
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] private static extern nint GetWindowLongPtr(nint hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(nint hwnd, nint after, int x, int y, int width, int height, uint flags);
+    [DllImport("comctl32.dll", SetLastError = true)] private static extern bool SetWindowSubclass(nint hwnd, SubclassProc callback, nuint id, nuint data);
+    [DllImport("comctl32.dll")] private static extern bool RemoveWindowSubclass(nint hwnd, SubclassProc callback, nuint id);
+    [DllImport("comctl32.dll")] private static extern nint DefSubclassProc(nint hwnd, uint message, nuint wParam, nint lParam);
+
+    public static void ConfigureOverlay(nint hwnd)
+    {
+        const long noActivate = 0x08000000, toolWindow = 0x80, appWindow = 0x40000;
+        var style = GetWindowLongPtr(hwnd, -20).ToInt64();
+        SetWindowLongPtr(hwnd, -20, (nint)((style | noActivate | toolWindow) & ~appWindow));
+        SetWindowPos(hwnd, (nint)(-1), 0, 0, 0, 0, 0x33);
+    }
+
+    public static void EnsureTopmost(nint hwnd) => SetWindowPos(hwnd, (nint)(-1), 0, 0, 0, 0, 0x0213);
 
     public static void RemoveSystemBorder(nint hwnd)
     {
+        if (!SetWindowSubclass(hwnd, FrameCallback, FrameSubclassId, 0))
+            throw new Win32Exception(Marshal.GetLastWin32Error());
         var style = GetWindowLongPtr(hwnd, -16).ToInt64();
-        if ((style & 0x00CC0000L) != 0)
-        {
-            style = (style & ~0x00CC0000L) | 0x80000000L;
-            SetWindowLongPtr(hwnd, -16, (nint)style);
+        var extended = GetWindowLongPtr(hwnd, -20).ToInt64();
+        var frameChanged = (style & FrameStyles) != 0 || (extended & FrameExtendedStyles) != 0;
+        SetWindowLongPtr(hwnd, -16, (nint)((style & ~((long)FrameStyles)) | 0x80000000L));
+        SetWindowLongPtr(hwnd, -20, (nint)(extended & ~((long)FrameExtendedStyles)));
+        if (frameChanged)
             SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x37);
-        }
         // The island has its own animated window region, independent of DWM corners.
         int noCorners = 1, noBorder = unchecked((int)0xFFFFFFFE);
         DwmSetWindowAttribute(hwnd, 33, ref noCorners, sizeof(int));
         DwmSetWindowAttribute(hwnd, 34, ref noBorder, sizeof(int));
+    }
+
+    private static nint BorderlessWindowProc(nint hwnd, uint message, nuint wParam, nint lParam, nuint id, nuint data)
+    {
+        // AppWindow can restore frame styles during resize; keep the full window as the client area.
+        if (message == 0x0083) return 0; // WM_NCCALCSIZE
+        if (message == 0x0085) return 0; // WM_NCPAINT
+        if (message == 0x0086) return 1; // WM_NCACTIVATE
+        if (message == 0x0046 && lParam != 0) // WM_WINDOWPOSCHANGING
+        {
+            var result = DefSubclassProc(hwnd, message, wParam, lParam);
+            var position = Marshal.PtrToStructure<WindowPosition>(lParam);
+            position.Flags |= 0x0010; // SWP_NOACTIVATE
+            if ((position.Flags & (0x0004 | 0x0080)) == 0) position.InsertAfter = (nint)(-1);
+            Marshal.StructureToPtr(position, lParam, fDeleteOld: false);
+            return result;
+        }
+        if (message == 0x007C && lParam != 0) // WM_STYLECHANGING
+        {
+            var result = DefSubclassProc(hwnd, message, wParam, lParam);
+            var index = unchecked((int)wParam);
+            var change = Marshal.PtrToStructure<WindowStyleChange>(lParam);
+            if (index == -16) change.NewStyle = (change.NewStyle & ~FrameStyles) | 0x80000000;
+            if (index == -20) change.NewStyle &= ~FrameExtendedStyles;
+            Marshal.StructureToPtr(change, lParam, fDeleteOld: false);
+            return result;
+        }
+        if (message == 0x0082) RemoveWindowSubclass(hwnd, FrameCallback, FrameSubclassId); // WM_NCDESTROY
+        return DefSubclassProc(hwnd, message, wParam, lParam);
     }
 
     public static void Round(nint hwnd, int width, int height, int radius)
@@ -33,5 +82,14 @@ internal static class NativeWindow
         var region = CreateRoundRectRgn(0, 0, width + 1, height + 1, radius * 2, radius * 2);
         // Windows owns the region after a successful call.
         if (region != 0 && SetWindowRgn(hwnd, region, true) == 0) DeleteObject(region);
+    }
+
+    private delegate nint SubclassProc(nint hwnd, uint message, nuint wParam, nint lParam, nuint id, nuint data);
+    [StructLayout(LayoutKind.Sequential)] private struct WindowStyleChange { public uint OldStyle, NewStyle; }
+    [StructLayout(LayoutKind.Sequential)] private struct WindowPosition
+    {
+        public nint Window, InsertAfter;
+        public int X, Y, Width, Height;
+        public uint Flags;
     }
 }
