@@ -1,82 +1,66 @@
 # Windows Island
 
-使用 C# 和 WinUI 3 实现的 Windows 通知灵动岛。启动后常驻系统托盘，收到通知时才在屏幕工作区顶部居中显示。
+Windows 通知灵动岛。新通知在屏幕顶部居中出现，显示应用图标、会话头像和消息内容，随后自动收起。待机时隐藏窗口，保留系统托盘入口。
 
-## 使用
+## 开始使用
 
-- 待机时岛完全隐藏，只保留托盘图标并后台监听。
-- 收到新系统通知时岛自动出现，仅显示应用名、标题和正文，5 秒后收起并完全隐藏。连续通知显示最新一条并重新计时。
-- 点击正在显示的通知不会切换页面或打断自动隐藏，也不会弹出额外面板。
-- 岛上没有音乐、计时、设置、收起或关闭控件。启动不重播通知中心的历史消息。
-- 右键托盘图标可查看监听状态、处理通知授权或退出应用；打开托盘菜单不会显示岛。
-- 消息回复尚未接入。
+1. 打开应用目录中的 `WindowsIsland.exe`，首次启动进入设置页。
+2. 点击“应用初始化”右侧图标，完成应用初始化。
+3. 点击“通知访问”右侧图标，在 Windows 弹窗中允许访问通知。
+4. 通过“通知预览”查看显示效果，选择需要的消息来源，再点击右上角的完成图标。
 
-## 开发与构建
+以后直接运行 `WindowsIsland.exe` 即可。设置会自动保存，重复启动会打开已有实例的设置页。
 
-需要 Windows 10 2004 或更新版本、.NET 10 SDK，构建目标为 x64。推荐在 Windows 11 上运行。
+通知访问未获允许时，可在设置页打开系统设置后重新授权。设置页也提供刷新状态和重试入口。
 
-直接在支持 .NET 10 的 Visual Studio 中打开 `src/WindowsIsland/WindowsIsland.csproj`，选择 x64 和 `Windows Island` 启动配置。以下终端命令在仓库根目录运行：
+## 通知体验
+
+- 通知窗口随消息内容调整大小，长消息自动换行并省略超出部分。
+- 原通知提供会话头像时，左侧显示圆形头像，应用图标显示在应用名旁；其他通知显示应用图标。
+- 弹窗跟随系统浅色、深色主题，应用名、发送者、正文和时间分别排列。
+- 通知显示期间保持置顶，出现、更新和调整大小时保持当前应用的输入焦点。
+- 每条通知显示约 5 秒，连续收到消息时显示最新一条并重新计时。
+- 同一消息来自多个来源时合并展示，并保留可用的应用图标与会话头像。
+- 启动和重新授权时从新消息开始监听，Windows 通知中心中的原通知保持不变。
+
+## 消息来源
+
+在设置页中分别开启或关闭以下来源：
+
+| 来源 | 内容 |
+| --- | --- |
+| 系统通知 | Windows 通知，包括 QQ 等应用的新通知 |
+| 微信 | 已登录微信客户端的新消息 |
+| Telegram | 已登录 Telegram 客户端的新消息 |
+| 电源 | 接入电源、开始充电、断开电源和充满电时的状态提示 |
+
+关闭系统通知后，仍可使用已开启的微信、Telegram 和电源来源。
+
+## 托盘与设置
+
+- 点击托盘图标打开设置页。
+- 右键托盘图标可查看监听状态、打开设置或退出应用。
+- 关闭通知窗口会隐藏当前消息，应用继续在后台运行。
+- 通过托盘菜单中的“退出”结束应用。
+
+## 从源码构建
+
+在仓库根目录执行：
 
 ```powershell
 dotnet build src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64
-& .\artifacts\bin\WindowsIsland\x64\Release\net10.0-windows10.0.19041.0\win-x64\WindowsIsland.exe
-```
-
-生成可复制的独立运行目录：
-
-```powershell
 dotnet publish src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64
 ```
 
-复制整个 `artifacts/publish` 目录运行，不能只复制 EXE。应用采用非 MSIX、自包含部署，随产物携带 .NET 和 Windows App SDK 运行时。
-
-## 启用系统通知
-
-通知监听使用 Windows `UserNotificationListener`，需要应用包身份、`userNotificationListener` 能力和用户授权。仅直接运行未注册的 EXE 无法监听其他应用的通知。
-
-在已启用 Windows 开发者模式的电脑上，关闭正在运行的 Windows Island，在仓库根目录执行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/register-notifications.ps1
-```
-
-脚本发布到 `artifacts/publish/`，生成图标和注册清单，并仅为当前用户注册应用。随后从开始菜单启动 **Windows Island**，在 Windows 弹窗中允许访问通知。拒绝后可通过托盘菜单进入系统通知访问设置；关闭授权弹窗后也可从托盘菜单再次请求。脚本不会自动修改开发者模式或代替用户授权。
-
-已发布时可加 `-NoBuild`；只准备文件、不注册时加 `-PrepareOnly`。本地开发注册会自动递增版本以更新清单。注册后请保留发布目录；需要移动时应重新注册。该流程用于本机开发，正式分发仍需签名的 MSIX 安装流程。生成的 `artifacts/packages/` 测试包未签名。
-
-应用运行期间通过通知变更事件触发读取，并每秒同步一次作为补充。系统通知中心中的原通知保持不变；退出应用后停止监听。撤销权限会清除岛上当前通知并停止读取，重新授权时不重播历史消息。
+发布文件生成在 `artifacts/publish/`。复制整个发布目录后，打开其中的 `WindowsIsland.exe`，按设置页引导完成初始化。
 
 ## 验证
 
 ```powershell
 dotnet run --project tests/WindowsIsland.LogicTests/WindowsIsland.LogicTests.csproj -c Release
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& ([scriptblock]::Create((Get-Content -Raw -Encoding UTF8 scripts/verify-notifications.ps1)))"
+dotnet run --project tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj -c Release
 ```
 
-第二条命令需要注册版应用运行、已授权且处于待机状态，会发送本应用的本地测试通知，验证托盘常驻、待机隐藏、点击不展开面板、没有操作控件、通知自动出现后完全隐藏，以及连续通知刷新计时，最后只移除本次测试通知。测试截图写入 `artifacts/verification/`。
+验证覆盖通知去重、显示计时、消息合并、设置保存、图标与头像读取，以及 Telegram 消息接收和连接恢复。
 
-## 结构
-
-```text
-src/WindowsIsland/       应用项目与源码
-  components/           通知内容与主题
-  Services/             通知监听、展示状态、系统托盘与原生窗口接口
-  Assets/               托盘图标源资源
-  Properties/           Visual Studio 启动配置
-scripts/                验证脚本
-packaging/              通知能力与应用身份清单
-tests/                  通知去重和展示状态逻辑测试
-artifacts/              生成文件（不提交 Git）
-  bin/WindowsIsland/    编译输出
-  obj/WindowsIsland/    中间文件与依赖还原缓存
-  publish/              可分发应用
-  verification/         界面验证截图
-Directory.Build.props   统一输出路径配置
-```
-
-构建与发布路径由根目录的 `Directory.Build.props` 统一配置，源码目录中不生成 `bin`、`obj`。
-
-当前版本不设置开机启动，也不保存通知历史。
-
-窗口实现参考微软的 [窗口管理文档](https://learn.microsoft.com/zh-cn/windows/apps/develop/ui/manage-app-windows)，部署参考 [非打包 WinUI 3 应用文档](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/unpackage-winui-app)。
-通知实现参考微软的 [通知监听文档](https://learn.microsoft.com/en-us/windows/apps/develop/notifications/app-notifications/notification-listener)。
+`scripts/` 中还提供系统通知、客户端弹窗和 Telegram 的桌面验证工具，验证结果与截图保存到 `artifacts/verification/`。
