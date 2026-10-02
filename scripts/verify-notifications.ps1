@@ -1,3 +1,10 @@
+﻿[CmdletBinding()]
+param(
+    [switch]$Launch,
+    [switch]$VerifyExit,
+    [switch]$Isolated
+)
+
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -6,24 +13,69 @@ Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class IslandClick {
+    [ComImport, Guid("2E941141-7F97-4756-BA1D-9DECDE894A3D"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IApplicationActivationManager {
+        [PreserveSig] int ActivateApplication([MarshalAs(UnmanagedType.LPWStr)] string appId, [MarshalAs(UnmanagedType.LPWStr)] string arguments, uint options, out uint processId);
+    }
+    public static uint LaunchRegistered(string appId, string arguments) {
+        var manager = (IApplicationActivationManager)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C")));
+        try {
+            uint id;
+            Marshal.ThrowExceptionForHR(manager.ActivateApplication(appId, arguments, 2, out id));
+            return id;
+        } finally { Marshal.FinalReleaseComObject(manager); }
+    }
     [StructLayout(LayoutKind.Sequential)] public struct Point { public int X, Y; }
     [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] public struct IconIdentifier { public uint Size; public IntPtr Window; public uint Id; public Guid Guid; }
     private delegate bool EnumCallback(IntPtr hwnd, IntPtr data);
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumCallback callback, IntPtr data);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int count);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr hwnd, System.Text.StringBuilder text, int count);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, UIntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
+    [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
     [DllImport("shell32.dll")] private static extern int Shell_NotifyIconGetRect(ref IconIdentifier icon, out Rect rect);
-    public static IntPtr FindIsland(uint id) {
+    public static IntPtr FindWindow(uint id, string name) {
         IntPtr result = IntPtr.Zero;
         EnumWindows((hwnd, data) => {
             uint pid; GetWindowThreadProcessId(hwnd, out pid);
             var title = new System.Text.StringBuilder(256); GetWindowText(hwnd, title, 256);
-            if (pid == id && title.ToString() == "Windows Island") { result = hwnd; return false; }
+            if (pid == id && title.ToString() == name) { result = hwnd; return false; }
             return true;
         }, IntPtr.Zero);
         return result;
+    }
+    public static IntPtr FindIsland(uint id) { return FindWindow(id, "Windows Island"); }
+    public static IntPtr FindPopup(uint id) {
+        IntPtr result = IntPtr.Zero;
+        EnumWindows((hwnd, data) => {
+            uint pid; GetWindowThreadProcessId(hwnd, out pid);
+            var name = new System.Text.StringBuilder(256); GetClassName(hwnd, name, 256);
+            if (pid == id && name.ToString() == "#32768" && IsWindowVisible(hwnd)) { result = hwnd; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return result;
+    }
+    [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendMessage(IntPtr hwnd, uint message, UIntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", EntryPoint = "GetMenuStringW", CharSet = CharSet.Unicode)] private static extern int GetMenuString(IntPtr menu, uint item, System.Text.StringBuilder text, int count, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMenuItemRect(IntPtr hwnd, IntPtr menu, uint item, out Rect rect);
+    public static string MenuText(IntPtr popup, uint item) {
+        var menu = SendMessage(popup, 0x1E1, UIntPtr.Zero, IntPtr.Zero);
+        var text = new System.Text.StringBuilder(256);
+        GetMenuString(menu, item, text, 256, 0x400);
+        return text.ToString();
+    }
+    public static Point MenuPoint(IntPtr popup, uint item) {
+        var menu = SendMessage(popup, 0x1E1, UIntPtr.Zero, IntPtr.Zero);
+        Rect rect;
+        if (!GetMenuItemRect(IntPtr.Zero, menu, item, out rect)) { throw new InvalidOperationException("Could not locate tray menu item"); }
+        return new Point { X = (rect.Left + rect.Right) / 2, Y = (rect.Top + rect.Bottom) / 2 };
     }
     public static bool HasTrayIcon(IntPtr hwnd) {
         var icon = new IconIdentifier { Size = (uint)Marshal.SizeOf<IconIdentifier>(), Window = hwnd, Id = 1 };
@@ -36,20 +88,34 @@ public static class IslandClick {
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 }
 '@
+[void][IslandClick]::SetProcessDpiAwarenessContext([IntPtr](-4))
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
 $package = Get-AppxPackage -Name WindowsIsland.Desktop
 if (!$package) { throw 'Register Windows Island first.' }
 $appId = "$($package.PackageFamilyName)!App"
-$app = Get-Process WindowsIsland | Where-Object { $_.Path -like '*\artifacts\publish\WindowsIsland.exe' } | Select-Object -First 1
+$app = Get-Process WindowsIsland -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*\artifacts\publish\WindowsIsland.exe' } | Select-Object -First 1
+if (!$app -and $Launch) {
+    if ($Isolated) {
+        [void][IslandClick]::LaunchRegistered($appId, '--verify-local')
+    } else {
+        Start-Process explorer.exe -ArgumentList "shell:AppsFolder\$appId" -WindowStyle Hidden
+    }
+    $launchTimeout = [Diagnostics.Stopwatch]::StartNew()
+    while (!$app -and $launchTimeout.Elapsed.TotalSeconds -lt 10) {
+        Start-Sleep -Milliseconds 200
+        $app = Get-Process WindowsIsland -ErrorAction SilentlyContinue | Where-Object { $_.Path -like '*\artifacts\publish\WindowsIsland.exe' } | Select-Object -First 1
+    }
+    Start-Sleep -Seconds 2
+}
 if (!$app) { throw 'Open the registered Windows Island app first.' }
 $islandHandle = [IslandClick]::FindIsland($app.Id)
 if ($islandHandle -eq [IntPtr]::Zero) { throw 'Island window was not created' }
 $root = [System.Windows.Automation.AutomationElement]::FromHandle($islandHandle)
 $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
 $group = 'island-smoke'
-$tags = @('first', 'burst1', 'burst2')
+$tags = @('first', 'short', 'long', 'title-only', 'closed', 'burst1', 'burst2')
 
 function Find-Name([string]$name) {
     if (![IslandClick]::IsWindowVisible($islandHandle)) { return $null }
@@ -63,13 +129,19 @@ function Assert-NoControls {
     }
 }
 function Click-Island {
+    $foreground = [IslandClick]::GetForegroundWindow()
     $bounds = $root.Current.BoundingRectangle
     $point = New-Object IslandClick+Point
     $point.X = [int]($bounds.X + $bounds.Width / 2)
     $point.Y = [int]($bounds.Y + $bounds.Height / 2)
     [uint32]$owner = 0
     [void][IslandClick]::GetWindowThreadProcessId([IslandClick]::WindowFromPoint($point), [ref]$owner)
-    if ($owner -ne $app.Id) { throw 'Island is not under the target click point' }
+    if ($owner -ne $app.Id) {
+        $rect = New-Object IslandClick+Rect
+        [void][IslandClick]::GetWindowRect($islandHandle, [ref]$rect)
+        $style = [IslandClick]::GetWindowLongPtr($islandHandle, -20).ToInt64()
+        throw "Island is not under the target click point: point=$($point.X),$($point.Y), owner=$owner, bounds=$bounds, native=$($rect.Left),$($rect.Top),$($rect.Right),$($rect.Bottom), enabled=$([IslandClick]::IsWindowEnabled($islandHandle)), exStyle=$('{0:X}' -f $style)"
+    }
     $original = New-Object IslandClick+Point
     [void][IslandClick]::GetCursorPos([ref]$original)
     try {
@@ -79,6 +151,7 @@ function Click-Island {
     }
     finally { [void][IslandClick]::SetCursorPos($original.X, $original.Y) }
     Start-Sleep -Milliseconds 500
+    if ([IslandClick]::GetForegroundWindow() -ne $foreground) { throw 'Clicking the island took focus from the active application' }
 }
 function Assert-Idle {
     if ([IslandClick]::IsWindowVisible($islandHandle)) { throw 'Island is still visible while idle' }
@@ -86,31 +159,26 @@ function Assert-Idle {
     $app.Refresh()
     if ($app.HasExited) { throw 'Listener exited when notification was hidden' }
 }
-function Send-Test([string]$tag) {
+function Send-Test([string]$tag, [string]$title = "Island test $tag", [string]$body = 'Local notification verification') {
     $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-    $xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>Island test $tag</text><text>Local notification verification</text></binding></visual><audio silent='true'/></toast>")
+    $safeTitle = [System.Security.SecurityElement]::Escape($title)
+    $safeBody = [System.Security.SecurityElement]::Escape($body)
+    $bodyElement = if ([string]::IsNullOrWhiteSpace($body)) { '' } else { "<text>$safeBody</text>" }
+    $xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text>$safeTitle</text>$bodyElement</binding></visual><audio silent='true'/></toast>")
     $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
     $toast.Tag = $tag; $toast.Group = $group
     $toast.ExpirationTime = [DateTimeOffset]::Now.AddMinutes(1)
     $notifier.Show($toast)
 }
-function Wait-Title([string]$tag) {
+function Wait-Title([string]$tag, [string]$title = "Island test $tag") {
     $timeout = [Diagnostics.Stopwatch]::StartNew()
     while ($timeout.Elapsed.TotalSeconds -lt 4) {
-        if (Find-Name "Island test $tag") { return }
+        if (Find-Name $title) { return }
         Start-Sleep -Milliseconds 100
     }
     throw "Notification did not appear: $tag"
 }
-
-try {
-    Assert-Idle
-    'PASS: startup is tray-only with no visible island'
-    Send-Test 'first'
-    Wait-Title 'first'
-    Assert-NoControls
-    Click-Island
-    if (!(Find-Name 'Island test first')) { throw 'Clicking interrupted the notification' }
+function Save-Island([string]$filename) {
     $output = Join-Path (Split-Path $package.InstallLocation -Parent) 'verification'
     New-Item -ItemType Directory -Force -Path $output | Out-Null
     Start-Sleep -Milliseconds 250
@@ -119,14 +187,98 @@ try {
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     try {
         $graphics.CopyFromScreen([int]$bounds.X, [int]$bounds.Y, 0, 0, $bitmap.Size)
-        $bitmap.Save((Join-Path $output 'notification.png'))
+        $bitmap.Save((Join-Path $output $filename))
     }
     finally { $graphics.Dispose(); $bitmap.Dispose() }
+}
+function Assert-Layout([string]$title, [string]$body = '') {
+    $bounds = $root.Current.BoundingRectangle
+    $scale = [IslandClick]::GetDpiForWindow($islandHandle) / 96.0
+    if ($bounds.Width -gt 416 * $scale + 1 -or $bounds.Height -gt 196 * $scale + 1) { throw "Notification exceeded its fixed maximum: $bounds" }
+    $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'NotificationAppIcon')
+    $icon = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if (!$icon -or $icon.Current.IsOffscreen) { throw 'Source application icon was not displayed' }
+    $iconBounds = $icon.Current.BoundingRectangle
+    foreach ($name in @($title, $body) | Where-Object { $_ }) {
+        $element = Find-Name $name
+        if (!$element -or $element.Current.IsOffscreen) { throw "Notification content is not visible: $name" }
+        $textBounds = $element.Current.BoundingRectangle
+        if ($textBounds.Left -lt $iconBounds.Right - 1) { throw 'Text overlaps the application icon' }
+        if ($textBounds.Right -gt $bounds.Right + 1 -or $textBounds.Bottom -gt $bounds.Bottom + 1) { throw 'Notification content extends beyond its window' }
+    }
+    return $bounds
+}
+function Open-TrayMenu {
+    [void][IslandClick]::PostMessage($islandHandle, 0x8001, [UIntPtr]::Zero, [IntPtr]0x1007B)
+    Start-Sleep -Milliseconds 500
+    Assert-Idle
+    $popup = [IslandClick]::FindPopup($app.Id)
+    $status = [IslandClick]::MenuText($popup, 0)
+    if ($popup -eq [IntPtr]::Zero -or $status -ne '通知监听中' -or [IslandClick]::MenuText($popup, 1) -ne '设置' -or [IslandClick]::MenuText($popup, 3) -ne '退出') {
+        throw "Tray menu does not show the listening status and exit command; allow notification access first. Status: $status"
+    }
+    return $popup
+}
+function Close-TrayMenu {
+    $menuOwner = [IslandClick]::FindWindow($app.Id, 'WindowsIsland.TrayMenu')
+    [void][IslandClick]::PostMessage($menuOwner, 0x1F, [UIntPtr]::Zero, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 250
+}
+
+try {
+    Assert-Idle
+    'PASS: startup is tray-only with no visible island'
+    $style = [IslandClick]::GetWindowLongPtr($islandHandle, -20).ToInt64()
+    if (($style -band 0x08000080) -ne 0x08000080 -or ($style -band 0x40000) -ne 0) { throw 'Island can activate or appear in taskbar switchers' }
+    $duplicate = Start-Process -FilePath $app.Path -WindowStyle Hidden -PassThru
+    if (!$duplicate.WaitForExit(5000)) { throw 'Repeated launch started a second listener' }
+    $instances = @(Get-Process WindowsIsland | Where-Object { $_.Path -eq $app.Path })
+    if ($instances.Count -ne 1) { throw 'Expected exactly one tray listener' }
+    Assert-Idle
+    'PASS: repeated launch keeps one listener and leaves the island hidden'
+    1..2 | ForEach-Object {
+        [void](Open-TrayMenu)
+        Close-TrayMenu
+    }
+    'PASS: tray menu can reopen without revealing the island'
+    Send-Test 'first'
+    Wait-Title 'first'
+    Assert-NoControls
+    Save-Island 'notification.png'
+    [void](Assert-Layout 'Island test first' 'Local notification verification')
+    Click-Island
+    if (!(Find-Name 'Island test first')) { throw 'Clicking interrupted the notification' }
     'PASS: real Windows notification expands the island'
     Start-Sleep -Seconds 6
     Assert-Idle
     if (Find-Name 'Island test first') { throw 'Notification text was not cleared' }
     'PASS: notification disappears and island collapses automatically'
+
+    Send-Test 'short' '收到' '好的，稍后见。'
+    Wait-Title 'short' '收到'
+    Save-Island 'notification-short.png'
+    $shortBounds = Assert-Layout '收到' '好的，稍后见。'
+    $longTitle = '这是一条需要换行显示的较长通知标题，用来验证内容优先的布局'
+    $longBody = ('详细消息正文包含中文、English 和 emoji 🙂，窗口应根据内容展开，并在达到上限后省略。' * 8)
+    Send-Test 'long' $longTitle $longBody
+    Wait-Title 'long' $longTitle
+    Save-Island 'notification-long.png'
+    $longBounds = Assert-Layout $longTitle $longBody
+    if ($longBounds.Width -le $shortBounds.Width -or $longBounds.Height -le $shortBounds.Height) { throw "Long message did not grow from short message size: short=$shortBounds, long=$longBounds" }
+    Send-Test 'title-only' '完成' ''
+    Wait-Title 'title-only' '完成'
+    Save-Island 'notification-title-only.png'
+    $smallBounds = Assert-Layout '完成'
+    if ($smallBounds.Width -ge $longBounds.Width -or $smallBounds.Height -ge $shortBounds.Height) { throw "Title-only message did not shrink: short=$shortBounds, title-only=$smallBounds" }
+    'PASS: source app icon is visible and window grows and shrinks with content within its fixed maximum'
+    Start-Sleep -Seconds 6
+    Assert-Idle
+
+    Send-Test 'closed'; Wait-Title 'closed'
+    [void][IslandClick]::PostMessage($islandHandle, 0x10, [UIntPtr]::Zero, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 500
+    Assert-Idle
+    'PASS: closing the island hides it while the tray listener keeps running'
 
     Send-Test 'burst1'; Wait-Title 'burst1'
     Start-Sleep -Seconds 3
@@ -139,8 +291,29 @@ try {
 
     Assert-Idle
     'PASS: background process and tray remain alive after notifications disappear'
+    if ($VerifyExit) {
+        $popup = Open-TrayMenu
+        $point = [IslandClick]::MenuPoint($popup, 3)
+        $original = New-Object IslandClick+Point
+        [void][IslandClick]::GetCursorPos([ref]$original)
+        try {
+            [void][IslandClick]::SetCursorPos($point.X, $point.Y)
+            Start-Sleep -Milliseconds 100
+            [IslandClick]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 75
+            [IslandClick]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
+            Start-Sleep -Milliseconds 500
+        }
+        finally { [void][IslandClick]::SetCursorPos($original.X, $original.Y) }
+        if (!$app.WaitForExit(5000)) {
+            throw "Tray exit did not stop the listener; icon=$([IslandClick]::HasTrayIcon($islandHandle)), popup=$([IslandClick]::FindPopup($app.Id))"
+        }
+        if ([IslandClick]::HasTrayIcon($islandHandle)) { throw 'Tray exit did not remove the tray icon' }
+        'PASS: tray exit stops the listener and removes its icon'
+    }
 }
 finally {
+    Close-TrayMenu
     foreach ($tag in $tags) {
         [Windows.UI.Notifications.ToastNotificationManager]::History.Remove($tag, $group, $appId)
     }

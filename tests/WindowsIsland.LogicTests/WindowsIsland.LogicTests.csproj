@@ -7,5 +7,13 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../src/WindowsIsland/Services/NotificationState.cs" Link="NotificationState.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/ToastImageReference.cs" Link="ToastImageReference.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/NotificationImageStore.cs" Link="NotificationImageStore.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/SingleInstance.cs" Link="SingleInstance.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/MessageRouter.cs" Link="MessageRouter.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/PowerState.cs" Link="PowerState.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/MessengerPopupRules.cs" Link="MessengerPopupRules.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InitializationManifest.cs" Link="InitializationManifest.cs" />
   </ItemGroup>
 </Project>

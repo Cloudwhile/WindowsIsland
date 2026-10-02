@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+    <Compile Include="../../src/WindowsIsland/Services/NotificationState.cs" Link="NotificationState.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/MessengerPopupReader.cs" Link="MessengerPopupReader.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/TelegramHookProtocol.cs" Link="TelegramHookProtocol.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/TelegramHookInjector.cs" Link="TelegramHookInjector.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/TelegramHookSession.cs" Link="TelegramHookSession.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/TelegramAvatar.cs" Link="TelegramAvatar.cs" />
+  </ItemGroup>
+</Project>
