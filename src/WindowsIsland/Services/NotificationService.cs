@@ -10,11 +10,25 @@ internal enum NotificationAccess { NeedsRegistration, Waiting, Allowed, Denied, 
 internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposable
 {
     private readonly NotificationTracker _tracker = new();
+    private readonly NotificationImageReader _images = new();
     private UserNotificationListener? _listener;
-    private bool _busy, _disposed, _subscribed;
+    private bool _busy, _disposed, _subscribed, _enabled = true;
     public NotificationAccess Access { get; private set; } = NotificationAccess.Waiting;
     public event Action<IslandNotification>? Received;
     public event Action<NotificationAccess>? AccessChanged;
+
+    public void SetEnabled(bool enabled)
+    {
+        if (_enabled == enabled || _disposed) return;
+        _enabled = enabled;
+        _tracker.Reset();
+        if (!enabled && _subscribed && _listener is not null)
+        {
+            try { _listener.NotificationChanged -= OnNotificationChanged; }
+            catch (Exception) { }
+            _subscribed = false;
+        }
+    }
 
     // Called on the UI thread so Windows can present its own consent dialog.
     public async Task InitializeAsync(bool requestAccess = true)
@@ -31,11 +45,11 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
                 status = await _listener.RequestAccessAsync();
             if (_disposed) return;
             SetAccess(Map(status));
-            if (Access != NotificationAccess.Allowed) return;
+            if (Access != NotificationAccess.Allowed || !_enabled) return;
             // Seed the baseline before subscribing; old Action Center items must not pop up.
             _tracker.Reset();
             await ReadAsync();
-            if (_disposed || _subscribed) return;
+            if (_disposed || !_enabled || _subscribed) return;
             try
             {
                 _listener.NotificationChanged += OnNotificationChanged;
@@ -52,7 +66,7 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
 
     public async Task PollAsync()
     {
-        if (_disposed || _busy || _listener is null) return;
+        if (_disposed || _busy || !_enabled || _listener is null) return;
         _busy = true;
         try
         {
@@ -66,11 +80,12 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
     private async Task ReadAsync()
     {
         var notifications = await _listener!.GetNotificationsAsync(NotificationKinds.Toast);
-        if (_disposed) return;
+        if (_disposed || !_enabled) return;
         // Access may have been revoked while the OS query was outstanding.
         SetAccess(Map(_listener.GetAccessStatus()));
         if (Access != NotificationAccess.Allowed) return;
         var snapshot = new List<IslandNotification>();
+        var sources = new Dictionary<(uint, DateTimeOffset), AppInfo?>();
         foreach (var notification in notifications)
         {
             try
@@ -81,7 +96,9 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
                     .Where(value => !string.IsNullOrWhiteSpace(value)).ToArray() ?? [];
                 string app = notification.AppInfo?.DisplayInfo?.DisplayName ?? "通知";
                 snapshot.Add(new IslandNotification(notification.Id, notification.CreationTime,
-                    app, text.FirstOrDefault() ?? app, string.Join("\n", text.Skip(1))));
+                    app, text.FirstOrDefault() ?? app, string.Join("\n", text.Skip(1)),
+                    AppId: notification.AppInfo?.AppUserModelId));
+                sources[(notification.Id, notification.CreationTime)] = notification.AppInfo;
             }
             catch (Exception)
             {
@@ -90,14 +107,23 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
         }
         foreach (var notification in _tracker.Update(snapshot))
         {
-            if (_disposed) break;
-            Received?.Invoke(notification);
+            if (_disposed || !_enabled) return;
+            var app = sources.GetValueOrDefault((notification.Id, notification.CreatedAt));
+            var icon = await _images.ReadIconAsync(app, notification.AppId);
+            if (_disposed || !_enabled) return;
+            SetAccess(Map(_listener.GetAccessStatus()));
+            if (Access != NotificationAccess.Allowed) return;
+            var avatar = await _images.ReadAvatarAsync(notification, app);
+            if (_disposed || !_enabled) return;
+            SetAccess(Map(_listener.GetAccessStatus()));
+            if (Access != NotificationAccess.Allowed) return;
+            Received?.Invoke(notification with { AppIcon = icon, SenderAvatar = avatar });
         }
     }
 
     private void OnNotificationChanged(UserNotificationListener sender, UserNotificationChangedEventArgs args)
     {
-        if (!_disposed) dispatcher.TryEnqueue(async () => await PollAsync());
+        if (!_disposed && _enabled) dispatcher.TryEnqueue(async () => await PollAsync());
     }
 
     private void SetAccess(NotificationAccess access)
@@ -121,5 +147,6 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
         if (_subscribed && _listener is not null) _listener.NotificationChanged -= OnNotificationChanged;
         Received = null; AccessChanged = null;
         _tracker.Reset();
+        _images.Clear();
     }
 }
