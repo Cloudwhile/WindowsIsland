@@ -10,6 +10,7 @@ Generated Files/
 
 # Visual Studio and per-user settings
 .vs/
+.vscode/
 *.suo
 *.user
 *.userosscache
