@@ -27,7 +27,8 @@
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <Target Name="BuildTelegramHook" BeforeTargets="PrepareForBuild">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\scripts\build-telegram-hook.ps1&quot;" />
+    <Exec Command="cmake -S &quot;$(MSBuildProjectDirectory)\..\..\native&quot; -B &quot;$(MSBuildProjectDirectory)\..\..\artifacts\native&quot; -A x64" />
+    <Exec Command="cmake --build &quot;$(MSBuildProjectDirectory)\..\..\artifacts\native&quot; --config Release --parallel" />
   </Target>
   <Target Name="PrepareInitializationRuntime" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
     <Copy SourceFiles="$(IntermediateOutputPath)MsixContent\AppxManifest.xml"

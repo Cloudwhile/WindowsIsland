@@ -1,5 +1,7 @@
 ﻿# Centralized build, publish, package cache and verification output
 /artifacts/
+/scripts/
+/scripts/
 
 # .NET / WinUI generated output (including local IDE builds)
 [Bb]in/
