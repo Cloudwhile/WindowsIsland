@@ -14,6 +14,7 @@
     <Compile Include="../../src/WindowsIsland/Services/PowerState.cs" Link="PowerState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessengerPopupRules.cs" Link="MessengerPopupRules.cs" />
     <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/WeChatState.cs" Link="WeChatState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationManifest.cs" Link="InitializationManifest.cs" />
   </ItemGroup>
 </Project>

@@ -40,7 +40,7 @@ while ($timeout.Elapsed.TotalSeconds -lt 60) {
     Start-Sleep -Milliseconds 100
 }
 if ($timeout.Elapsed.TotalSeconds -ge 60) { throw 'No actual Telegram popup reached the island within the observation window.' }
-$badge = Find-Id 'NotificationAppIcon'
+$badge = Find-Id 'NotificationHeaderIcon'
 $title = Find-Id 'NotificationTitle'
 $body = Find-Id 'NotificationBody'
 $time = Find-Id 'NotificationTime'
@@ -51,9 +51,12 @@ $avatarBounds = $avatar.Current.BoundingRectangle
 $titleBounds = $title.Current.BoundingRectangle
 $bodyBounds = $body.Current.BoundingRectangle
 $timeBounds = $time.Current.BoundingRectangle
-$windowBounds = $root.Current.BoundingRectangle
+$surface = Find-Id 'IslandSurface'
+if (!$surface) { throw 'Notification surface is missing.' }
+$windowBounds = $surface.Current.BoundingRectangle
 if ($titleBounds.Left -lt $avatarBounds.Right - 1 -or $bodyBounds.Left -lt $avatarBounds.Right - 1 -or
-    $titleBounds.Right -gt $timeBounds.Left + 1 -or $bodyBounds.Bottom -gt $windowBounds.Bottom) {
+    $titleBounds.Right -gt $windowBounds.Right + 1 -or $bodyBounds.Bottom -gt $windowBounds.Bottom -or
+    $badge.Current.BoundingRectangle.Bottom -gt $avatarBounds.Top + 1 -or $timeBounds.Bottom -gt $titleBounds.Top + 1) {
     throw 'Telegram text overlaps the avatar or timestamp, or extends beyond the island.'
 }
 if ([string]::IsNullOrWhiteSpace($title.Current.Name) -or [string]::IsNullOrWhiteSpace($body.Current.Name)) {
@@ -68,7 +71,9 @@ if (!($client.Modules | Where-Object { $_.ModuleName -eq 'WindowsIsland.Telegram
 $capture = New-Object System.Drawing.Bitmap([int]($avatarBounds.Width + 6), [int]($avatarBounds.Height + 6))
 $graphics = [System.Drawing.Graphics]::FromImage($capture)
 try {
-    $graphics.CopyFromScreen([int]($avatarBounds.Left - 3), [int]($avatarBounds.Top - 3), 0, 0, $capture.Size)
+    $dc = $graphics.GetHdc()
+    try { [IslandClick]::CaptureFrame($dc, [int]($avatarBounds.Left - 3), [int]($avatarBounds.Top - 3), $capture.Width, $capture.Height) }
+    finally { $graphics.ReleaseHdc($dc) }
     $capture.Save((Join-Path $workspace 'artifacts/verification/telegram-avatar.png'))
 } finally { $graphics.Dispose(); $capture.Dispose() }
 
@@ -76,7 +81,9 @@ if ($Fixture) {
     $capture = New-Object System.Drawing.Bitmap([int]$windowBounds.Width, [int]$windowBounds.Height)
     $graphics = [System.Drawing.Graphics]::FromImage($capture)
     try {
-        $graphics.CopyFromScreen([int]$windowBounds.Left, [int]$windowBounds.Top, 0, 0, $capture.Size)
+        $dc = $graphics.GetHdc()
+        try { [IslandClick]::CaptureFrame($dc, [int]$windowBounds.Left, [int]$windowBounds.Top, $capture.Width, $capture.Height) }
+        finally { $graphics.ReleaseHdc($dc) }
         $capture.Save((Join-Path $workspace 'artifacts/verification/telegram-fixture.png'))
     } finally { $graphics.Dispose(); $capture.Dispose() }
 }

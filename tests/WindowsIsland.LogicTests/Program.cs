@@ -169,6 +169,8 @@ Check(!MessengerPopupRules.IsMessagePopup("tooltips_class32", 0x80000000, 0x88, 
 Check(!MessengerPopupRules.IsMessagePopup("#32768", 0x80000000, 0x88, 320, 160, false), "Client menus are not treated as messages");
 Check(!MessengerPopupRules.IsMessagePopup("QtNotification", 0x80000000, 0x88, 1100, 750, false), "Main client windows are excluded");
 SettingsChecks.Run(Check);
+WeChatChecks.Run(Check);
+WeChatRoutingChecks.Run(Check);
 ToastImageChecks.Run(Check);
 NotificationImageStoreChecks.Run(Check);
 Console.WriteLine($"{checks} checks passed.");

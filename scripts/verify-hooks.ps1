@@ -4,45 +4,7 @@ param([switch]$Isolated)
 $ErrorActionPreference = 'Stop'
 $source = Get-Content (Join-Path $PSScriptRoot 'verify-notifications.ps1') -Raw -Encoding UTF8
 & ([scriptblock]::Create($source.Substring(0, $source.IndexOf('$package ='))))
-Add-Type -TypeDefinition @'
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Threading;
-public sealed class IslandAnimationProbe : IDisposable {
-    private readonly IntPtr window;
-    private readonly Thread thread;
-    private readonly List<double> frames = new List<double>();
-    private volatile bool stopped;
-    public IslandAnimationProbe(IntPtr handle) {
-        window = handle;
-        thread = new Thread(Sample) { IsBackground = true };
-        thread.Start();
-    }
-    private void Sample() {
-        SetThreadDpiAwarenessContext(new IntPtr(-4));
-        var clock = Stopwatch.StartNew();
-        Rect previous = new Rect();
-        while (!stopped) {
-            Rect bounds;
-            if (IsWindowVisible(window) && GetWindowRect(window, out bounds)
-                && (bounds.Left != previous.Left || bounds.Top != previous.Top
-                    || bounds.Right != previous.Right || bounds.Bottom != previous.Bottom)) {
-                lock (frames) frames.Add(clock.Elapsed.TotalMilliseconds);
-                previous = bounds;
-            }
-            Thread.Sleep(3);
-        }
-    }
-    public double[] Snapshot() { lock (frames) return frames.ToArray(); }
-    public void Dispose() { stopped = true; thread.Join(1000); }
-    [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
-    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out Rect bounds);
-    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
-    [DllImport("user32.dll")] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
-}
-'@
+Add-Type -TypeDefinition (Get-Content (Join-Path $PSScriptRoot 'IslandAnimationProbe.cs') -Raw -Encoding UTF8)
 $workspace = Split-Path $PSScriptRoot -Parent
 $package = Get-AppxPackage -Name WindowsIsland.Desktop
 if (!$package) { throw 'Register Windows Island first.' }
@@ -71,7 +33,7 @@ function Find-Text([string]$text) {
     return $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
 }
 
-foreach ($client in @('WeChat', 'Telegram')) {
+foreach ($client in @('Telegram')) {
     $clientExecutable = Join-Path $fixture "$client.exe"
     Copy-Item -LiteralPath (Join-Path $fixture 'WindowsIsland.HookFixture.exe') -Destination $clientExecutable -Force
     $ready = Join-Path $testOutput "$client.ready"
@@ -88,12 +50,13 @@ foreach ($client in @('WeChat', 'Telegram')) {
             Start-Sleep -Milliseconds 3
         }
         if (!(Find-Text $title) -or !(Find-Text $body)) { throw "Client hook did not receive the local popup: $client" }
-        $display = if ($client -eq 'WeChat') { '微信' } else { $client }
-        if (!(Find-Text $display)) { throw "Client popup had the wrong application name: $client" }
+        if (!(Find-Text $client)) { throw "Client popup had the wrong application name: $client" }
+        Start-Sleep -Milliseconds 350
         $frames = $probe.Snapshot()
-        if ($frames.Count -lt 4) { throw "Window animation did not produce enough intermediate sizes: $client ($($frames.Count))" }
+        if ($frames.Count -lt 4) { throw "Composition animation did not produce enough visible frames: $client ($($frames.Count))" }
+        if ($probe.WindowChanges -gt 1) { throw "Notification animation repeatedly resized its native window: $client ($($probe.WindowChanges))" }
         $activeMilliseconds = $frames[$frames.Count - 1] - $frames[0]
-        Write-Output "PASS: $client popup hook displays real accessible title and body ($($frames.Count) sampled size changes over $([int]$activeMilliseconds) ms)."
+        Write-Output "PASS: $client popup displays accessible title and body ($($frames.Count) visible frame changes over $([int]$activeMilliseconds) ms; $($probe.WindowChanges) native window change)."
         if ($client -eq 'Telegram') { Write-Output 'PASS: rapid updates of the same popup preserve its final message text.' }
         Start-Sleep -Seconds 6
         if ([IslandClick]::IsWindowVisible($handle)) { throw 'Hook notification did not return to the tray.' }

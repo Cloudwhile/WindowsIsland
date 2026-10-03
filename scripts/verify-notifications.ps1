@@ -2,7 +2,8 @@
 param(
     [switch]$Launch,
     [switch]$VerifyExit,
-    [switch]$Isolated
+    [switch]$Isolated,
+    [switch]$SkipPointer
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,6 +64,38 @@ public static class IslandClick {
         return result;
     }
     [DllImport("user32.dll", EntryPoint = "SendMessageW")] private static extern IntPtr SendMessage(IntPtr hwnd, uint message, UIntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowEx(uint style, string name, string title, uint flags, int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr module, IntPtr data);
+    [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern bool UpdateWindow(IntPtr hwnd);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hwnd, IntPtr dc);
+    [DllImport("gdi32.dll")] private static extern uint GetPixel(IntPtr dc, int x, int y);
+    [DllImport("gdi32.dll", SetLastError = true)] private static extern bool BitBlt(IntPtr destination, int x, int y, int width, int height, IntPtr source, int sx, int sy, uint operation);
+    public static void CaptureFrame(IntPtr destination, int x, int y, int width, int height) {
+        var source = GetDC(IntPtr.Zero);
+        try {
+            if (!BitBlt(destination, 0, 0, width, height, source, x, y, 0x40CC0020))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        } finally { ReleaseDC(IntPtr.Zero, source); }
+    }
+    public static IntPtr CreateUnderlay(IntPtr overlay) {
+        Rect rect; GetWindowRect(overlay, out rect);
+        var reference = CreateWindowEx(0x08000080, "STATIC", "WindowsIsland.BackdropVerification", 0x80000006,
+            rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        if (!SetWindowPos(reference, new IntPtr(-1), rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, 0x50))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        UpdateWindow(reference);
+        return reference;
+    }
+    public static uint Pixel(int x, int y) {
+        var dc = GetDC(IntPtr.Zero);
+        try { return GetPixel(dc, x, y); } finally { ReleaseDC(IntPtr.Zero, dc); }
+    }
+    public static long HitTest(IntPtr hwnd, Point point) {
+        return SendMessage(hwnd, 0x0084, UIntPtr.Zero,
+            new IntPtr(unchecked((point.Y << 16) | (point.X & 0xFFFF)))).ToInt64();
+    }
     [DllImport("user32.dll", EntryPoint = "GetMenuStringW", CharSet = CharSet.Unicode)] private static extern int GetMenuString(IntPtr menu, uint item, System.Text.StringBuilder text, int count, uint flags);
     [DllImport("user32.dll")] private static extern bool GetMenuItemRect(IntPtr hwnd, IntPtr menu, uint item, out Rect rect);
     public static string MenuText(IntPtr popup, uint item) {
@@ -82,6 +115,7 @@ public static class IslandClick {
         Rect rect; return Shell_NotifyIconGetRect(ref icon, out rect) == 0;
     }
     [DllImport("user32.dll")] public static extern bool GetCursorPos(out Point point);
+    [DllImport("user32.dll")] public static extern bool GetClipCursor(out Rect rect);
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extra);
     [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(Point point);
@@ -128,30 +162,22 @@ function Assert-NoControls {
         if ($root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $condition).Count -ne 0) { throw 'Unexpected interactive control in notification-only island' }
     }
 }
-function Click-Island {
+function Assert-SurfaceInput {
     $foreground = [IslandClick]::GetForegroundWindow()
-    $bounds = $root.Current.BoundingRectangle
-    $point = New-Object IslandClick+Point
-    $point.X = [int]($bounds.X + $bounds.Width / 2)
-    $point.Y = [int]($bounds.Y + $bounds.Height / 2)
     [uint32]$owner = 0
-    [void][IslandClick]::GetWindowThreadProcessId([IslandClick]::WindowFromPoint($point), [ref]$owner)
-    if ($owner -ne $app.Id) {
-        $rect = New-Object IslandClick+Rect
-        [void][IslandClick]::GetWindowRect($islandHandle, [ref]$rect)
-        $style = [IslandClick]::GetWindowLongPtr($islandHandle, -20).ToInt64()
-        throw "Island is not under the target click point: point=$($point.X),$($point.Y), owner=$owner, bounds=$bounds, native=$($rect.Left),$($rect.Top),$($rect.Right),$($rect.Bottom), enabled=$([IslandClick]::IsWindowEnabled($islandHandle)), exStyle=$('{0:X}' -f $style)"
-    }
-    $original = New-Object IslandClick+Point
-    [void][IslandClick]::GetCursorPos([ref]$original)
-    try {
-        [void][IslandClick]::SetCursorPos($point.X, $point.Y)
-        [IslandClick]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-        [IslandClick]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-    }
-    finally { [void][IslandClick]::SetCursorPos($original.X, $original.Y) }
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    do {
+        $bounds = Get-IslandBounds
+        $point = New-Object IslandClick+Point
+        $point.X = [int]($bounds.X + $bounds.Width / 2)
+        $point.Y = [int]($bounds.Y + $bounds.Height / 2)
+        [void][IslandClick]::GetWindowThreadProcessId([IslandClick]::WindowFromPoint($point), [ref]$owner)
+        if ($owner -eq $app.Id) { break }
+        Start-Sleep -Milliseconds 30
+    } while ($clock.Elapsed.TotalSeconds -lt 1)
+    if ($owner -ne $app.Id) { throw 'The notification surface does not receive pointer input.' }
     Start-Sleep -Milliseconds 500
-    if ([IslandClick]::GetForegroundWindow() -ne $foreground) { throw 'Clicking the island took focus from the active application' }
+    if ([IslandClick]::GetForegroundWindow() -ne $foreground) { throw 'Presenting the notification changed foreground focus' }
 }
 function Assert-Idle {
     if ([IslandClick]::IsWindowVisible($islandHandle)) { throw 'Island is still visible while idle' }
@@ -182,19 +208,41 @@ function Save-Island([string]$filename) {
     $output = Join-Path (Split-Path $package.InstallLocation -Parent) 'verification'
     New-Item -ItemType Directory -Force -Path $output | Out-Null
     Start-Sleep -Milliseconds 250
-    $bounds = $root.Current.BoundingRectangle
+    $bounds = Get-IslandBounds
     $bitmap = New-Object System.Drawing.Bitmap([int]$bounds.Width, [int]$bounds.Height)
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     try {
-        $graphics.CopyFromScreen([int]$bounds.X, [int]$bounds.Y, 0, 0, $bitmap.Size)
+        $dc = $graphics.GetHdc()
+        try { [IslandClick]::CaptureFrame($dc, [int]$bounds.X, [int]$bounds.Y, $bitmap.Width, $bitmap.Height) }
+        finally { $graphics.ReleaseHdc($dc) }
         $bitmap.Save((Join-Path $output $filename))
     }
     finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
+function Invoke-IslandPointer([bool]$right) {
+    $bounds = Get-IslandBounds
+    $original = New-Object IslandClick+Point
+    [void][IslandClick]::GetCursorPos([ref]$original)
+    try {
+        [void][IslandClick]::SetCursorPos([int]($bounds.X + $bounds.Width / 2), [int]($bounds.Y + $bounds.Height / 2))
+        Start-Sleep -Milliseconds 75
+        [uint32]$down = if ($right) { 8 } else { 2 }
+        [uint32]$up = if ($right) { 16 } else { 4 }
+        [IslandClick]::mouse_event($down, 0, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 75
+        [IslandClick]::mouse_event($up, 0, 0, 0, [UIntPtr]::Zero)
+    } finally { [void][IslandClick]::SetCursorPos($original.X, $original.Y) }
+}
+function Get-IslandBounds {
+    $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'IslandSurface')
+    $surface = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+    if (!$surface) { throw 'Notification surface is unavailable' }
+    return $surface.Current.BoundingRectangle
+}
 function Assert-Layout([string]$title, [string]$body = '') {
-    $bounds = $root.Current.BoundingRectangle
+    $bounds = Get-IslandBounds
     $scale = [IslandClick]::GetDpiForWindow($islandHandle) / 96.0
-    if ($bounds.Width -gt 416 * $scale + 1 -or $bounds.Height -gt 196 * $scale + 1) { throw "Notification exceeded its fixed maximum: $bounds" }
+    if ($bounds.Width -gt 416 * $scale + 1 -or $bounds.Height -gt 218 * $scale + 1) { throw "Notification exceeded its fixed maximum: $bounds" }
     $condition = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::AutomationIdProperty, 'NotificationAppIcon')
     $icon = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
     if (!$icon -or $icon.Current.IsOffscreen) { throw 'Source application icon was not displayed' }
@@ -207,6 +255,35 @@ function Assert-Layout([string]$title, [string]$body = '') {
         if ($textBounds.Right -gt $bounds.Right + 1 -or $textBounds.Bottom -gt $bounds.Bottom + 1) { throw 'Notification content extends beyond its window' }
     }
     return $bounds
+}
+function Assert-TransparentMargins {
+    if (([IslandClick]::GetWindowLongPtr($islandHandle, -20).ToInt64() -band 8) -eq 0) { throw 'Notification window is not topmost before the backdrop check' }
+    $reference = [IslandClick]::CreateUnderlay($islandHandle)
+    if ($reference -eq [IntPtr]::Zero) { throw 'Could not create the backdrop reference' }
+    try {
+        Start-Sleep -Milliseconds 350
+        $rect = New-Object IslandClick+Rect
+        [void][IslandClick]::GetWindowRect($islandHandle, [ref]$rect)
+        $point = New-Object IslandClick+Point
+        $point.X = $rect.Left + 3; $point.Y = $rect.Top + 3
+        $pixel = [IslandClick]::Pixel($point.X, $point.Y)
+        $capture = New-Object System.Drawing.Bitmap(($rect.Right - $rect.Left), ($rect.Bottom - $rect.Top))
+        $graphics = [System.Drawing.Graphics]::FromImage($capture)
+        try {
+            $dc = $graphics.GetHdc()
+            try { [IslandClick]::CaptureFrame($dc, $rect.Left, $rect.Top, $capture.Width, $capture.Height) }
+            finally { $graphics.ReleaseHdc($dc) }
+            $capture.Save((Join-Path (Split-Path $package.InstallLocation -Parent) 'verification/notification-host.png'))
+        }
+        finally { $graphics.Dispose(); $capture.Dispose() }
+        if ($pixel -ne 0xFFFFFF) { throw "Transparent margins cover the backdrop: pixel=$('{0:X8}' -f $pixel), referenceVisible=$([IslandClick]::IsWindowVisible($reference)), referenceStyle=$('{0:X}' -f [IslandClick]::GetWindowLongPtr($reference, -20).ToInt64()), point=$($point.X),$($point.Y)" }
+        if ([IslandClick]::HitTest($islandHandle, $point) -ne -1) { throw 'Transparent margins do not return pass-through hit testing' }
+        [uint32]$owner = 0
+        [void][IslandClick]::GetWindowThreadProcessId([IslandClick]::WindowFromPoint($point), [ref]$owner)
+        if ($owner -eq $app.Id) { throw 'Transparent margins still intercept the underlying window' }
+        if (([IslandClick]::GetWindowLongPtr($islandHandle, -20).ToInt64() -band 8) -eq 0) { throw 'Notification window lost its topmost style' }
+    }
+    finally { [void][IslandClick]::DestroyWindow($reference) }
 }
 function Open-TrayMenu {
     [void][IslandClick]::PostMessage($islandHandle, 0x8001, [UIntPtr]::Zero, [IntPtr]0x1007B)
@@ -230,7 +307,7 @@ try {
     'PASS: startup is tray-only with no visible island'
     $style = [IslandClick]::GetWindowLongPtr($islandHandle, -20).ToInt64()
     if (($style -band 0x08000080) -ne 0x08000080 -or ($style -band 0x40000) -ne 0) { throw 'Island can activate or appear in taskbar switchers' }
-    $duplicate = Start-Process -FilePath $app.Path -WindowStyle Hidden -PassThru
+    $duplicate = Start-Process -FilePath $app.Path -ArgumentList '--verify-local' -WindowStyle Hidden -PassThru
     if (!$duplicate.WaitForExit(5000)) { throw 'Repeated launch started a second listener' }
     $instances = @(Get-Process WindowsIsland | Where-Object { $_.Path -eq $app.Path })
     if ($instances.Count -ne 1) { throw 'Expected exactly one tray listener' }
@@ -246,8 +323,10 @@ try {
     Assert-NoControls
     Save-Island 'notification.png'
     [void](Assert-Layout 'Island test first' 'Local notification verification')
-    Click-Island
-    if (!(Find-Name 'Island test first')) { throw 'Clicking interrupted the notification' }
+    Assert-SurfaceInput
+    Assert-TransparentMargins
+    'PASS: transparent margins preserve the backdrop and pass clicks through while the notification stays topmost'
+    if (!(Find-Name 'Island test first')) { throw 'Pointer validation interrupted the notification' }
     'PASS: real Windows notification expands the island'
     Start-Sleep -Seconds 6
     Assert-Idle
@@ -275,10 +354,13 @@ try {
     Assert-Idle
 
     Send-Test 'closed'; Wait-Title 'closed'
-    [void][IslandClick]::PostMessage($islandHandle, 0x10, [UIntPtr]::Zero, [IntPtr]::Zero)
+    if ($SkipPointer) {
+        [void][IslandClick]::PostMessage($islandHandle, 0x10, [UIntPtr]::Zero, [IntPtr]::Zero)
+    } else { Invoke-IslandPointer $true }
     Start-Sleep -Milliseconds 500
     Assert-Idle
-    'PASS: closing the island hides it while the tray listener keeps running'
+    if ($SkipPointer) { 'PASS: closing the window hides the notification; physical right-click verification was skipped.' }
+    else { 'PASS: right-clicking the notification hides it while the tray listener keeps running' }
 
     Send-Test 'burst1'; Wait-Title 'burst1'
     Start-Sleep -Seconds 3
@@ -291,7 +373,7 @@ try {
 
     Assert-Idle
     'PASS: background process and tray remain alive after notifications disappear'
-    if ($VerifyExit) {
+    if ($VerifyExit -and !$SkipPointer) {
         $popup = Open-TrayMenu
         $point = [IslandClick]::MenuPoint($popup, 3)
         $original = New-Object IslandClick+Point
