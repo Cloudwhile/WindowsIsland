@@ -9,7 +9,12 @@ internal static class SettingsChecks
         var path = Path.Combine(output, "settings.json");
         var store = new SettingsStore(path);
         check(store.Current == new AppSettings(), "Fresh setup keeps all sources enabled and awaits completion");
-        var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false };
+        Directory.CreateDirectory(output);
+        File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false}");
+        var upgraded = new SettingsStore(path).Current;
+        check(upgraded.Animations && upgraded.SetupCompleted && !upgraded.WeChat,
+            "Existing preferences enable notification motion without resetting source choices");
+        var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false, Animations = false };
         var changes = 0;
         store.Changed += _ => changes++;
         store.Save(saved);

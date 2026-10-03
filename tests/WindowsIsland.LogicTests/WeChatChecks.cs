@@ -89,6 +89,26 @@ internal static class WeChatChecks
         check(combined.Update(Group(basePreview with { Unread = 10 }, groupMessage), now).Count == 0,
             "Reconnecting or enabling listening does not replay accumulated messages");
 
+        byte[] personalAvatar = [1, 2, 3], groupAvatar = [4, 5, 6];
+        var portraits = new WeChatTracker();
+        var personalPreview = new WeChatPreview("personal", "小林", "旧消息", 0, stamp, Avatar: personalAvatar);
+        var groupPreview = basePreview with { Avatar = groupAvatar };
+        portraits.Update(Sessions(personalPreview, groupPreview), now);
+        check(portraits.Update(Sessions(personalPreview with { Body = "你好", Unread = 1 }, groupPreview), now).Single().Avatar == personalAvatar,
+            "Personal conversation arrivals retain their own portrait");
+        check(portraits.Update(Sessions(personalPreview with { Body = "你好", Unread = 1 }, groupPreview with { Body = "群聊消息", Unread = 1 }), now).Single().Avatar == groupAvatar,
+            "Group conversation arrivals do not inherit the personal portrait");
+        portraits.Reset();
+        portraits.Update(Group(groupPreview, first), now);
+        check(portraits.Update(Group(groupPreview with { Body = "小林: 下午见", Unread = 1 }, first, groupMessage), now).Single().Avatar == groupAvatar,
+            "Merged group chat rows and previews preserve the conversation portrait");
+        portraits.Reset();
+        portraits.Update(Sessions(personalPreview), now);
+        check(portraits.Update(Sessions(personalPreview with { Avatar = groupAvatar }), now).Count == 0,
+            "Refreshing an avatar alone does not replay the last message");
+        check(portraits.Update(Sessions(personalPreview with { Body = "头像暂时不可读", Unread = 1, Avatar = null }), now).Single().Avatar == groupAvatar,
+            "A temporarily unavailable avatar falls back to the last portrait for the same conversation");
+
         var muted = WeChatText.ParsePreview("session_item_示例群", $"示例群\n已置顶\n[9条]\n新消息\n{stamp}\n消息免打扰", [])!;
         check(muted.Muted && muted.Body == "新消息" && muted.Unread == 9, "Mute metadata is retained independently of body and unread count");
         check(WeChatText.ParsePreview("session_item_小林", $"小林\n已置顶\n消息免打扰\n{stamp}", []) is { Body: "消息免打扰", Muted: false },

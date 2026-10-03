@@ -8,6 +8,7 @@ if (args.Length >= 3 && args[0] == "--fixture") return WeChatFixture.Run(args[1]
 if (args.Length > 0 && args[0] == "--observe") return LiveListener.Run();
 if (args.Length == 0) return ListenerChecks.Run();
 if (args[0] != "--inspect") throw new ArgumentException("Unknown verification mode.");
+Trace.Listeners.Add(new ConsoleTraceListener());
 var sessions = new List<WeChatAccessibilitySession>();
 var ids = new HashSet<int>();
 try
@@ -30,10 +31,11 @@ try
         GetClassName(window, name, name.Capacity);
         if (!ids.Contains((int)id) || !name.ToString().Contains("QWindowIcon")) return true;
         var root = AutomationElement.FromHandle(window);
-        var snapshot = new WeChatReader(root).Read();
+        using var conversationReader = new WeChatReader(root, window);
+        var snapshot = conversationReader.Read();
         Console.WriteLine($"READER sessions={snapshot.HasSessions} previews={snapshot.Previews.Count} messages={snapshot.HasMessages} rows={snapshot.Messages.Count} conversationChars={snapshot.Conversation.Length}");
         foreach (var preview in snapshot.Previews)
-            Console.WriteLine($"PREVIEW conversationChars={preview.Conversation.Length} bodyChars={preview.Body.Length} unread={preview.Unread} testMessage={preview.Body == "1"}");
+            Console.WriteLine($"PREVIEW conversationChars={preview.Conversation.Length} bodyChars={preview.Body.Length} unread={preview.Unread} testMessage={preview.Body == "1"} avatarBytes={preview.Avatar?.Length ?? 0}");
         var pending = new Queue<(AutomationElement Element, int Depth)>();
         pending.Enqueue((root, 0));
         var count = 0;

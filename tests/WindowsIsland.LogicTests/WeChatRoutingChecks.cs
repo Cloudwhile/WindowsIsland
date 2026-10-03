@@ -40,5 +40,12 @@ internal static class WeChatRoutingChecks
         var settings = new AppSettings(SystemNotifications: false);
         check(settings.Allows(automatic) && !(settings with { WeChat = false }).Allows(automatic),
             "Accessible listening follows the WeChat switch independently of system notifications");
+
+        router.Clear();
+        var portrait = automatic with { EventId = "uia/portrait", SenderAvatar = [7, 8, 9] };
+        router.Receive(portrait); time.Advance(0.3);
+        check(router.Flush().Single().Notification.SenderAvatar == portrait.SenderAvatar, "Accessible portraits reach a standalone notification");
+        check(router.Receive(system)?.Notification.SenderAvatar == portrait.SenderAvatar,
+            "System metadata preserves an existing accessible conversation portrait");
     }
 }

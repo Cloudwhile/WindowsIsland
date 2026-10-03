@@ -8,6 +8,7 @@ internal static class ListenerChecks
 {
     public static int Run()
     {
+        Trace.Listeners.Add(new ConsoleTraceListener());
         var checks = 0;
         var notifications = new ConcurrentQueue<IslandNotification>();
         var enabled = 1;
@@ -23,6 +24,7 @@ internal static class ListenerChecks
         Check(Wait(() => notifications.Count == 1), "Session and message events deliver one incoming notification");
         Check(notifications.TryDequeue(out var first) && first.Title == "示例会话" && first.Body == "第一条实时消息"
             && first.Source == NotificationSource.ClientAutomation && first.AppIcon is { Length: > 0 }, "Accessible content retains application identity and icon");
+        Check(IsPortrait(first?.SenderAvatar, System.Drawing.Color.CornflowerBlue), "An accessible image reference supplies the personal conversation portrait");
         Quiet("Repeated reads do not duplicate the notification");
         fixture.Send("incoming:第一条实时消息");
         Check(Wait(() => notifications.Count == 1), "A second message with identical text still arrives");
@@ -32,6 +34,8 @@ internal static class ListenerChecks
         fixture.Send("group:小林: 群聊的新消息");
         Check(Wait(() => notifications.Count == 1), "A conversation that is not open is read from its unread preview");
         Check(notifications.TryDequeue(out var group) && group.Title == "示例群" && group.Body == "小林: 群聊的新消息", "Group previews retain their conversation and sender");
+        Check(IsPortrait(group?.SenderAvatar, System.Drawing.Color.ForestGreen), "A session with no accessible image exposes its group portrait through the client window");
+        Check(!first!.SenderAvatar!.SequenceEqual(group!.SenderAvatar!), "Personal and group messages use their own conversation portraits");
         fixture.Send("mute:免打扰会话的新消息");
         Quiet("Muted conversation messages are not dispatched");
         Check(!listener.AllowsConversation("示例群", fixture.Process.Id), "Muted conversations are also blocked for other notification sources");
@@ -48,6 +52,8 @@ internal static class ListenerChecks
         fixture.Send("minimize");
         fixture.Send("incoming:最小化后收到的消息");
         Check(Wait(() => notifications.Count == 1), "UIAutomation continues reading a minimized client");
+        Check(notifications.TryDequeue(out var minimized) && ReferenceEquals(minimized.SenderAvatar, first.SenderAvatar),
+            "Minimized messages preserve the cached portrait without capturing the desktop");
         notifications.Clear();
         Volatile.Write(ref enabled, 0); listener.Refresh();
         Check(Wait(() => listener.Status == "已关闭" && !listener.IsConnected(fixture.Process.Id)), "Disabling the source detaches the listener");
@@ -87,6 +93,16 @@ internal static class ListenerChecks
         var time = Stopwatch.StartNew();
         while (time.Elapsed < TimeSpan.FromSeconds(8)) { if (ready()) return true; Thread.Sleep(20); }
         return false;
+    }
+
+    private static bool IsPortrait(byte[]? bytes, System.Drawing.Color expected)
+    {
+        if (bytes is not { Length: > 0 }) return false;
+        using var stream = new MemoryStream(bytes);
+        using var image = new System.Drawing.Bitmap(stream);
+        var pixel = image.GetPixel(8, 8);
+        return image.Size == new System.Drawing.Size(64, 64) && Math.Abs(pixel.R - expected.R) <= 5
+            && Math.Abs(pixel.G - expected.G) <= 5 && Math.Abs(pixel.B - expected.B) <= 5;
     }
 
     private sealed class FixtureClient(Process process, NamedPipeClientStream pipe, StreamWriter writer, string ready) : IDisposable

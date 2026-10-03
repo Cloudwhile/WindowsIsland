@@ -11,6 +11,7 @@
   <ItemGroup>
     <Compile Include="../../src/WindowsIsland/Services/WeChatAccessibilitySession.cs" Link="WeChatAccessibilitySession.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatReader.cs" Link="WeChatReader.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/WeChatAvatarReader.cs" Link="WeChatAvatarReader.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatState.cs" Link="WeChatState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatService.cs" Link="WeChatService.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessengerPopupReader.cs" Link="MessengerPopupReader.cs" />
