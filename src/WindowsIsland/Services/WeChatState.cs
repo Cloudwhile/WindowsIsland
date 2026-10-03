@@ -3,11 +3,11 @@ using System.Text.RegularExpressions;
 namespace WindowsIsland.Services;
 
 internal enum WeChatDirection { Unknown, Incoming, Outgoing }
-internal sealed record WeChatPreview(string Key, string Conversation, string Body, int Unread, string Stamp, bool Muted = false);
+internal sealed record WeChatPreview(string Key, string Conversation, string Body, int Unread, string Stamp, bool Muted = false, byte[]? Avatar = null);
 internal sealed record WeChatMessage(string Key, string Sender, string Body, WeChatDirection Direction);
 internal sealed record WeChatSnapshot(string Conversation, IReadOnlyList<WeChatPreview> Previews,
     IReadOnlyList<WeChatMessage> Messages, bool HasSessions, bool HasMessages, bool? ConversationMuted = null);
-internal sealed record WeChatArrival(string Conversation, string Body);
+internal sealed record WeChatArrival(string Conversation, string Body, byte[]? Avatar = null);
 
 internal static partial class WeChatText
 {
@@ -104,9 +104,11 @@ internal sealed class WeChatTracker
                     fresh.AddRange(snapshot.Messages.Skip(anchor + 1).Where(message => !known.Contains(message.Key)));
             }
             _messages[snapshot.Conversation] = snapshot.Messages.Select(message => message.Key).ToHashSet();
+            var avatar = snapshot.Previews.FirstOrDefault(item => item.Conversation == snapshot.Conversation)?.Avatar
+                ?? _previews.Values.FirstOrDefault(item => item.Conversation == snapshot.Conversation)?.Avatar;
             foreach (var message in fresh.Where(message => currentMute is false && message.Direction == WeChatDirection.Incoming))
                 arrivals.Add(new(snapshot.Conversation, message.Sender.Length == 0 || message.Sender == snapshot.Conversation
-                    ? message.Body : message.Sender + "：" + message.Body));
+                    ? message.Body : message.Sender + "：" + message.Body, avatar));
         }
 
         foreach (var preview in snapshot.Previews)
@@ -119,7 +121,7 @@ internal sealed class WeChatTracker
             if (arrivals.Any(arrival => arrival.Conversation == preview.Conversation && WeChatText.MatchesPreview(preview.Body, arrival.Body))) continue;
             var message = snapshot.Conversation == preview.Conversation
                 ? fresh.LastOrDefault(item => item.Direction != WeChatDirection.Outgoing && WeChatText.MatchesPreview(preview.Body, item.Body)) : null;
-            arrivals.Add(new(preview.Conversation, message?.Body ?? preview.Body));
+            arrivals.Add(new(preview.Conversation, message?.Body ?? preview.Body, preview.Avatar ?? previous?.Avatar));
         }
         if (snapshot.HasSessions) _initialized = true;
         if (_previews.Count > 1024)

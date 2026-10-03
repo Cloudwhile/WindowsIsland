@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace WindowsIsland.Services;
 
 internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotifications = true,
-    bool WeChat = true, bool Telegram = true, bool Power = true)
+    bool WeChat = true, bool Telegram = true, bool Power = true, bool Animations = true)
 {
     public bool AllowsClient(string identity) => identity switch
     {

@@ -2,23 +2,29 @@ using System.Windows.Automation;
 
 namespace WindowsIsland.Services;
 
-internal sealed class WeChatReader(AutomationElement root)
+internal sealed class WeChatReader(AutomationElement root, nint nativeWindow = 0) : IDisposable
 {
+    private readonly WeChatAvatarReader _avatars = new(root, nativeWindow);
     private AutomationElement? _sessions, _messages, _input, _title;
     private DateTimeOffset _discovered;
 
     public WeChatSnapshot Read()
     {
-        if (_sessions is null && _messages is null || DateTimeOffset.UtcNow - _discovered > TimeSpan.FromSeconds(3)) Discover();
-        var previews = new List<WeChatPreview>();
-        var messages = new List<WeChatMessage>();
-        var conversation = Name(_input);
-        if (conversation.Length == 0) conversation = Name(_title);
-        if (conversation.Length == 0 && root.Current.ClassName == "ChatWnd") conversation = root.Current.Name.Trim();
-        var hasSessions = ReadPreviews(previews);
-        var hasMessages = ReadMessages(messages);
-        return new(conversation, previews, messages, hasSessions, hasMessages,
-            previews.FirstOrDefault(preview => preview.Conversation == conversation)?.Muted);
+        _avatars.BeginRead();
+        try
+        {
+            if (_sessions is null && _messages is null || DateTimeOffset.UtcNow - _discovered > TimeSpan.FromSeconds(3)) Discover();
+            var previews = new List<WeChatPreview>();
+            var messages = new List<WeChatMessage>();
+            var conversation = Name(_input);
+            if (conversation.Length == 0) conversation = Name(_title);
+            if (conversation.Length == 0 && root.Current.ClassName == "ChatWnd") conversation = root.Current.Name.Trim();
+            var hasSessions = ReadPreviews(previews);
+            var hasMessages = ReadMessages(messages);
+            return new(conversation, previews, messages, hasSessions, hasMessages,
+                previews.FirstOrDefault(preview => preview.Conversation == conversation)?.Muted);
+        }
+        finally { _avatars.EndRead(); }
     }
 
     private void Discover()
@@ -54,6 +60,7 @@ internal sealed class WeChatReader(AutomationElement root)
         if (_sessions is null) return false;
         try
         {
+            var viewport = _sessions.Current.BoundingRectangle;
             var cache = new CacheRequest();
             cache.Add(AutomationElement.NameProperty); cache.Add(AutomationElement.AutomationIdProperty);
             cache.Add(AutomationElement.ClassNameProperty);
@@ -71,7 +78,7 @@ internal sealed class WeChatReader(AutomationElement root)
                         foreach (AutomationElement label in row.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)))
                             if (labels.Count < 8 && label.Current.Name.Trim() is { Length: > 0 } text) labels.Add(text);
                     var preview = WeChatText.ParsePreview(info.AutomationId, info.Name, labels);
-                    if (preview is not null) result.Add(preview);
+                    if (preview is not null) result.Add(preview with { Avatar = _avatars.ReadConversation(row, preview.Key, viewport) });
                 }
             }
             return true;
@@ -136,4 +143,6 @@ internal sealed class WeChatReader(AutomationElement root)
         if (value.Equals("Outgoing", StringComparison.OrdinalIgnoreCase) || value is "发出" or "发送") return WeChatDirection.Outgoing;
         return WeChatDirection.Unknown;
     }
+
+    public void Dispose() => _avatars.Dispose();
 }

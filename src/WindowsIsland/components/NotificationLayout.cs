@@ -6,7 +6,7 @@ internal static class NotificationLayout
     public const double MinWidth = 240, MinHeight = 96;
     // Native flyout padding plus its one-pixel border.
     public const double HorizontalPadding = 17, VerticalPadding = 17, IconSpacing = 12;
-    public const double HeaderHeight = 20, HeaderSpacing = 8, TitleHeight = 20, BodySpacing = 3, CornerRadius = 8;
+    public const double HeaderHeight = 20, HeaderSpacing = 8, TitleHeight = 20, BodySpacing = 3, CornerRadius = 28;
     public const double TextInset = HorizontalPadding * 2 + AppIcon.IconSize + IconSpacing;
 
     public static double Width(double naturalTextWidth, double availableWidth) =>

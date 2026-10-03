@@ -19,6 +19,7 @@ internal sealed class NotificationPanel : Grid
     public NotificationPanel()
     {
         VerticalAlignment = VerticalAlignment.Top;
+        HorizontalAlignment = HorizontalAlignment.Center;
         UseLayoutRounding = true;
         ColumnSpacing = NotificationLayout.IconSpacing;
         ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(AppIcon.IconSize) });

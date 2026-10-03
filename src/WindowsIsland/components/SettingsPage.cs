@@ -21,7 +21,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly IconActionButton _complete = new(Symbol.Accept, "完成初始化", "CompleteSetup");
     private readonly IconActionButton _installSettings = new(Symbol.Setting, "打开系统设置", "OpenInstallationSettings");
     private readonly SettingsRow _initializationRow, _permissionRow, _systemRow, _weChatRow, _telegramRow, _powerRow;
-    private readonly ToggleSwitch _system, _weChat, _telegram, _power;
+    private readonly ToggleSwitch _system, _weChat, _telegram, _power, _animations;
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _disposed;
 
@@ -59,6 +59,10 @@ internal sealed class SettingsPage : Grid, IDisposable
         content.Children.Add(_initializationRow);
         content.Children.Add(_permissionRow);
         content.Children.Add(previewRow);
+        content.Children.Add(Section("外观"));
+        _animations = Switch("弹窗动画", "AnimationsToggle", settings => settings.Animations,
+            (settings, value) => settings with { Animations = value });
+        content.Children.Add(new SettingsRow(Symbol.Play, "弹窗动画", _animations));
         content.Children.Add(Section("消息来源"));
         _system = Switch("系统通知", "SystemNotificationsToggle", settings => settings.SystemNotifications,
             (settings, value) => settings with { SystemNotifications = value });
@@ -179,6 +183,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             _weChat.IsOn = settings.WeChat;
             _telegram.IsOn = settings.Telegram;
             _power.IsOn = settings.Power;
+            _animations.IsOn = settings.Animations;
         }
         finally { _syncing = false; }
         foreach (var action in _actions) action.IsEnabled = !_busy;

@@ -118,8 +118,9 @@ public sealed class MainWindow : Window
             }
         };
 
-        _motion = new IslandMotion(_surfaceLayer, _notificationPanel, verification);
-        _motion.Settled += () => UpdateInputRegion(_width, _height);
+        _motion = new IslandMotion(_surfaceLayer, _notificationPanel, SurfaceMargin, NotificationLayout.CornerRadius,
+            () => _settings.Current.Animations);
+        _motion.Settled += FinishPresentation;
         _merge = DispatcherQueue.CreateTimer();
         _merge.Interval = TimeSpan.FromMilliseconds(125);
         _merge.Tick += (_, _) =>
@@ -266,8 +267,11 @@ public sealed class MainWindow : Window
         var wasVisible = AppWindow.IsVisible;
         var previous = new Size(_width, _height);
         var target = new Size(_notificationWidth, _notificationHeight);
-        _width = _root.Width = _surfaceLayer.Width = target.Width;
-        _height = _root.Height = _surfaceLayer.Height = target.Height;
+        _width = target.Width;
+        _height = target.Height;
+        _notificationPanel.Width = Math.Max(1, target.Width - NotificationLayout.HorizontalPadding * 2);
+        _root.Width = _surfaceLayer.Width = Math.Max(_surfaceLayer.Width, target.Width);
+        _root.Height = _surfaceLayer.Height = Math.Max(_surfaceLayer.Height, target.Height);
         _isExpanded = true;
         _notificationPanel.Visibility = Visibility.Visible;
         ApplyBounds();
@@ -279,6 +283,15 @@ public sealed class MainWindow : Window
         NativeWindow.ConfigureOverlay(_hwnd);
         _host.UpdateLayout();
         _motion.Show(previous, target, wasVisible, newMessage);
+    }
+
+    private void FinishPresentation()
+    {
+        if (_closed || !_isExpanded) return;
+        _root.Width = _surfaceLayer.Width = _width;
+        _root.Height = _surfaceLayer.Height = _height;
+        _host.UpdateLayout();
+        UpdateInputRegion(_width, _height);
     }
 
     private void UpdateInputRegion(double width, double height)
@@ -316,7 +329,6 @@ public sealed class MainWindow : Window
         NativeWindow.SetContentBounds(_hwnd, (int)((width - _width * _scale) / 2), (int)(SurfaceMargin * _scale),
             (int)Math.Ceiling(_width * _scale), (int)Math.Ceiling(_height * _scale), (int)(NotificationLayout.CornerRadius * _scale));
         if (AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
-        if (_isExpanded && !_motion.IsRunning) UpdateInputRegion(_width, _height);
     }
 
     private void RefreshDisplayMetrics()
@@ -344,6 +356,7 @@ public sealed class MainWindow : Window
             {
                 RefreshDisplayMetrics();
                 ApplyBounds();
+                UpdateInputRegion(_width, _height);
             }
         }
         finally { _polling = false; }

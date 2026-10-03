@@ -15,10 +15,10 @@ internal sealed class WeChatService : IDisposable
         public bool TriedAccessibility;
         public readonly Dictionary<nint, Watch> Windows = [];
     }
-    private sealed class Watch(AutomationElement root, StructureChangedEventHandler callback, AutomationPropertyChangedEventHandler propertyCallback)
+    private sealed class Watch(AutomationElement root, nint window, StructureChangedEventHandler callback, AutomationPropertyChangedEventHandler propertyCallback)
     {
         public readonly AutomationElement Root = root;
-        public readonly WeChatReader Reader = new(root);
+        public readonly WeChatReader Reader = new(root, window);
         public readonly WeChatTracker Tracker = new();
         public readonly StructureChangedEventHandler Callback = callback;
         public readonly AutomationPropertyChangedEventHandler PropertyCallback = propertyCallback;
@@ -110,7 +110,7 @@ internal sealed class WeChatService : IDisposable
                                 {
                                     var root = AutomationElement.FromHandle(window);
                                     if (root is null) continue;
-                                    watch = new(root, (_, _) => Signal(), (_, _) => Signal());
+                                    watch = new(root, window, (_, _) => Signal(), (_, _) => Signal());
                                     client.Windows[window] = watch;
                                     try { Automation.AddStructureChangedEventHandler(root, TreeScope.Subtree, watch.Callback); }
                                     catch (Exception error) { Trace.WriteLine(error.GetType().Name); }
@@ -142,7 +142,7 @@ internal sealed class WeChatService : IDisposable
                                 {
                                     var notification = new IslandNotification(++sequence, DateTimeOffset.Now, "微信", arrival.Conversation,
                                         arrival.Body, icons.ReadIcon(client.Executable), NotificationSource.ClientAutomation, "wechat",
-                                        $"uia/{client.Id}/{window}/{sequence}", OriginProcessId: client.Id);
+                                        $"uia/{client.Id}/{window}/{sequence}", SenderAvatar: arrival.Avatar, OriginProcessId: client.Id);
                                     _dispatch(() => { if (!_disposed && _enabled()) Received?.Invoke(notification); });
                                 }
                             }
@@ -237,6 +237,7 @@ internal sealed class WeChatService : IDisposable
 
     private static void RemoveWatch(Watch watch)
     {
+        watch.Reader.Dispose();
         try { Automation.RemoveStructureChangedEventHandler(watch.Root, watch.Callback); }
         catch (Exception error) { Trace.WriteLine(error.GetType().Name); }
         try { Automation.RemoveAutomationPropertyChangedEventHandler(watch.Root, watch.PropertyCallback); }
