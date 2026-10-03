@@ -9,6 +9,9 @@ internal sealed class IslandSurface : FlyoutPresenter
     {
         Content = content;
         IsTabStop = false;
+        AllowFocusOnInteraction = false;
+        UseLayoutRounding = true;
+        CornerRadius = new CornerRadius(NotificationLayout.CornerRadius);
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;
         ScrollViewer.SetHorizontalScrollMode(this, ScrollMode.Disabled);

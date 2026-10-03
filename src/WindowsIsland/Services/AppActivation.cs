@@ -8,11 +8,13 @@ internal static class AppActivation
 
     public static void ShowSettings() => PostMessage((nint)0xFFFF, SettingsMessage, 0, 0);
 
-    public static void LaunchRegistered(string appId, bool showSettings = true)
+    public static void LaunchRegistered(string appId, bool showSettings = true) => Launch(appId, showSettings ? "--settings" : "");
+
+    public static void Launch(string appId, string arguments)
     {
         var manager = (IApplicationActivationManager)Activator.CreateInstance(
             Type.GetTypeFromCLSID(new Guid("45BA127D-10A8-46EA-8AB7-56EA9078943C"))!)!;
-        try { Marshal.ThrowExceptionForHR(manager.ActivateApplication(appId, showSettings ? "--settings" : "", 2, out _)); }
+        try { Marshal.ThrowExceptionForHR(manager.ActivateApplication(appId, arguments, 2, out _)); }
         finally { Marshal.FinalReleaseComObject(manager); }
     }
 

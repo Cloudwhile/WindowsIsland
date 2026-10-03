@@ -1,11 +1,11 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
+using Windows.Foundation;
 using Windows.Graphics;
 using WindowsIsland.Components;
 using WindowsIsland.Services;
@@ -14,13 +14,16 @@ namespace WindowsIsland;
 
 public sealed class MainWindow : Window
 {
-    private const double CompactWidth = 120, CompactHeight = 32;
+    private const double CompactWidth = 120, CompactHeight = 32, SurfaceMargin = 12;
     private readonly IslandSurface _root;
+    private readonly Grid _host = new();
+    private readonly Grid _surfaceLayer;
     private readonly NotificationService _notifications;
     private readonly SettingsStore _settings;
     private SettingsWindow? _settingsWindow;
     private readonly MessengerHookService _messengers;
     private readonly TelegramNativeService _telegram;
+    private readonly WeChatService _weChat;
     private readonly PowerService _power;
     private readonly MessageRouter _router = new();
     private readonly TrayIcon _tray;
@@ -31,15 +34,15 @@ public sealed class MainWindow : Window
     };
     private readonly DispatcherQueueTimer _pulse, _expiry, _merge;
     private readonly IslandMotion _motion;
+    private readonly NotificationInput _input;
     private readonly nint _hwnd;
-    private bool _isExpanded, _closed, _polling, _started, _exiting;
+    private bool _isExpanded, _closed, _polling, _started, _exiting, _openingSource;
     private double _width = CompactWidth, _height = CompactHeight;
     private double _notificationWidth = NotificationLayout.MinWidth, _notificationHeight = NotificationLayout.MinHeight;
-    private double _fromWidth, _fromHeight, _toWidth, _toHeight;
     private double _scale = 1;
     private RectInt32 _workArea;
     private RectInt32? _lastBounds;
-    private int _lastRadius = -1, _ticks;
+    private int _ticks;
     private IslandNotification? _current;
     private readonly bool _verification;
 
@@ -48,9 +51,19 @@ public sealed class MainWindow : Window
         _settings = settings;
         _verification = verification;
         Title = "Windows Island";
-        _root = new IslandSurface(_notificationPanel);
-        Content = _root;
-        SystemBackdrop = new DesktopAcrylicBackdrop();
+        _root = new IslandSurface(_notificationPanel)
+        {
+            Width = _width, Height = _height
+        };
+        _surfaceLayer = new Grid
+        {
+            Width = _width, Height = _height, Margin = new Thickness(SurfaceMargin),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top
+        };
+        _surfaceLayer.Children.Add(_root);
+        _host.Children.Add(_surfaceLayer);
+        Content = _host;
+        SystemBackdrop = new OverlayBackdrop();
         AutomationProperties.SetName(_root, "灵动岛");
         AutomationProperties.SetAutomationId(_root, "IslandSurface");
         AutomationProperties.SetAutomationId(_notificationPanel, "NotificationContent");
@@ -59,6 +72,12 @@ public sealed class MainWindow : Window
         _notifications.Received += ReceiveNotification;
 
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        _input = new NotificationInput(_hwnd, right => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_closed || !_notification.Active) return;
+            if (right) DismissNotification();
+            else _ = OpenNotificationSourceAsync();
+        }));
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(false, false);
         presenter.IsResizable = false;
@@ -77,6 +96,10 @@ public sealed class MainWindow : Window
         _telegram = new TelegramNativeService(DispatcherQueue, verification);
         _messengers.NativeTelegramConnected = _telegram.IsConnected;
         _telegram.Received += ReceiveNotification;
+        _weChat = new WeChatService(() => _settings.Current.WeChat,
+            action => DispatcherQueue.TryEnqueue(() => { if (!_closed) action(); }), verification
+                ? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "bin", "WindowsIsland.WeChatTests")) : null);
+        _weChat.Received += ReceiveNotification;
         _power = new PowerService(_hwnd, DispatcherQueue);
         _power.Received += ReceiveNotification;
         _tray = new TrayIcon(_hwnd,
@@ -95,7 +118,8 @@ public sealed class MainWindow : Window
             }
         };
 
-        _motion = new IslandMotion(Animate);
+        _motion = new IslandMotion(_surfaceLayer, _notificationPanel, verification);
+        _motion.Settled += () => UpdateInputRegion(_width, _height);
         _merge = DispatcherQueue.CreateTimer();
         _merge.Interval = TimeSpan.FromMilliseconds(125);
         _merge.Tick += (_, _) =>
@@ -125,12 +149,14 @@ public sealed class MainWindow : Window
             _settingsWindow?.Close();
             _settings.Changed -= OnSettingsChanged;
             _pulse.Stop();
-            _motion.Stop();
+            _motion.Dispose();
+            _input.Dispose();
             _expiry.Stop();
             _merge.Stop();
             _router.Clear();
             _messengers.Dispose();
             _telegram.Dispose();
+            _weChat.Dispose();
             _power.Dispose();
             _notifications.Dispose();
             _tray.Dispose();
@@ -144,6 +170,7 @@ public sealed class MainWindow : Window
         if (_started || _closed) return;
         _started = true;
         _messengers.Start();
+        _weChat.Start();
         _telegram.RefreshClients(TelegramClients());
         _pulse.Start();
         await _notifications.InitializeAsync(requestAccess: _verification);
@@ -155,7 +182,7 @@ public sealed class MainWindow : Window
         if (_settingsWindow is null)
         {
             _settingsWindow = new SettingsWindow(_settings,
-                () => new SettingsSnapshot(_notifications.Access, AppInitialization.HasIdentity, _messengers.ConnectedApps),
+                () => new SettingsSnapshot(_notifications.Access, AppInitialization.HasIdentity, _messengers.ConnectedApps, _weChat.Status),
                 InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification);
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
@@ -187,6 +214,7 @@ public sealed class MainWindow : Window
         _tray.UpdateAccess(_notifications.Access, settings.SystemNotifications);
         if (!_started) return;
         _messengers.RefreshClients();
+        _weChat.Refresh();
         _telegram.RefreshClients(TelegramClients());
         if (settings.SystemNotifications) _ = _notifications.InitializeAsync(requestAccess: false);
     }
@@ -232,54 +260,63 @@ public sealed class MainWindow : Window
         catch (Exception) { _tray.UpdateAccess(NotificationAccess.Unavailable); }
     }
 
-    private void SetExpanded(bool expanded)
+    private void UpdatePresentation(bool newMessage)
     {
-        if (_closed) return;
-        var width = expanded ? _notificationWidth : CompactWidth;
-        var height = expanded ? _notificationHeight : CompactHeight;
-        if (_isExpanded == expanded && Math.Abs(_toWidth - width) < 0.5 && Math.Abs(_toHeight - height) < 0.5) return;
-        _isExpanded = expanded;
-        _notificationPanel.Visibility = Visibility.Collapsed;
-        _fromWidth = _width; _fromHeight = _height;
-        _toWidth = width;
-        _toHeight = height;
-        _motion.Start();
+        _input.Hide();
+        var wasVisible = AppWindow.IsVisible;
+        var previous = new Size(_width, _height);
+        var target = new Size(_notificationWidth, _notificationHeight);
+        _width = _root.Width = _surfaceLayer.Width = target.Width;
+        _height = _root.Height = _surfaceLayer.Height = target.Height;
+        _isExpanded = true;
+        _notificationPanel.Visibility = Visibility.Visible;
+        ApplyBounds();
+        if (!wasVisible)
+        {
+            AppWindow.Show(false);
+            NativeWindow.RemoveSystemBorder(_hwnd);
+        }
+        NativeWindow.ConfigureOverlay(_hwnd);
+        _host.UpdateLayout();
+        _motion.Show(previous, target, wasVisible, newMessage);
     }
 
-    private void Animate(double t)
+    private void UpdateInputRegion(double width, double height)
     {
-        var ease = 1 - Math.Pow(1 - t, 4);
-        _width = _fromWidth + (_toWidth - _fromWidth) * ease;
-        _height = _fromHeight + (_toHeight - _fromHeight) * ease;
-        ApplyBounds();
-        if (t < 1) return;
-        _motion.Stop();
-        if (!_isExpanded) { HideIsland(); return; }
-        _notificationPanel.Visibility = Visibility.Visible;
-        var fade = new DoubleAnimation { From = 0, To = 1, Duration = new Duration(TimeSpan.FromMilliseconds(140)) };
-        Storyboard.SetTarget(fade, _notificationPanel);
-        Storyboard.SetTargetProperty(fade, "Opacity");
-        var storyboard = new Storyboard();
-        storyboard.Children.Add(fade);
-        storyboard.Begin();
+        if (_closed || !AppWindow.IsVisible || _lastBounds is not { } bounds) return;
+        var contentWidth = (int)Math.Ceiling(width * _scale);
+        _input.Show(new RectInt32(bounds.X + (bounds.Width - contentWidth) / 2,
+            bounds.Y + (int)Math.Round(SurfaceMargin * _scale), contentWidth, (int)Math.Ceiling(height * _scale)),
+            (int)Math.Ceiling(NotificationLayout.CornerRadius * _scale));
+    }
+
+    private async Task OpenNotificationSourceAsync()
+    {
+        if (_closed || _openingSource || _current is not { } notification) return;
+        _openingSource = true;
+        try
+        {
+            if (await NotificationActivation.OpenAsync(notification) && ReferenceEquals(_current, notification)) DismissNotification();
+        }
+        finally { _openingSource = false; }
     }
 
     private void ApplyBounds()
     {
-        var scale = _scale;
-        var area = _workArea;
-        var width = Math.Max(1, (int)Math.Round(_width * scale));
-        var height = Math.Max(1, (int)Math.Round(_height * scale));
-        var x = area.X + (area.Width - width) / 2;
-        var y = area.Y + (int)(12 * scale);
-        var radius = (int)(Math.Min(NotificationLayout.CornerRadius, _height / 2) * scale);
-        var sameSize = _lastBounds is { } oldSize && oldSize.Width == width && oldSize.Height == height;
-        if (_lastBounds is { } old && old.X == x && old.Y == y && sameSize && _lastRadius == radius) return;
-        AppWindow.MoveAndResize(new RectInt32(x, y, width, height));
-        if (!sameSize || _lastRadius != radius) NativeWindow.Round(_hwnd, width, height, radius);
+        var width = Math.Max(1, (int)Math.Round(Math.Min(NotificationLayout.MaxWidth + SurfaceMargin * 2, _workArea.Width / _scale) * _scale));
+        var height = Math.Max(1, (int)Math.Round(Math.Min(NotificationLayout.MaxHeight + SurfaceMargin * 2, _workArea.Height / _scale) * _scale));
+        var x = _workArea.X + (_workArea.Width - width) / 2;
+        var y = _workArea.Y;
+        var bounds = new RectInt32(x, y, width, height);
+        if (_lastBounds != bounds)
+        {
+            AppWindow.MoveAndResize(bounds);
+            _lastBounds = bounds;
+        }
+        NativeWindow.SetContentBounds(_hwnd, (int)((width - _width * _scale) / 2), (int)(SurfaceMargin * _scale),
+            (int)Math.Ceiling(_width * _scale), (int)Math.Ceiling(_height * _scale), (int)(NotificationLayout.CornerRadius * _scale));
         if (AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
-        _lastBounds = new RectInt32(x, y, width, height);
-        _lastRadius = radius;
+        if (_isExpanded && !_motion.IsRunning) UpdateInputRegion(_width, _height);
     }
 
     private void RefreshDisplayMetrics()
@@ -312,11 +349,19 @@ public sealed class MainWindow : Window
         finally { _polling = false; }
     }
 
+    private bool AllowsNotification(IslandNotification notification)
+    {
+        if (_closed || !_settings.Current.Allows(notification)) return false;
+        if (MessengerIdentity.FromNotification(notification) == "wechat"
+            && !_weChat.AllowsConversation(notification.Title, notification.OriginProcessId)) return false;
+        if (_verification && notification.Source == NotificationSource.SystemNotification
+            && notification.AppId != Windows.ApplicationModel.Package.Current.Id.FamilyName + "!App") return false;
+        return true;
+    }
+
     private void ReceiveNotification(IslandNotification notification)
     {
-        if (_closed || !_settings.Current.Allows(notification)) return;
-        if (_verification && notification.Source == NotificationSource.SystemNotification
-            && notification.AppId != Windows.ApplicationModel.Package.Current.Id.FamilyName + "!App") return;
+        if (!AllowsNotification(notification)) return;
         var dispatch = _router.Receive(notification);
         if (dispatch is not null) DispatchMessage(dispatch);
         if (_router.HasPending) _merge.Start();
@@ -325,7 +370,7 @@ public sealed class MainWindow : Window
 
     private void DispatchMessage(MessageDispatch dispatch)
     {
-        if (_closed) return;
+        if (!AllowsNotification(dispatch.Notification)) return;
         if (dispatch.ReplaceCurrent)
         {
             if (!_notification.Active || _current is null
@@ -333,7 +378,7 @@ public sealed class MainWindow : Window
             _current = dispatch.Notification;
             _notificationPanel.Show(dispatch.Notification);
             MeasureNotification();
-            SetExpanded(true);
+            UpdatePresentation(newMessage: false);
             if (AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
             return;
         }
@@ -348,14 +393,7 @@ public sealed class MainWindow : Window
         _expiry.Start();
         _notificationPanel.Show(notification);
         MeasureNotification();
-        SetExpanded(true);
-        if (!AppWindow.IsVisible)
-        {
-            ApplyBounds();
-            AppWindow.Show(false);
-            NativeWindow.RemoveSystemBorder(_hwnd);
-        }
-        NativeWindow.ConfigureOverlay(_hwnd);
+        UpdatePresentation(newMessage: true);
     }
 
     private void MeasureNotification()
@@ -371,21 +409,22 @@ public sealed class MainWindow : Window
         if (_closed) return;
         _expiry.Stop();
         _current = null;
+        _input.Hide();
         _notification.Clear();
-        _notificationPanel.Clear();
-        _notificationPanel.Visibility = Visibility.Collapsed;
-        if (animate && _isExpanded) SetExpanded(false);
+        _isExpanded = false;
+        if (animate && AppWindow.IsVisible) _motion.Hide(HideIsland);
         else HideIsland();
     }
 
     private void HideIsland()
     {
-        _motion.Stop();
+        _motion.Reset();
         _isExpanded = false;
         _width = CompactWidth;
         _height = CompactHeight;
+        _notificationPanel.Clear();
         _notificationPanel.Visibility = Visibility.Collapsed;
+        _input.Hide();
         AppWindow.Hide();
-        ApplyBounds();
     }
 }

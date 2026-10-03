@@ -140,7 +140,7 @@ internal sealed class MessengerHookService : IDisposable
                     var notification = new IslandNotification(++sequence, request.CreatedAt,
                         MessengerIdentity.DisplayName(request.Client.Identity), content.Value.Title, content.Value.Body,
                         reader.ReadIcon(request.Client.Executable), NotificationSource.ClientHook, request.Client.Identity,
-                        $"{request.Client.ProcessId}/{request.Window}/{sequence}");
+                        $"{request.Client.ProcessId}/{request.Window}/{sequence}", OriginProcessId: request.Client.ProcessId);
                     _dispatcher.TryEnqueue(() => { if (!_disposed) Received?.Invoke(notification); });
                 }
                 catch (Exception) { }

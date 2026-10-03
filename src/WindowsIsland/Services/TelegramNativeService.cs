@@ -26,7 +26,7 @@ internal sealed class TelegramNativeService(DispatcherQueue dispatcher, bool fix
             _starting.Add(id);
             var session = new TelegramHookSession(id, notification => dispatcher.TryEnqueue(() =>
             {
-                if (!_disposed) Received?.Invoke(notification);
+                if (!_disposed) Received?.Invoke(notification with { OriginProcessId = id });
             }));
             _sessions[id] = session;
             _ = AttachAsync(id, session);

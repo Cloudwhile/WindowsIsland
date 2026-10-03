@@ -7,7 +7,7 @@ using WindowsIsland.Services;
 
 namespace WindowsIsland.Components;
 
-internal sealed record SettingsSnapshot(NotificationAccess Access, bool Initialized, IReadOnlyCollection<string> ConnectedApps);
+internal sealed record SettingsSnapshot(NotificationAccess Access, bool Initialized, IReadOnlyCollection<string> ConnectedApps, string WeChatStatus);
 
 internal sealed class SettingsPage : Grid, IDisposable
 {
@@ -199,7 +199,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _complete.IsEnabled = !_busy && ready;
         _complete.SetAction(Symbol.Accept, settings.SetupCompleted ? "关闭设置" : "完成初始化");
         _systemRow.Status = !settings.SystemNotifications ? "已关闭" : state.Access == NotificationAccess.Allowed ? "已开启" : "等待授权";
-        _weChatRow.Status = ClientStatus(settings.WeChat, state.ConnectedApps.Contains("wechat"));
+        _weChatRow.Status = settings.WeChat ? state.WeChatStatus : "已关闭";
         _telegramRow.Status = ClientStatus(settings.Telegram, state.ConnectedApps.Contains("telegram"));
         _powerRow.Status = settings.Power ? "已开启" : "已关闭";
         if (_busy || _failed) return;

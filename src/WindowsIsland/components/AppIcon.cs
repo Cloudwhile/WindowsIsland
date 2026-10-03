@@ -11,12 +11,13 @@ namespace WindowsIsland.Components;
 
 internal sealed class AppIcon : Grid
 {
-    public const double IconSize = 36;
+    public const double IconSize = 40;
     private readonly Border _image = new() { Visibility = Visibility.Collapsed };
     private readonly TextBlock _fallback = IslandTheme.Text("", 24);
     private readonly Border _placeholder = (Border)XamlReader.Load("<Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Background='{ThemeResource ControlFillColorSecondaryBrush}' />");
     private bool _circular;
     private int _version;
+    private byte[]? _bytes;
 
     public AppIcon(double size = IconSize, string automationId = "NotificationAppIcon")
     {
@@ -40,19 +41,22 @@ internal sealed class AppIcon : Grid
         _circular = circular;
         CornerRadius = _image.CornerRadius = new CornerRadius(circular ? Width / 2 : 0);
         _placeholder.CornerRadius = new CornerRadius(circular ? Width / 2 : 4);
+        if (_image.Background is ImageBrush brush) brush.Stretch = circular ? Stretch.UniformToFill : Stretch.Uniform;
     }
 
     protected override AutomationPeer OnCreateAutomationPeer() => new IconAutomationPeer(this);
 
     public async Task ShowAsync(string appName, byte[]? bytes, string? symbol = null)
     {
+        AutomationProperties.SetName(this, appName);
+        if (bytes is { Length: > 0 } && ReferenceEquals(bytes, _bytes) && _image.Visibility == Visibility.Visible) return;
+        _bytes = bytes;
         var version = ++_version;
         _image.Background = null;
         _image.Visibility = Visibility.Collapsed;
         _placeholder.Visibility = Visibility.Visible;
         _fallback.Visibility = Visibility.Visible;
         _fallback.Text = symbol ?? (string.IsNullOrWhiteSpace(appName) ? "?" : appName.Trim().EnumerateRunes().First().ToString().ToUpperInvariant());
-        AutomationProperties.SetName(this, appName);
         if (bytes is null || bytes.Length == 0) return;
         try
         {
@@ -63,7 +67,7 @@ internal sealed class AppIcon : Grid
                 await writer.StoreAsync();
             }
             stream.Seek(0);
-            var bitmap = new BitmapImage();
+            var bitmap = new BitmapImage { DecodePixelType = DecodePixelType.Logical, DecodePixelWidth = (int)Math.Ceiling(Width) };
             await bitmap.SetSourceAsync(stream);
             if (version != _version) return;
             _image.Background = new ImageBrush
@@ -84,6 +88,7 @@ internal sealed class AppIcon : Grid
     public void Clear()
     {
         _version++;
+        _bytes = null;
         _image.Background = null;
         _image.Visibility = Visibility.Collapsed;
         _fallback.Text = "";
