@@ -2,7 +2,7 @@
 
 <h1>Windows Island</h1>
 
-<p>Windows 通知灵动岛，让消息在屏幕顶部轻巧呈现。</p>
+<p>Windows 消息岛，让通知在你喜欢的位置轻巧呈现。</p>
 
 <p>
   <a href="https://github.com/Cloudwhile/WindowsIsland/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Cloudwhile/WindowsIsland/ci.yml?branch=master&amp;style=for-the-badge&amp;label=Build&amp;labelColor=1F2937" alt="Windows 构建状态"></a>
@@ -20,12 +20,14 @@
 
 </div>
 
-新通知在屏幕顶部居中出现，显示应用图标、会话头像和消息内容，随后自动收起。待机时隐藏窗口，保留系统托盘入口。
+新通知默认在屏幕顶部居中出现，也可选择屏幕四角或四边中部，显示应用图标、会话头像和消息内容，随后自动收起。待机时隐藏窗口，保留系统托盘入口。
 
 > [!NOTE]
 > **微信接入仍为实验性功能。** 已加入已登录客户端的会话监听，当前可读取会话列表；真实新消息接管和更多客户端版本仍待验证。
 
 ## 开始使用
+
+在 [Releases](https://github.com/Cloudwhile/WindowsIsland/releases) 下载 MSI 安装包，安装后从开始菜单打开 Windows Island；也可下载 ZIP 压缩包，完整解压后运行。
 
 1. 打开应用目录中的 `WindowsIsland.exe`，首次启动进入设置页。
 2. 点击 **应用初始化** 右侧图标，完成应用初始化。
@@ -36,6 +38,8 @@
 
 通知访问未获允许时，可在设置页打开系统设置后重新授权，也可通过刷新状态和重试入口继续初始化。
 
+希望仅显示消息岛时，展开设置页的 **仅使用消息岛通知**，按引导关闭对应应用的 Windows 通知横幅，保留通知中心和消息岛的系统通知来源。
+
 ## 通知体验
 
 | 体验 | 表现 |
@@ -44,7 +48,8 @@
 | 原生外观 | WinUI 3 弹窗跟随系统浅色、深色主题，应用名、发送者、正文和时间分别排列 |
 | 置顶显示 | 通知显示期间保持置顶，出现、更新和调整大小时保持当前应用的输入焦点 |
 | 点击操作 | 左键打开对应程序，右键关闭弹窗；没有可打开的程序时继续显示到自动收起 |
-| 平滑动画 | 顶部细线展开为信息药丸，退出时收回细线；可在设置中关闭 |
+| 弹窗位置 | 左上、左中、左下、中下、右下、右中、右上、中上八个位置，选择后自动保存 |
+| 平滑动画 | 从所选位置的边缘细线展开为信息药丸，退出时沿原方向收起；左右中部使用竖线，可在设置中关闭动画 |
 | 内容适配 | 窗口随消息内容调整大小，长消息自动换行并省略超出部分 |
 | 自动收起 | 每条通知显示约 5 秒，连续收到消息时显示最新一条并重新计时 |
 | 消息合并 | 同一消息来自多个来源时合并展示，并保留可用的应用图标与会话头像 |
@@ -82,7 +87,7 @@ dotnet publish src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64
 
 发布文件生成在 `artifacts/publish/`。复制整个发布目录后，打开其中的 `WindowsIsland.exe`，按设置页引导完成初始化。
 
-分支推送和 PR 会自动构建、运行测试，并在 [GitHub Actions](https://github.com/Cloudwhile/WindowsIsland/actions/workflows/ci.yml) 中提供 Windows x64 压缩包。推送 `v1.2.3` 形式的版本标签后，同一流程通过才会上传到 [Releases](https://github.com/Cloudwhile/WindowsIsland/releases)，同时提供 SHA-256 校验文件；`v1.2.3-rc.1` 等标签会标记为预发布版本。
+分支推送和 PR 会自动构建、运行测试，并在 [GitHub Actions](https://github.com/Cloudwhile/WindowsIsland/actions/workflows/ci.yml) 中提供 Windows x64 的 ZIP 压缩包和 MSI 安装包。推送 `v1.2.3` 形式的版本标签后，同一流程通过才会上传到 [Releases](https://github.com/Cloudwhile/WindowsIsland/releases)，同时提供各自的 SHA-256 校验文件；`v1.2.3-rc.1` 等标签会标记为预发布版本。
 
 <details>
 <summary>验证与桌面检查</summary>

@@ -2,6 +2,7 @@
 /artifacts/
 /scripts/
 /scripts/
+*.template.md
 
 # .NET / WinUI generated output (including local IDE builds)
 [Bb]in/

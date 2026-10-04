@@ -24,6 +24,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout release notes
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check release notes
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -s release.md
+          grep -Fxq "# Windows Island $RELEASE_TAG" release.md
+
       - name: Download Windows package
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -36,9 +49,11 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          name="WindowsIsland-${RELEASE_TAG#v}-win-x64.zip"
-          test -s "$name"
-          sha256sum --check "$name.sha256"
+          for extension in zip msi; do
+            name="WindowsIsland-${RELEASE_TAG#v}-win-x64.$extension"
+            test -s "$name"
+            sha256sum --check "$name.sha256"
+          done
 
       - name: Publish GitHub release
         env:
@@ -47,13 +62,14 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          name="WindowsIsland-${RELEASE_TAG#v}-win-x64.zip"
+          name="WindowsIsland-${RELEASE_TAG#v}-win-x64"
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            options=(--verify-tag --generate-notes --draft --title "Windows Island $RELEASE_TAG")
+            options=(--verify-tag --notes-file release.md --draft --title "Windows Island $RELEASE_TAG")
             if [[ "$RELEASE_TAG" == *-* ]]; then
               options+=(--prerelease)
             fi
             gh release create "$RELEASE_TAG" "${options[@]}"
           fi
-          gh release upload "$RELEASE_TAG" "distribution/$name" "distribution/$name.sha256" --clobber
-          gh release edit "$RELEASE_TAG" --draft=false
+          gh release upload "$RELEASE_TAG" "distribution/$name.zip" "distribution/$name.zip.sha256" \
+            "distribution/$name.msi" "distribution/$name.msi.sha256" --clobber
+          gh release edit "$RELEASE_TAG" --notes-file release.md --draft=false
