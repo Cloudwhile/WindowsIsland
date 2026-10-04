@@ -98,7 +98,7 @@ jobs:
           $archive = Join-Path $distribution $name
           [IO.Compression.ZipFile]::CreateFromDirectory($publish, $archive)
           $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$digest  $name" | Set-Content -LiteralPath "$archive.sha256" -Encoding utf8NoBOM
+          [IO.File]::WriteAllText("$archive.sha256", "$digest  $name`n", [Text.UTF8Encoding]::new($false))
 
       - name: Upload Windows package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
