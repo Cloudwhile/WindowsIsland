@@ -1,0 +1,53 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Windows Island $(ReleaseVersion)" Manufacturer="Cloudwhile"
+           Version="$(MsiVersion)" UpgradeCode="8B397E71-1AA3-4F3B-911B-C08E0FAB484E"
+           Language="1033" Scope="perUser" InstallerVersion="500">
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of Windows Island is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Icon Id="AppIcon" SourceFile="$(PublishDirectory)\Assets\Island.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/Cloudwhile/WindowsIsland" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="INSTALLFOLDER" Secure="yes">
+      <RegistrySearch Id="ExistingInstallDirectory" Root="HKCU"
+                      Key="Software\Cloudwhile\WindowsIsland\Installer" Name="InstallDirectory" Type="raw" />
+    </Property>
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="UserProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="Windows Island">
+          <Component Id="ApplicationRegistration" Guid="C7CB66D6-D2C1-426E-BED2-3FAF199B6C95">
+            <RegistryValue Root="HKCU" Key="Software\Cloudwhile\WindowsIsland\Installer"
+                           Name="InstallDirectory" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
+            <File Id="UninstallScript" Source="$(PackagingDirectory)\Uninstall.ps1" />
+            <RemoveFile Id="GeneratedManifest" Name="AppxManifest.xml" On="uninstall" />
+            <RemoveFile Id="GeneratedResources" Name="resources.pri" On="uninstall" />
+            <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+            <RemoveFolder Id="RemoveUserProgramsFolder" Directory="UserProgramsFolder" On="uninstall" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationMenuFolder" Name="Windows Island">
+        <Component Id="StartMenuShortcut" Guid="*">
+          <Shortcut Id="ApplicationShortcut" Name="Windows Island" Target="[INSTALLFOLDER]WindowsIsland.exe"
+                    WorkingDirectory="INSTALLFOLDER" Icon="AppIcon" />
+          <RegistryValue Root="HKCU" Key="Software\Cloudwhile\WindowsIsland\Installer"
+                         Name="Shortcut" Value="1" Type="integer" KeyPath="yes" />
+          <RemoveFolder Id="RemoveMenuFolder" On="uninstall" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+    <CustomAction Id="UnregisterApplication" Directory="System64Folder"
+                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Uninstall.ps1&quot; -InstallDirectory &quot;[INSTALLFOLDER].&quot;"
+                  Execute="deferred" Impersonate="yes" Return="check" />
+    <InstallExecuteSequence>
+      <Custom Action="UnregisterApplication" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+    <Feature Id="Application" Title="Windows Island">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="ApplicationRegistration" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>
