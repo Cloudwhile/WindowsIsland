@@ -11,6 +11,8 @@ internal sealed class IslandSurface : FlyoutPresenter
         IsTabStop = false;
         AllowFocusOnInteraction = false;
         UseLayoutRounding = true;
+        MaxWidth = NotificationLayout.MaxWidth;
+        MaxHeight = NotificationLayout.MaxHeight;
         CornerRadius = new CornerRadius(NotificationLayout.CornerRadius);
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;
