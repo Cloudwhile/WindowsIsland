@@ -1,0 +1,119 @@
+name: Windows CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  build:
+    name: Build, test and package x64
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Set package version
+        id: version
+        run: |
+          $version = "0.0.0-ci.$env:GITHUB_RUN_NUMBER"
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            if ($env:GITHUB_REF_NAME -notmatch '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+(?:[.-][0-9A-Za-z]+)*)?$') {
+              throw 'Release tags must use vMAJOR.MINOR.PATCH with an optional prerelease suffix.'
+            }
+            $version = $env:GITHUB_REF_NAME.Substring(1)
+          }
+          "value=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Restore application
+        run: dotnet restore src/WindowsIsland/WindowsIsland.csproj -p:Platform=x64
+
+      - name: Build application and native modules
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: dotnet build src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64 "-p:Version=$env:APP_VERSION" --no-restore
+
+      - name: Run notification logic checks
+        run: dotnet run --project tests/WindowsIsland.LogicTests/WindowsIsland.LogicTests.csproj -c Release
+
+      - name: Run Telegram bridge checks
+        run: dotnet run --project tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj -c Release
+
+      - name: Run WeChat UIAutomation checks
+        timeout-minutes: 5
+        run: dotnet run --project tests/WindowsIsland.WeChatTests/WindowsIsland.WeChatTests.csproj -c Release
+
+      - name: Publish application
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: dotnet publish src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64 "-p:Version=$env:APP_VERSION" --no-build --no-restore
+
+      - name: Package Windows application
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $publish = Join-Path $env:GITHUB_WORKSPACE 'artifacts/publish'
+          $required = @(
+            'WindowsIsland.exe', 'WindowsIsland.dll', 'WindowsIsland.deps.json',
+            'WindowsIsland.runtimeconfig.json', 'WindowsIsland.TelegramHook.dll',
+            'WindowsIsland.pri', 'App.xbf', 'Microsoft.UI.Xaml.dll', 'coreclr.dll',
+            'hostfxr.dll', 'Assets/Island.ico', 'Initialization/AppxManifest.xml',
+            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt'
+          )
+          foreach ($file in $required) {
+            if (!(Test-Path -LiteralPath (Join-Path $publish $file) -PathType Leaf)) {
+              throw "Publish output is incomplete: $file"
+            }
+          }
+          Copy-Item -LiteralPath LICENSE -Destination (Join-Path $publish 'LICENSE')
+          Copy-Item -LiteralPath README.md -Destination (Join-Path $publish 'README.md')
+          $distribution = Join-Path $env:GITHUB_WORKSPACE 'artifacts/distribution'
+          New-Item -ItemType Directory -Path $distribution -Force | Out-Null
+          $name = "WindowsIsland-$env:APP_VERSION-win-x64.zip"
+          $archive = Join-Path $distribution $name
+          [IO.Compression.ZipFile]::CreateFromDirectory($publish, $archive)
+          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $name" | Set-Content -LiteralPath "$archive.sha256" -Encoding utf8NoBOM
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: WindowsIsland-win-x64
+          path: artifacts/distribution/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: WindowsIsland-diagnostics
+          path: artifacts/verification/
+          if-no-files-found: ignore
+          retention-days: 7

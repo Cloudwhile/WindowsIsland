@@ -5,6 +5,7 @@
 <p>Windows 通知灵动岛，让消息在屏幕顶部轻巧呈现。</p>
 
 <p>
+  <a href="https://github.com/Cloudwhile/WindowsIsland/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Cloudwhile/WindowsIsland/ci.yml?branch=master&amp;style=for-the-badge&amp;label=Build&amp;labelColor=1F2937" alt="Windows 构建状态"></a>
   <img src="https://img.shields.io/badge/Windows-Desktop-0078D4?style=for-the-badge&amp;labelColor=1F2937" alt="Windows 桌面应用">
   <img src="https://img.shields.io/badge/WinUI-3-0F9D92?style=for-the-badge&amp;labelColor=1F2937" alt="WinUI 3">
   <img src="https://img.shields.io/badge/.NET-10-7957D5?style=for-the-badge&amp;logo=dotnet&amp;logoColor=white&amp;labelColor=1F2937" alt=".NET 10">
@@ -80,6 +81,8 @@ dotnet publish src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64
 ```
 
 发布文件生成在 `artifacts/publish/`。复制整个发布目录后，打开其中的 `WindowsIsland.exe`，按设置页引导完成初始化。
+
+分支推送和 PR 会自动构建、运行测试，并在 [GitHub Actions](https://github.com/Cloudwhile/WindowsIsland/actions/workflows/ci.yml) 中提供 Windows x64 压缩包。推送 `v1.2.3` 形式的版本标签后，同一流程通过才会上传到 [Releases](https://github.com/Cloudwhile/WindowsIsland/releases)，同时提供 SHA-256 校验文件；`v1.2.3-rc.1` 等标签会标记为预发布版本。
 
 <details>
 <summary>验证与桌面检查</summary>

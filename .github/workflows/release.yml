@@ -1,0 +1,59 @@
+name: Windows Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build release
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: WindowsIsland-win-x64
+          path: distribution
+
+      - name: Verify package checksum
+        working-directory: distribution
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          name="WindowsIsland-${RELEASE_TAG#v}-win-x64.zip"
+          test -s "$name"
+          sha256sum --check "$name.sha256"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          name="WindowsIsland-${RELEASE_TAG#v}-win-x64.zip"
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            options=(--verify-tag --generate-notes --draft --title "Windows Island $RELEASE_TAG")
+            if [[ "$RELEASE_TAG" == *-* ]]; then
+              options+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" "${options[@]}"
+          fi
+          gh release upload "$RELEASE_TAG" "distribution/$name" "distribution/$name.sha256" --clobber
+          gh release edit "$RELEASE_TAG" --draft=false
