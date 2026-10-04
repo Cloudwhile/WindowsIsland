@@ -6,18 +6,26 @@ namespace WindowsIsland.Components;
 
 internal sealed class IconActionButton : Button
 {
+    private Symbol? _symbol;
+    private string? _label;
+
     public IconActionButton(Symbol symbol, string label, string automationId)
     {
-        Content = new SymbolIcon(symbol);
+        Width = Height = 36;
+        Padding = new Thickness(0);
+        CornerRadius = new CornerRadius(6);
         VerticalAlignment = VerticalAlignment.Center;
-        AutomationProperties.SetName(this, label);
+        HorizontalAlignment = HorizontalAlignment.Right;
         AutomationProperties.SetAutomationId(this, automationId);
-        ToolTipService.SetToolTip(this, label);
+        SetAction(symbol, label);
     }
 
     public void SetAction(Symbol symbol, string label)
     {
-        Content = new SymbolIcon(symbol);
+        if (_symbol == symbol && _label == label) return;
+        _symbol = symbol;
+        _label = label;
+        Content = new FontIcon { Glyph = char.ConvertFromUtf32((int)symbol), FontSize = 16 };
         AutomationProperties.SetName(this, label);
         ToolTipService.SetToolTip(this, label);
     }
