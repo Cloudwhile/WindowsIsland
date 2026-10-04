@@ -82,8 +82,11 @@ jobs:
             'WindowsIsland.exe', 'WindowsIsland.dll', 'WindowsIsland.deps.json',
             'WindowsIsland.runtimeconfig.json', 'WindowsIsland.TelegramHook.dll',
             'WindowsIsland.pri', 'App.xbf', 'Microsoft.UI.Xaml.dll', 'coreclr.dll',
-            'hostfxr.dll', 'Assets/Island.ico', 'Initialization/AppxManifest.xml',
-            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt'
+            'hostfxr.dll', 'Assets/Island.ico', 'Icons/LOGO.png', 'Initialization/AppxManifest.xml',
+            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt',
+            'Assets/Shell/AppList.png', 'Assets/Shell/MediumTile.png', 'Assets/Shell/StoreLogo.png',
+            'Assets/Shell/AppList.targetsize-24_altform-unplated.png',
+            'Assets/Shell/AppList.targetsize-24_altform-lightunplated.png'
           )
           foreach ($file in $required) {
             if (!(Test-Path -LiteralPath (Join-Path $publish $file) -PathType Leaf)) {
