@@ -7,42 +7,69 @@ using Rect = System.Windows.Rect;
 
 namespace WindowsIsland.Services;
 
-internal sealed class WeChatAvatarReader(AutomationElement root, nint nativeWindow = 0) : IDisposable
+internal sealed record WeChatAvatarRow(AutomationElement Element, string Key, string Conversation,
+    string AutomationId, string Name, string ClassName, Rect Bounds, bool Offscreen)
 {
-    private sealed record CachedAvatar(byte[] Bytes, DateTimeOffset ReadAt);
-    private readonly Dictionary<string, CachedAvatar> _cache = [];
+    private static readonly CacheRequest IdentityProperties = CreateIdentityProperties();
+
+    public bool IsCurrent()
+    {
+        try
+        {
+            var current = Element.GetUpdatedCache(IdentityProperties).Cached;
+            return current.AutomationId == AutomationId && current.Name == Name && current.ClassName == ClassName
+                && current.BoundingRectangle == Bounds && current.IsOffscreen == Offscreen;
+        }
+        catch (ElementNotAvailableException) { return false; }
+    }
+
+    private static CacheRequest CreateIdentityProperties()
+    {
+        var request = new CacheRequest();
+        request.Add(AutomationElement.AutomationIdProperty); request.Add(AutomationElement.NameProperty);
+        request.Add(AutomationElement.ClassNameProperty); request.Add(AutomationElement.BoundingRectangleProperty);
+        request.Add(AutomationElement.IsOffscreenProperty);
+        return request;
+    }
+}
+
+internal sealed class WeChatAvatarReader(AutomationElement root, nint nativeWindow = 0, WeChatAvatarCache? cache = null) : IDisposable
+{
+    private readonly WeChatAvatarCache _cache = cache ?? new();
+    private IReadOnlyList<WeChatAvatarRow> _rows = [];
+    private HashSet<WeChatAvatarRow> _capturedRows = [];
     private Bitmap? _frame;
     private Rectangle _windowBounds;
     private bool _captureAttempted;
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(2);
 
-    public void BeginRead() { EndRead(); _captureAttempted = false; }
-    public void EndRead() { _frame?.Dispose(); _frame = null; }
+    public void BeginRead(IReadOnlyList<WeChatAvatarRow> rows) { EndRead(); _rows = rows; _captureAttempted = false; }
+    public void EndRead() { _frame?.Dispose(); _frame = null; _rows = []; _capturedRows.Clear(); }
 
-    public byte[]? ReadConversation(AutomationElement row, string key, Rect viewport)
+    public byte[]? ReadConversation(WeChatAvatarRow row, Rect viewport)
     {
-        _cache.TryGetValue(key, out var cached);
+        var key = (row.Key, row.Conversation);
+        var cached = _cache.Get(key);
         if (cached is not null && DateTimeOffset.UtcNow - cached.ReadAt < RefreshInterval) return cached.Bytes;
         try
         {
-            var info = row.Current;
-            var avatar = FindImage(row);
+            if (!row.IsCurrent()) return cached?.Bytes;
+            var avatar = FindImage(row.Element);
             var bytes = avatar is null ? null : ReadImageReference(avatar);
-            if (bytes is null && !info.IsOffscreen)
+            if (!row.IsCurrent()) return cached?.Bytes;
+            if (bytes is null && !row.Offscreen)
             {
-                var bounds = avatar?.Current.BoundingRectangle ?? ConversationBounds(info.ClassName, info.BoundingRectangle);
+                var bounds = avatar?.Current.BoundingRectangle ?? ConversationBounds(row.ClassName, row.Bounds, row.AutomationId);
                 if (!bounds.IsEmpty && !viewport.IsEmpty && viewport.Contains(bounds))
                 {
                     CaptureWindow();
-                    // A recycled or moved session row must not inherit another conversation's portrait.
-                    var after = row.Current;
-                    if (after.AutomationId == info.AutomationId && after.Name == info.Name && after.BoundingRectangle == info.BoundingRectangle)
+                    if (_capturedRows.Contains(row) && row.IsCurrent()
+                        && (avatar is null || avatar.Current.BoundingRectangle == bounds))
                         bytes = Crop(bounds);
                 }
             }
             if (bytes is null) return cached?.Bytes;
-            if (_cache.Count >= 128 && !_cache.ContainsKey(key)) _cache.Remove(_cache.Keys.First());
-            _cache[key] = new(bytes, DateTimeOffset.UtcNow);
+            _cache.Store(key, bytes);
             return bytes;
         }
         catch (Exception error) when (error is ElementNotAvailableException or InvalidOperationException or COMException
@@ -54,9 +81,11 @@ internal sealed class WeChatAvatarReader(AutomationElement root, nint nativeWind
         }
     }
 
-    internal static Rect ConversationBounds(string className, Rect row)
+    internal static Rect ConversationBounds(string className, Rect row, string automationId = "")
     {
-        if (className != "mmui::ChatSessionCell" || row.IsEmpty || row.Height is < 40 or > 240 || row.Width < row.Height * 2) return Rect.Empty;
+        var session = className == "mmui::ChatSessionCell" || className.StartsWith("mmui::", StringComparison.Ordinal)
+            && automationId.Split('.').Any(part => part.StartsWith("session_item_", StringComparison.Ordinal));
+        if (!session || row.IsEmpty || row.Height is < 40 or > 240 || row.Width < row.Height * 2) return Rect.Empty;
         // WeChat 4 exposes the session as one accessible row; its portrait is 40 within the 68-unit row.
         var size = Math.Round(row.Height * 40 / 68);
         return new(row.X + Math.Round(row.Height * 12 / 68), row.Y + Math.Round((row.Height - size) / 2), size, size);
@@ -73,7 +102,7 @@ internal sealed class WeChatAvatarReader(AutomationElement root, nint nativeWind
             var info = element.Current;
             var bounds = info.BoundingRectangle;
             if (bounds.IsEmpty || bounds.Width is < 20 or > 256 || Math.Abs(bounds.Width - bounds.Height) > 4
-                || bounds.Left < rowBounds.Left || bounds.Right > rowBounds.Left + rowBounds.Width * 0.4) continue;
+                || !rowBounds.Contains(bounds) || bounds.Right > rowBounds.Left + rowBounds.Width * 0.4) continue;
             if (info.ControlType == ControlType.Image || info.AutomationId.Contains("avatar", StringComparison.OrdinalIgnoreCase)
                 || info.Name is "头像" or "Avatar") return element;
         }
@@ -115,12 +144,14 @@ internal sealed class WeChatAvatarReader(AutomationElement root, nint nativeWind
             var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format24bppRgb);
             try
             {
+                var candidates = _rows.Where(row => !row.Offscreen && row.IsCurrent()).ToArray();
                 using var graphics = Graphics.FromImage(bitmap);
                 var dc = graphics.GetHdc();
                 bool printed;
                 try { printed = PrintWindow(window, dc, 2); }
                 finally { graphics.ReleaseHdc(dc); }
                 if (!printed || !GetWindowRect(window, out var after) || after != rect) { bitmap.Dispose(); return; }
+                _capturedRows = candidates.Where(row => row.IsCurrent()).ToHashSet();
                 _frame = bitmap; _windowBounds = bounds;
             }
             catch { bitmap.Dispose(); throw; }
@@ -139,7 +170,7 @@ internal sealed class WeChatAvatarReader(AutomationElement root, nint nativeWind
         var colors = new HashSet<int>();
         for (var y = 4; y < avatar.Height - 4; y += Math.Max(1, avatar.Height / 8))
             for (var x = 4; x < avatar.Width - 4; x += Math.Max(1, avatar.Width / 8)) colors.Add(avatar.GetPixel(x, y).ToArgb());
-        return colors.Count >= 3 ? Encode(avatar) : null;
+        return colors.Count >= 2 ? Encode(avatar) : null;
     }
 
     private static byte[] Encode(Image image)

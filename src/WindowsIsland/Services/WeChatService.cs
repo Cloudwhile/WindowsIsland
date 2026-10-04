@@ -8,17 +8,19 @@ namespace WindowsIsland.Services;
 
 internal sealed class WeChatService : IDisposable
 {
-    private sealed class Client(int id, string executable)
+    private sealed class Client(int id, string executable, long startedAt)
     {
         public readonly int Id = id;
         public readonly string Executable = executable;
+        public readonly long StartedAt = startedAt;
         public bool TriedAccessibility;
         public readonly Dictionary<nint, Watch> Windows = [];
     }
-    private sealed class Watch(AutomationElement root, nint window, StructureChangedEventHandler callback, AutomationPropertyChangedEventHandler propertyCallback)
+    private sealed class Watch(AutomationElement root, nint window, WeChatAvatarCache avatars,
+        StructureChangedEventHandler callback, AutomationPropertyChangedEventHandler propertyCallback)
     {
         public readonly AutomationElement Root = root;
-        public readonly WeChatReader Reader = new(root, window);
+        public readonly WeChatReader Reader = new(root, window, avatars);
         public readonly WeChatTracker Tracker = new();
         public readonly StructureChangedEventHandler Callback = callback;
         public readonly AutomationPropertyChangedEventHandler PropertyCallback = propertyCallback;
@@ -110,7 +112,10 @@ internal sealed class WeChatService : IDisposable
                                 {
                                     var root = AutomationElement.FromHandle(window);
                                     if (root is null) continue;
-                                    watch = new(root, window, (_, _) => Signal(), (_, _) => Signal());
+                                    var avatarDirectory = _clientDirectory is null ? Path.Combine(
+                                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsIsland", "Cache", "WeChatAvatars") : null;
+                                    var avatars = new WeChatAvatarCache(avatarDirectory, $"{client.Id}/{client.StartedAt}/{window}");
+                                    watch = new(root, window, avatars, (_, _) => Signal(), (_, _) => Signal());
                                     client.Windows[window] = watch;
                                     try { Automation.AddStructureChangedEventHandler(root, TreeScope.Subtree, watch.Callback); }
                                     catch (Exception error) { Trace.WriteLine(error.GetType().Name); }
@@ -191,7 +196,7 @@ internal sealed class WeChatService : IDisposable
                         var executable = process.MainModule?.FileName;
                         if (executable is null || _clientDirectory is not null && !executable.StartsWith(_clientDirectory, StringComparison.OrdinalIgnoreCase)) continue;
                         alive.Add(process.Id);
-                        _clients.TryAdd(process.Id, new(process.Id, executable));
+                        _clients.TryAdd(process.Id, new(process.Id, executable, process.StartTime.ToUniversalTime().Ticks));
                     }
                     catch (Exception error) { Trace.WriteLine($"WeChat discovery: {error.GetType().Name}"); }
                 }

@@ -2,15 +2,14 @@ using System.Windows.Automation;
 
 namespace WindowsIsland.Services;
 
-internal sealed class WeChatReader(AutomationElement root, nint nativeWindow = 0) : IDisposable
+internal sealed class WeChatReader(AutomationElement root, nint nativeWindow = 0, WeChatAvatarCache? avatarCache = null) : IDisposable
 {
-    private readonly WeChatAvatarReader _avatars = new(root, nativeWindow);
+    private readonly WeChatAvatarReader _avatars = new(root, nativeWindow, avatarCache);
     private AutomationElement? _sessions, _messages, _input, _title;
     private DateTimeOffset _discovered;
 
     public WeChatSnapshot Read()
     {
-        _avatars.BeginRead();
         try
         {
             if (_sessions is null && _messages is null || DateTimeOffset.UtcNow - _discovered > TimeSpan.FromSeconds(3)) Discover();
@@ -64,12 +63,14 @@ internal sealed class WeChatReader(AutomationElement root, nint nativeWindow = 0
             var cache = new CacheRequest();
             cache.Add(AutomationElement.NameProperty); cache.Add(AutomationElement.AutomationIdProperty);
             cache.Add(AutomationElement.ClassNameProperty);
+            cache.Add(AutomationElement.BoundingRectangleProperty); cache.Add(AutomationElement.IsOffscreenProperty);
+            var candidates = new List<(WeChatPreview Preview, WeChatAvatarRow Row)>();
             using (cache.Activate())
             {
                 var rows = _sessions.FindAll(TreeScope.Children, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.ListItem));
                 foreach (AutomationElement row in rows)
                 {
-                    if (result.Count >= 80) break;
+                    if (candidates.Count >= 80) break;
                     var info = row.Cached;
                     if (info.ClassName.Contains("Fold", StringComparison.Ordinal)) continue;
                     var labels = new List<string>();
@@ -78,9 +79,13 @@ internal sealed class WeChatReader(AutomationElement root, nint nativeWindow = 0
                         foreach (AutomationElement label in row.FindAll(TreeScope.Descendants, new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text)))
                             if (labels.Count < 8 && label.Current.Name.Trim() is { Length: > 0 } text) labels.Add(text);
                     var preview = WeChatText.ParsePreview(info.AutomationId, info.Name, labels);
-                    if (preview is not null) result.Add(preview with { Avatar = _avatars.ReadConversation(row, preview.Key, viewport) });
+                    if (preview is not null) candidates.Add((preview, new(row, preview.Key, preview.Conversation,
+                        info.AutomationId, info.Name, info.ClassName, info.BoundingRectangle, info.IsOffscreen)));
                 }
             }
+            _avatars.BeginRead(candidates.Select(item => item.Row).ToArray());
+            foreach (var (preview, row) in candidates)
+                result.Add(preview with { Avatar = _avatars.ReadConversation(row, viewport) });
             return true;
         }
         catch (ElementNotAvailableException) { _sessions = null; return false; }
