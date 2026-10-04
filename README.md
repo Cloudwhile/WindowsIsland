@@ -5,6 +5,7 @@
 <p>Windows 消息岛，让通知在你喜欢的位置轻巧呈现。</p>
 
 <p>
+  <a href="https://github.com/Cloudwhile/WindowsIsland/releases"><img src="https://img.shields.io/github/v/release/Cloudwhile/WindowsIsland?include_prereleases&amp;sort=semver&amp;style=for-the-badge&amp;label=Release&amp;color=168B8F&amp;labelColor=1F2937" alt="最新发布版本（含预发布）"></a>
   <a href="https://github.com/Cloudwhile/WindowsIsland/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Cloudwhile/WindowsIsland/ci.yml?branch=master&amp;style=for-the-badge&amp;label=Build&amp;labelColor=1F2937" alt="Windows 构建状态"></a>
   <img src="https://img.shields.io/badge/Windows-Desktop-0078D4?style=for-the-badge&amp;labelColor=1F2937" alt="Windows 桌面应用">
   <img src="https://img.shields.io/badge/WinUI-3-0F9D92?style=for-the-badge&amp;labelColor=1F2937" alt="WinUI 3">
