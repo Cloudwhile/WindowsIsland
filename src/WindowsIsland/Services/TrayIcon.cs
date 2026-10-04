@@ -6,7 +6,9 @@ namespace WindowsIsland.Services;
 internal sealed class TrayIcon : IDisposable
 {
     private const uint CallbackMessage = 0x8001;
-    private readonly nint _window, _icon, _menuOwner;
+    private readonly nint _window, _menuOwner;
+    private nint _icon;
+    private int _iconSize;
     private readonly SubclassProc _callback;
     private readonly Action _exit, _requestAccess, _openSettings;
     private readonly uint _taskbarCreated;
@@ -18,7 +20,9 @@ internal sealed class TrayIcon : IDisposable
     public TrayIcon(nint window, Action exit, Action requestAccess, Action openSettings)
     {
         _window = window; _exit = exit; _requestAccess = requestAccess; _openSettings = openSettings;
-        _icon = LoadImage(0, Path.Combine(AppContext.BaseDirectory, "Assets", "Island.ico"), 1, 32, 32, 0x10);
+        _iconSize = TrayIconSize();
+        using (var bitmap = ApplicationArtwork.Render(Path.Combine(AppContext.BaseDirectory, "Icons", "LOGO.png"), _iconSize))
+            _icon = bitmap.GetHicon();
         if (_icon == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
         // A zero-size native popup owns the tray menu without ever showing the island.
         _menuOwner = CreateWindowEx(0x80, "STATIC", "WindowsIsland.TrayMenu", 0x80000000, 0, 0, 0, 0, 0, 0, 0, 0);
@@ -47,9 +51,28 @@ internal sealed class TrayIcon : IDisposable
 
     public void EnsureAdded()
     {
-        if (_disposed || _added) return;
+        if (_disposed) return;
+        var size = TrayIconSize();
+        if (size != _iconSize)
+        {
+            using var bitmap = ApplicationArtwork.Render(Path.Combine(AppContext.BaseDirectory, "Icons", "LOGO.png"), size);
+            var replacement = bitmap.GetHicon();
+            var previous = _icon;
+            _icon = _data.Icon = replacement;
+            _iconSize = size;
+            if (_added && !ShellNotifyIcon(1, ref _data)) _added = false;
+            DestroyIcon(previous);
+        }
+        if (_added) return;
         _added = ShellNotifyIcon(0, ref _data);
         if (_added) ShellNotifyIcon(4, ref _data);
+    }
+
+    private static int TrayIconSize()
+    {
+        var taskbar = FindWindow("Shell_TrayWnd", null);
+        var dpi = taskbar == 0 ? GetDpiForSystem() : NativeWindow.GetDpiForWindow(taskbar);
+        return Math.Max(16, GetSystemMetricsForDpi(49, dpi));
     }
 
     public void UpdateAccess(NotificationAccess access, bool enabled = true)
@@ -148,7 +171,9 @@ internal sealed class TrayIcon : IDisposable
     [DllImport("comctl32.dll")] private static extern bool SetWindowSubclass(nint hwnd, SubclassProc callback, nuint id, nuint data);
     [DllImport("comctl32.dll")] private static extern bool RemoveWindowSubclass(nint hwnd, SubclassProc callback, nuint id);
     [DllImport("comctl32.dll")] private static extern nint DefSubclassProc(nint hwnd, uint message, nuint wParam, nint lParam);
-    [DllImport("user32.dll", EntryPoint = "LoadImageW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern nint LoadImage(nint instance, string name, uint type, int width, int height, uint flags);
+    [DllImport("user32.dll", EntryPoint = "FindWindowW", CharSet = CharSet.Unicode)] private static extern nint FindWindow(string className, string? title);
+    [DllImport("user32.dll")] private static extern uint GetDpiForSystem();
+    [DllImport("user32.dll")] private static extern int GetSystemMetricsForDpi(int index, uint dpi);
     [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern nint CreateWindowEx(uint exStyle, string className, string name, uint style, int x, int y, int width, int height, nint parent, nint menu, nint instance, nint param);
     [DllImport("user32.dll", EntryPoint = "RegisterWindowMessageW", CharSet = CharSet.Unicode)] private static extern uint RegisterWindowMessage(string message);
     [DllImport("user32.dll")] private static extern bool DestroyIcon(nint icon);

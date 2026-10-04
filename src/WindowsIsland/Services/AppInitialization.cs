@@ -1,5 +1,3 @@
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Xml.Linq;
 using Windows.ApplicationModel;
@@ -39,7 +37,6 @@ internal static class AppInitialization
             XDocument.Load(Path.Combine(directory, "Initialization", "AppxManifest.xml")),
             XDocument.Load(Path.Combine(directory, "Initialization", "RuntimeManifest.xml")),
             path => File.Exists(Path.Combine(directory, path)), version);
-        PrepareLogos(directory);
         File.Copy(Path.Combine(directory, "WindowsIsland.pri"), Path.Combine(directory, "resources.pri"), overwrite: true);
         var manifestPath = Path.Combine(directory, "AppxManifest.xml");
         manifest.Save(manifestPath);
@@ -55,22 +52,4 @@ internal static class AppInitialization
         string.Equals(Path.TrimEndingDirectorySeparator(package.InstalledLocation.Path),
             Path.TrimEndingDirectorySeparator(directory), StringComparison.OrdinalIgnoreCase);
 
-    private static void PrepareLogos(string directory)
-    {
-        var assets = Path.Combine(directory, "Assets");
-        Directory.CreateDirectory(assets);
-        using var source = new Icon(Path.Combine(assets, "Island.ico"), 256, 256);
-        using var image = source.ToBitmap();
-        foreach (var (name, size) in new[] { ("StoreLogo.png", 50), ("Square44x44Logo.png", 44), ("Square150x150Logo.png", 150) })
-        {
-            using var bitmap = new Bitmap(size, size);
-            using (var graphics = Graphics.FromImage(bitmap))
-            {
-                graphics.Clear(Color.Transparent);
-                graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-                graphics.DrawImage(image, 0, 0, size, size);
-            }
-            bitmap.Save(Path.Combine(assets, name), ImageFormat.Png);
-        }
-    }
 }

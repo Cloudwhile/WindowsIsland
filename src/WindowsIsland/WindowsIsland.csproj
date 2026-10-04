@@ -5,6 +5,7 @@
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
     <RootNamespace>WindowsIsland</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Icons\LOGO.ico</ApplicationIcon>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -18,7 +19,10 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
-    <Content Include="Assets\Island.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Icons\LOGO.ico" Link="Assets\Island.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Icons\LOGO.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Icons\Shell\*.png" Link="Assets\Shell\%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\packaging\AppxManifest.xml" Link="Initialization\AppxManifest.xml"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\native\vendor\minhook\LICENSE.txt" Link="Licenses\MinHook.txt"
