@@ -49,6 +49,8 @@ internal static class ListenerChecks
         Quiet("Draft changes remain silent");
         fixture.Send("history");
         Quiet("Replacing the visible history does not replay older rows");
+        fixture.Process.Refresh();
+        AvatarChecks.Run(fixture.Process.MainWindowHandle, fixture.Send, Check);
         fixture.Send("minimize");
         fixture.Send("incoming:最小化后收到的消息");
         Check(Wait(() => notifications.Count == 1), "UIAutomation continues reading a minimized client");

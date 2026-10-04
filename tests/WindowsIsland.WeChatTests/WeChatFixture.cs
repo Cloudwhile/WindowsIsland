@@ -10,8 +10,9 @@ using System.Windows.Media.Imaging;
 internal sealed class WeChatFixture : Window
 {
     private readonly ListBox _sessions = new SessionList(), _messages = new();
-    private readonly ListBoxItem _friend = new(), _group = new SessionRow();
+    private readonly ListBoxItem _friend = new(), _group = new SessionRow(), _service = new SessionRow("mmui::BrandSessionCell");
     private readonly TextBox _input = new();
+    private readonly Portrait _groupPortrait;
     private int _unread = 7, _groupUnread = 4;
 
     private WeChatFixture(string pipe, string ready)
@@ -34,15 +35,19 @@ internal sealed class WeChatFixture : Window
         AutomationProperties.SetName(_input, "示例会话");
         AutomationProperties.SetAutomationId(_friend, "session_item_示例会话");
         AutomationProperties.SetAutomationId(_group, "session_item_示例群");
-        _friend.Tag = CreateAvatar(false); _group.Tag = CreateAvatar(true);
+        AutomationProperties.SetAutomationId(_service, "session_item_服务号");
+        _friend.Tag = CreateAvatar(false); _group.Tag = _groupPortrait = CreateAvatar(true);
+        _service.Tag = CreateAvatar(true, true);
         Closed += (_, _) =>
         {
-            foreach (var row in new[] { _friend, _group })
+            foreach (var row in new[] { _friend, _group, _service })
                 if (row.Tag is Portrait portrait) File.Delete(portrait.Path);
+            File.Delete(_groupPortrait.Path);
         };
-        _sessions.Items.Add(_friend); _sessions.Items.Add(_group);
+        _sessions.Items.Add(_friend); _sessions.Items.Add(_group); _sessions.Items.Add(_service);
         Preview(_friend, "示例会话", "历史消息", 7);
         Preview(_group, "示例群", "群聊历史", 4);
+        Preview(_service, "服务号", "服务通知", 0);
         AddMessage("历史消息", "Incoming");
         Loaded += (_, _) =>
         {
@@ -88,8 +93,20 @@ internal sealed class WeChatFixture : Window
             case "history":
                 _messages.Items.Clear(); AddMessage("更早的消息", "Incoming"); break;
             case "minimize": WindowState = WindowState.Minimized; break;
+            case "restore": WindowState = WindowState.Normal; break;
             case "mute": Preview(_group, "示例群", body, ++_groupUnread, true); break;
             case "unmute": Preview(_group, "示例群", body, _groupUnread); break;
+            case "avatar-recycle":
+                _group.Tag = _service.Tag;
+                AutomationProperties.SetAutomationId(_group, "session_item_替换后的会话");
+                Preview(_group, "替换后的会话", "缓存检查", 0); break;
+            case "avatar-reorder":
+                _sessions.Items.Remove(_group); _sessions.Items.Insert(0, _group); break;
+            case "avatar-reset":
+                _sessions.Items.Remove(_group); _sessions.Items.Insert(1, _group);
+                _group.Tag = _groupPortrait;
+                AutomationProperties.SetAutomationId(_group, "session_item_示例群");
+                Preview(_group, "示例群", "头像检查完成", 0); break;
             case "quit": Application.Current.Shutdown(); break;
         }
     }
@@ -120,17 +137,21 @@ internal sealed class WeChatFixture : Window
 
     private sealed record Portrait(string Path, ImageSource Image, bool ExposeReference);
 
-    private static Portrait CreateAvatar(bool group)
+    private static Portrait CreateAvatar(bool group, bool service = false)
     {
         var path = System.IO.Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N") + ".avatar.png");
         using (var bitmap = new System.Drawing.Bitmap(64, 64))
         {
             using var graphics = System.Drawing.Graphics.FromImage(bitmap);
-            graphics.Clear(group ? System.Drawing.Color.ForestGreen : System.Drawing.Color.CornflowerBlue);
+            graphics.Clear(service ? System.Drawing.Color.DarkOrange : group ? System.Drawing.Color.ForestGreen : System.Drawing.Color.CornflowerBlue);
             using var first = new System.Drawing.SolidBrush(System.Drawing.Color.Gold);
             using var second = new System.Drawing.SolidBrush(System.Drawing.Color.HotPink);
-            graphics.FillRectangle(first, 18, 18, 14, 28);
-            graphics.FillRectangle(second, group ? 34 : 24, group ? 24 : 34, 14, 14);
+            if (service) graphics.FillRectangle(System.Drawing.Brushes.White, 16, 16, 32, 32);
+            else
+            {
+                graphics.FillRectangle(first, 18, 18, 14, 28);
+                graphics.FillRectangle(second, group ? 34 : 24, group ? 24 : 34, 14, 14);
+            }
             bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
         }
         var image = new BitmapImage();
@@ -138,7 +159,10 @@ internal sealed class WeChatFixture : Window
         return new(path, image, !group);
     }
 
-    private sealed class SessionRow : ListBoxItem { }
+    private sealed class SessionRow(string className = "mmui::ChatSessionCell") : ListBoxItem
+    {
+        public string AccessibleClass { get; } = className;
+    }
 
     private sealed class SessionList : ListBox
     {
@@ -150,7 +174,7 @@ internal sealed class WeChatFixture : Window
         }
         private sealed class SessionPeer(object item, SelectorAutomationPeer parent) : ListBoxItemAutomationPeer(item, parent)
         {
-            protected override string GetClassNameCore() => "mmui::ChatSessionCell";
+            protected override string GetClassNameCore() => ((SessionRow)Item).AccessibleClass;
             protected override List<AutomationPeer> GetChildrenCore() => [];
         }
     }
