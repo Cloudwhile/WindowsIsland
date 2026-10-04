@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Numerics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -45,10 +46,12 @@ public sealed class MainWindow : Window
     private int _ticks;
     private IslandNotification? _current;
     private readonly bool _verification;
+    private NotificationPosition _position;
 
     internal MainWindow(SettingsStore settings, bool verification = false)
     {
         _settings = settings;
+        _position = settings.Current.Position;
         _verification = verification;
         Title = "Windows Island";
         _root = new IslandSurface(_notificationPanel)
@@ -64,7 +67,7 @@ public sealed class MainWindow : Window
         _host.Children.Add(_surfaceLayer);
         Content = _host;
         SystemBackdrop = new OverlayBackdrop();
-        AutomationProperties.SetName(_root, "灵动岛");
+        AutomationProperties.SetName(_root, "消息岛");
         AutomationProperties.SetAutomationId(_root, "IslandSurface");
         AutomationProperties.SetAutomationId(_notificationPanel, "NotificationContent");
         _notifications = new NotificationService(DispatcherQueue);
@@ -118,8 +121,8 @@ public sealed class MainWindow : Window
             }
         };
 
-        _motion = new IslandMotion(_surfaceLayer, _notificationPanel, SurfaceMargin, NotificationLayout.CornerRadius,
-            () => _settings.Current.Animations);
+        _motion = new IslandMotion(_surfaceLayer, _notificationPanel, SurfaceMargin,
+            () => _settings.Current.Animations, _position);
         _motion.Settled += FinishPresentation;
         _merge = DispatcherQueue.CreateTimer();
         _merge.Interval = TimeSpan.FromMilliseconds(125);
@@ -213,6 +216,19 @@ public sealed class MainWindow : Window
         if (_current is not null && !settings.Allows(_current)) DismissNotification(animate: false);
         _notifications.SetEnabled(settings.SystemNotifications);
         _tray.UpdateAccess(_notifications.Access, settings.SystemNotifications);
+        if (_position != settings.Position)
+        {
+            _input.Hide();
+            _motion.Reset();
+            _position = settings.Position;
+            _motion.SetPosition(_position);
+            if (_notification.Active)
+            {
+                MeasureNotification();
+                UpdatePresentation(newMessage: false);
+            }
+            else HideIsland();
+        }
         if (!_started) return;
         _messengers.RefreshClients();
         _weChat.Refresh();
@@ -298,8 +314,10 @@ public sealed class MainWindow : Window
     {
         if (_closed || !AppWindow.IsVisible || _lastBounds is not { } bounds) return;
         var contentWidth = (int)Math.Ceiling(width * _scale);
-        _input.Show(new RectInt32(bounds.X + (bounds.Width - contentWidth) / 2,
-            bounds.Y + (int)Math.Round(SurfaceMargin * _scale), contentWidth, (int)Math.Ceiling(height * _scale)),
+        var contentHeight = (int)Math.Ceiling(height * _scale);
+        var offset = ContentOffset(bounds.Width, bounds.Height, width, height);
+        _input.Show(new RectInt32(bounds.X + (int)Math.Round(offset.X),
+            bounds.Y + (int)Math.Round(offset.Y), contentWidth, contentHeight),
             (int)Math.Ceiling(NotificationLayout.CornerRadius * _scale));
     }
 
@@ -316,20 +334,35 @@ public sealed class MainWindow : Window
 
     private void ApplyBounds()
     {
+        var anchor = NotificationPlacement.Anchor(_position);
+        _surfaceLayer.HorizontalAlignment = _notificationPanel.HorizontalAlignment = anchor.X switch
+        {
+            0 => HorizontalAlignment.Left, 1 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center
+        };
+        _surfaceLayer.VerticalAlignment = _notificationPanel.VerticalAlignment = anchor.Y switch
+        {
+            0 => VerticalAlignment.Top, 1 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center
+        };
         var width = Math.Max(1, (int)Math.Round(Math.Min(NotificationLayout.MaxWidth + SurfaceMargin * 2, _workArea.Width / _scale) * _scale));
         var height = Math.Max(1, (int)Math.Round(Math.Min(NotificationLayout.MaxHeight + SurfaceMargin * 2, _workArea.Height / _scale) * _scale));
-        var x = _workArea.X + (_workArea.Width - width) / 2;
-        var y = _workArea.Y;
+        var origin = NotificationPlacement.Offset(_position, new(_workArea.Width, _workArea.Height), new(width, height));
+        var x = _workArea.X + (int)Math.Round(origin.X);
+        var y = _workArea.Y + (int)Math.Round(origin.Y);
         var bounds = new RectInt32(x, y, width, height);
         if (_lastBounds != bounds)
         {
             AppWindow.MoveAndResize(bounds);
             _lastBounds = bounds;
         }
-        NativeWindow.SetContentBounds(_hwnd, (int)((width - _width * _scale) / 2), (int)(SurfaceMargin * _scale),
+        var contentOffset = ContentOffset(width, height, _width, _height);
+        NativeWindow.SetContentBounds(_hwnd, (int)Math.Round(contentOffset.X), (int)Math.Round(contentOffset.Y),
             (int)Math.Ceiling(_width * _scale), (int)Math.Ceiling(_height * _scale), (int)(NotificationLayout.CornerRadius * _scale));
         if (AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
     }
+
+    private Vector2 ContentOffset(int hostWidth, int hostHeight, double width, double height) =>
+        NotificationPlacement.Offset(_position, new(hostWidth, hostHeight),
+            new((float)(width * _scale), (float)(height * _scale)), (float)(SurfaceMargin * _scale));
 
     private void RefreshDisplayMetrics()
     {

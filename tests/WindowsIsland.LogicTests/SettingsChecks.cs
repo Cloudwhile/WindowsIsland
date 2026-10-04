@@ -12,13 +12,19 @@ internal static class SettingsChecks
         Directory.CreateDirectory(output);
         File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false}");
         var upgraded = new SettingsStore(path).Current;
-        check(upgraded.Animations && upgraded.SetupCompleted && !upgraded.WeChat,
+        check(upgraded.Animations && upgraded.SetupCompleted && !upgraded.WeChat && upgraded.Position == NotificationPosition.TopCenter,
             "Existing preferences enable notification motion without resetting source choices");
-        var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false, Animations = false };
+        var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false,
+            Animations = false, Position = NotificationPosition.RightCenter };
         var changes = 0;
         store.Changed += _ => changes++;
         store.Save(saved);
         check(new SettingsStore(path).Current == saved && changes == 1, "Setup completion and source preferences survive a restart");
+        File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Position\":999}");
+        var invalidPosition = new SettingsStore(path).Current;
+        check(invalidPosition.Position == NotificationPosition.TopCenter && invalidPosition.SetupCompleted && !invalidPosition.WeChat,
+            "An unknown position falls back to top center without resetting other preferences");
+        PositionChecks.Run(check);
         File.WriteAllText(path, "{invalid json");
         check(new SettingsStore(path).Current == new AppSettings(), "Damaged preferences return to an actionable first-run setup");
         var blocker = Path.Combine(output, "file");

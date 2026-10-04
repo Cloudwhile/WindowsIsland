@@ -21,6 +21,8 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly IconActionButton _installSettings = new(Symbol.Setting, "打开系统设置", "OpenInstallationSettings");
     private readonly SettingsRow _initializationRow, _permissionRow, _systemRow, _weChatRow, _telegramRow, _powerRow;
     private readonly SettingsRow _animationsRow;
+    private readonly SettingsRow _positionRow;
+    private readonly NotificationPositionPicker _position = new();
     private readonly SettingsHeader _header;
     private readonly SettingsSetup _setup;
     private readonly ToggleSwitch _system, _weChat, _telegram, _power, _animations;
@@ -52,7 +54,21 @@ internal sealed class SettingsPage : Grid, IDisposable
         _animations = Switch("弹窗动画", "AnimationsToggle", settings => settings.Animations,
             (settings, value) => settings with { Animations = value });
         _animationsRow = new SettingsRow(Symbol.Play, "弹窗动画", _animations);
-        content.Children.Add(new SettingsSection("外观", _animationsRow));
+        _positionRow = new SettingsRow(Symbol.Map, "弹窗位置", _position);
+        _position.Selected += position =>
+        {
+            try { _store.Save(_store.Current with { Position = position }); _failed = false; Refresh(); }
+            catch (Exception error) { Trace.WriteLine(error); ShowError("位置未能保存，请重试。"); Refresh(); }
+        };
+        content.Children.Add(new SettingsSection("外观", _positionRow, _animationsRow));
+        var bannerGuide = new NotificationBannerGuide();
+        bannerGuide.OpenSettings.Click += async (_, _) => await RunAsync(async () =>
+        {
+            if (!await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:notifications")))
+                throw new InvalidOperationException("Windows notification settings did not open.");
+        }, "通知设置暂时无法打开，请重试。");
+        _actions.Add(bannerGuide.OpenSettings);
+        content.Children.Add(new SettingsSection("通知显示", bannerGuide));
         _system = Switch("系统通知", "SystemNotificationsToggle", settings => settings.SystemNotifications,
             (settings, value) => settings with { SystemNotifications = value });
         _weChat = Switch("微信", "WeChatToggle", settings => settings.WeChat, (settings, value) => settings with { WeChat = value });
@@ -177,9 +193,12 @@ internal sealed class SettingsPage : Grid, IDisposable
             _telegram.IsOn = settings.Telegram;
             _power.IsOn = settings.Power;
             _animations.IsOn = settings.Animations;
+            _position.Select(settings.Position);
         }
         finally { _syncing = false; }
         foreach (var action in _actions) action.IsEnabled = !_busy;
+        _position.SetEnabled(!_busy);
+        _positionRow.Status = NotificationPlacement.Label(settings.Position);
         _initializationRow.Status = state.Initialized ? "已完成" : settings.SystemNotifications ? "待完成" : "可跳过";
         _permissionRow.Status = state.Access switch
         {

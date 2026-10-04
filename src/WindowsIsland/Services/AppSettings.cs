@@ -3,7 +3,8 @@ using System.Text.Json;
 namespace WindowsIsland.Services;
 
 internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotifications = true,
-    bool WeChat = true, bool Telegram = true, bool Power = true, bool Animations = true)
+    bool WeChat = true, bool Telegram = true, bool Power = true, bool Animations = true,
+    NotificationPosition Position = NotificationPosition.TopCenter)
 {
     public bool AllowsClient(string identity) => identity switch
     {
@@ -34,10 +35,12 @@ internal sealed class SettingsStore
             "WindowsIsland", "settings.json");
         try { _current = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new(); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { _current = new(); }
+        _current = _current with { Position = NotificationPlacement.Normalize(_current.Position) };
     }
 
     public void Save(AppSettings settings)
     {
+        settings = settings with { Position = NotificationPlacement.Normalize(settings.Position) };
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
         var temporary = _path + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
