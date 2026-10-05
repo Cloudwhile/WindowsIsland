@@ -1,0 +1,33 @@
+name: 功能建议 / Feature request
+description: 提出消息岛的新功能或体验改进。Suggest a feature or improvement for Windows Island.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先[搜索已有 Issue](https://github.com/Cloudwhile/WindowsIsland/issues)，避免重复建议。可以使用中文或 English。
+        Please search existing issues before suggesting a feature. Chinese and English are welcome.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: 使用场景与需求 / Use case
+      description: 在什么场景下遇到了什么问题？What problem are you trying to solve, and when does it occur?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: 期望的功能 / Proposed behavior
+      description: 描述希望增加或改变的操作和表现。Describe the actions and behavior you would like to add or change.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案 / Alternatives
+      description: 你试过哪些方法？还有其他可接受的方案吗？What have you tried, and what other solutions would work?
+  - type: textarea
+    id: context
+    attributes:
+      label: 补充信息 / Additional context
+      description: 可补充参考链接或截图；上传前请遮盖个人信息。Add reference links or screenshots with personal details redacted.

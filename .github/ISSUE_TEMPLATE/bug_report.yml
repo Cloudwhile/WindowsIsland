@@ -1,0 +1,86 @@
+name: 问题反馈 / Bug report
+description: 报告消息岛的异常行为。Report an issue with Windows Island.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先[搜索已有 Issue](https://github.com/Cloudwhile/WindowsIsland/issues)，避免重复反馈。可以使用中文或 English。
+        Please search existing issues before reporting. Chinese and English are welcome.
+  - type: input
+    id: version
+    attributes:
+      label: 消息岛版本 / App version
+      description: 在设置的更新页查看版本；源码构建可填写提交号。Find the version in Settings → Updates, or provide the commit for a source build.
+      placeholder: v0.1.0-rc.2
+    validations:
+      required: true
+  - type: input
+    id: windows-version
+    attributes:
+      label: Windows 版本 / Windows version
+      description: 可运行 winver 查看版本和内部版本号。Run winver to find the Windows version and OS build.
+      placeholder: Windows 11 24H2 (26100.xxxx)
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: 安装方式 / Installation method
+      options:
+        - MSI 安装包 / MSI installer
+        - ZIP 压缩包 / ZIP archive
+        - 源码构建 / Source build
+        - 不确定 / Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: 涉及范围 / Affected area
+      multiple: true
+      options:
+        - 启动与初始化 / Startup and setup
+        - 系统通知 / System notifications
+        - Telegram
+        - 微信 / WeChat
+        - 电源提醒 / Power notifications
+        - 通知外观与动画 / Notification appearance and animations
+        - 设置与语言 / Settings and language
+        - 更新与安装 / Updates and installation
+        - 其他 / Other
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: 实际表现 / Actual behavior
+      description: 描述遇到的问题，并附上界面显示的错误信息（如有）。Describe the problem and include any error shown in the app.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 预期表现 / Expected behavior
+      description: 你期望消息岛如何表现？What did you expect Windows Island to do?
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      description: 无法稳定复现时，请说明发生频率和触发场景。If the problem is intermittent, describe how often it happens and when.
+      placeholder: |
+        1. 打开…… / Open…
+        2. 执行…… / Do…
+        3. 观察到…… / Observe…
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 相关环境 / Additional environment
+      description: 如适用，填写 Telegram 或微信版本、已开启的消息来源、界面语言、显示缩放和弹窗方位。If relevant, include client versions, enabled sources, UI language, display scaling and notification position.
+  - type: textarea
+    id: attachments
+    attributes:
+      label: 截图与日志 / Screenshots and logs
+      description: 可拖入截图或日志；上传前请遮盖消息内容、头像、账号等个人信息。Attach screenshots or logs with private messages, avatars and account details redacted.
