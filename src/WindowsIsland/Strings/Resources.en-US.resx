@@ -382,6 +382,9 @@
   <data name="UpdateErrorRateLimit" xml:space="preserve">
     <value>GitHub is limiting requests. Try again later.</value>
   </data>
+  <data name="UpdateErrorManifest" xml:space="preserve">
+    <value>The update information is invalid. Try again later.</value>
+  </data>
   <data name="UpdateErrorHelperStart" xml:space="preserve">
     <value>Could not start the updater. Try again.</value>
   </data>

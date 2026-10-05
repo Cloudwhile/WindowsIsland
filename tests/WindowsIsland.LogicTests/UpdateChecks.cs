@@ -21,39 +21,91 @@ internal static class UpdateChecks
         check(ReleaseVersion.FromInformationalVersion("0.1.0-rc.1+git123").Prerelease == "rc.1",
             "Current application versions retain prerelease information from assembly metadata");
 
-        var responses = new List<int>();
+        var requests = new List<Uri>();
         using (var client = new GitHubReleaseClient(new Handler((request, token) =>
         {
             token.ThrowIfCancellationRequested();
-            var secondPage = request.RequestUri!.Query.Contains("page=2", StringComparison.Ordinal);
-            responses.Add(secondPage ? 2 : 1);
-            check(request.Headers.UserAgent.Count > 0 && request.Headers.Contains("X-GitHub-Api-Version"),
-                "Release queries identify the application and the API version");
-            var entries = secondPage
-                ? new[] { Release("v1.4.0"), Release("v1.5.0-rc.2", true) }
-                : new[] { Release("v1.3.0"), Release("v1.5.0-rc.10", true), Release("v2.0.0", draft: true),
-                    Release("v1.6.0", complete: false), Release("v1.5.0-rc.99", false), Release("v1.4.1", true) };
-            var response = Json(entries);
-            if (!secondPage) response.Headers.Add("Link", "<https://api.github.com/repos/Cloudwhile/WindowsIsland/releases?per_page=100&page=2>; rel=\"next\"");
+            requests.Add(request.RequestUri!);
+            check(request.RequestUri!.AbsoluteUri == GitHubReleaseClient.ManifestUrl
+                && request.RequestUri.Scheme == "https" && request.RequestUri.Host == "raw.githubusercontent.com"
+                && request.Headers.UserAgent.Count > 0 && request.Headers.Accept.Single().MediaType == "application/json"
+                && request.Headers.CacheControl?.NoCache == true
+                && !request.Headers.Contains("X-GitHub-Api-Version") && request.Headers.Authorization is null,
+                "Update checks use the HTTPS Raw manifest without API headers or login and revalidate cached metadata");
+            var entries = new object[] { Release("v1.4.0"), Release("v1.5.0-rc.2", true), Release("v1.3.0"),
+                Release("v1.5.0-rc.10", true), Release("v2.0.0", draft: true), Release("v1.6.0", complete: false),
+                Release("v1.5.0-rc.99", false), Release("v1.4.1", true), 42, "invalid entry",
+                new { tag_name = "v9.0.0", prerelease = "true" } };
+            var response = Json(new { schema_version = 1, releases = entries });
+            response.Headers.Add("Link", "<https://api.github.com/unused>; rel=\"next\"");
             return Task.FromResult(response);
         })))
         {
             var stable = await client.FindUpdateAsync(Version("1.2.0"), false, CancellationToken.None);
-            check(stable?.Tag == "v1.4.0" && responses.SequenceEqual(new[] { 1, 2 }),
-                "Stable updates search every page and exclude drafts, flagged prereleases and prerelease tags");
-            responses.Clear();
+            check(stable?.Tag == "v1.4.0" && requests.Count == 1,
+                "Stable updates use one manifest request and exclude drafts, invalid entries and both forms of prerelease");
+            requests.Clear();
             var preview = await client.FindUpdateAsync(Version("1.2.0"), true, CancellationToken.None);
-            check(preview?.Tag == "v1.5.0-rc.99", "Preview updates choose the highest version rather than release list order");
+            check(preview?.Tag == "v1.5.0-rc.99" && requests.Count == 1 && preview.Notes == "修复与改进"
+                && preview.Installer?.Name.EndsWith(".msi", StringComparison.Ordinal) == true,
+                "Preview updates retain release notes and MSI metadata and choose the highest version regardless of manifest order");
             check(await client.FindUpdateAsync(Version("1.5.0-rc.99"), true, CancellationToken.None) is null,
                 "The current version and older releases are never offered as an update");
         }
-        using (var client = new GitHubReleaseClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden)))))
+        foreach (var status in new[] { HttpStatusCode.Forbidden, HttpStatusCode.TooManyRequests, HttpStatusCode.NotFound })
         {
-            try { await client.FindUpdateAsync(Version("0.0.0"), false, CancellationToken.None); check(false, "Rate limits are reported"); }
-            catch (HttpRequestException error) { check(error.StatusCode == HttpStatusCode.Forbidden, "GitHub rate limits are reported as retryable failures"); }
+            using var client = new GitHubReleaseClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(status))));
+            try { await client.FindUpdateAsync(Version("0.0.0"), false, CancellationToken.None); check(false, "HTTP failures are reported"); }
+            catch (HttpRequestException error) { check(error.StatusCode == status, "Raw manifest HTTP failures remain retryable: " + status); }
+        }
+        foreach (var body in new[] { "null", "[]", "<html>Unavailable</html>", "{}",
+            "{\"schema_version\":2,\"releases\":[]}", "{\"schema_version\":\"1\",\"releases\":[]}",
+            "{\"schema_version\":1,\"releases\":null}" })
+        {
+            using var client = new GitHubReleaseClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                { Content = new StringContent(body) })));
+            try { await client.FindUpdateAsync(Version("0.0.0"), true, CancellationToken.None); check(false, "Invalid manifests are reported"); }
+            catch (InvalidDataException error) { check(Localization.ErrorKey(error, "") == "UpdateErrorManifest",
+                "Malformed or unsupported manifests cannot appear as no available updates: " + body); }
+        }
+        using (var client = new GitHubReleaseClient(new Handler((_, _) => Task.FromResult(Json(new { schema_version = 1, releases = Array.Empty<object>() })))))
+            check(await client.FindUpdateAsync(Version("0.0.0"), true, CancellationToken.None) is null,
+                "A valid empty manifest means no available update");
+        using (var client = new GitHubReleaseClient(new Handler((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new ByteArrayContent(new byte[GitHubReleaseClient.MaxManifestBytes + 1]) }))))
+        {
+            try { await client.FindUpdateAsync(Version("0.0.0"), true, CancellationToken.None); check(false, "Manifest sizes are bounded"); }
+            catch (HttpRequestException) { check(true, "Oversized manifests are rejected before JSON parsing"); }
+        }
+        using (var client = new GitHubReleaseClient(new Handler((_, token) =>
+            { token.ThrowIfCancellationRequested(); return Task.FromResult(Json(new { schema_version = 1, releases = Array.Empty<object>() })); })))
+        using (var cancel = new CancellationTokenSource())
+        {
+            cancel.Cancel();
+            try { await client.FindUpdateAsync(Version("0.0.0"), true, cancel.Token); check(false, "Manifest cancellation is observed"); }
+            catch (OperationCanceledException) { check(true, "Manifest checks support cancellation without issuing an API request"); }
         }
         using (var document = JsonDocument.Parse(JsonSerializer.Serialize(Release("v1.0.0", unsafeUrl: true))))
             check(GitHubReleaseClient.ParseRelease(document.RootElement) is null, "Release assets outside the project download path are rejected");
+        foreach (var invalid in new[] { "wrong-tag", "wrong-size", "duplicate", "invalid-flag" })
+        {
+            var entry = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Release("v1.0.0")))!;
+            var assets = entry["assets"]!.AsArray();
+            if (invalid == "wrong-tag") assets[0]!["browser_download_url"] = assets[0]!["browser_download_url"]!.GetValue<string>().Replace("/v1.0.0/", "/v2.0.0/");
+            if (invalid == "wrong-size") assets[0]!["size"] = "1024";
+            if (invalid == "duplicate") assets.Add(assets[0]!.DeepClone());
+            if (invalid == "invalid-flag") entry["prerelease"] = "true";
+            using var document = JsonDocument.Parse(entry.ToJsonString());
+            check(GitHubReleaseClient.ParseRelease(document.RootElement) is null, "Invalid release metadata is skipped: " + invalid);
+        }
+
+        using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Environment.CurrentDirectory, "updates", "releases.json"))))
+        {
+            var published = document.RootElement.GetProperty("releases").EnumerateArray().Select(GitHubReleaseClient.ParseRelease).ToArray();
+            check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length > 0
+                && published.All(release => release is { Installer: not null, InstallerChecksum: not null }),
+                "The checked-in manifest of actual published releases is readable by the client with both ZIP and MSI assets");
+        }
 
         var root = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "updates", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);

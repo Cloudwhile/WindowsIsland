@@ -382,6 +382,9 @@
   <data name="UpdateErrorRateLimit" xml:space="preserve">
     <value>GitHub 暂时限制了请求，请稍后重试。</value>
   </data>
+  <data name="UpdateErrorManifest" xml:space="preserve">
+    <value>更新信息无效，请稍后重试。</value>
+  </data>
   <data name="UpdateErrorHelperStart" xml:space="preserve">
     <value>更新程序未能启动，请重试。</value>
   </data>
