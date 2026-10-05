@@ -1,5 +1,6 @@
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 
@@ -18,10 +19,10 @@ internal sealed class SettingsRow : Grid
         }
     }
 
-    public SettingsRow(Symbol symbol, string title, FrameworkElement action)
-        : this(new SymbolIcon(symbol), title, action) { }
+    public SettingsRow(Symbol symbol, string title, FrameworkElement action, string? statusId = null, bool localizeTitle = true)
+        : this(new SymbolIcon(symbol), title, action, statusId, localizeTitle) { }
 
-    public SettingsRow(IconElement icon, string title, FrameworkElement action)
+    public SettingsRow(IconElement icon, string title, FrameworkElement action, string? statusId = null, bool localizeTitle = true)
     {
         MinHeight = 64;
         Padding = new Thickness(12, 10, 12, 10);
@@ -32,8 +33,10 @@ internal sealed class SettingsRow : Grid
         icon.VerticalAlignment = VerticalAlignment.Center;
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         Children.Add(icon);
-        var name = LocalizedUI.Text(title);
+        var name = localizeTitle ? LocalizedUI.Text(title) : IslandTheme.Text(title);
+        name.TextWrapping = TextWrapping.Wrap;
         _status.TextWrapping = TextWrapping.Wrap;
+        if (statusId is not null) AutomationProperties.SetAutomationId(_status, statusId);
         name.FontWeight = FontWeights.SemiBold;
         _status.Visibility = Visibility.Collapsed;
         var text = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };

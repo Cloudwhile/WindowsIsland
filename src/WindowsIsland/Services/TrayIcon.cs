@@ -14,9 +14,16 @@ internal sealed class TrayIcon : IDisposable
     private readonly uint _taskbarCreated;
     private NotifyIconData _data;
     private bool _added, _disposed, _menuOpen;
+    private NotificationMuteReason _muteReason;
     private NotificationAccess _access = NotificationAccess.Waiting;
     private string _statusKey = "TrayConnecting";
-    private string Status => Localization.Get(_statusKey);
+    private string Status => Localization.Get(_muteReason switch
+    {
+        NotificationMuteReason.Game => "GameModeMuted",
+        NotificationMuteReason.FullScreen => "FullScreenMuted",
+        NotificationMuteReason.Game | NotificationMuteReason.FullScreen => "GameAndFullScreenMuted",
+        _ => _statusKey
+    });
 
     public TrayIcon(nint window, Action exit, Action requestAccess, Action openSettings)
     {
@@ -87,6 +94,18 @@ internal sealed class TrayIcon : IDisposable
             NotificationAccess.Unavailable => "TrayRetry",
             _ => "TrayEnableAccess"
         };
+        UpdateStatus();
+    }
+
+    public void SetMuteReason(NotificationMuteReason reason)
+    {
+        _muteReason = reason;
+        UpdateStatus();
+    }
+
+    private void UpdateStatus()
+    {
+        if (_disposed) return;
         _data.Tip = "Windows Island · " + Status;
         if (_added && !ShellNotifyIcon(1, ref _data)) _added = false;
     }
@@ -117,7 +136,7 @@ internal sealed class TrayIcon : IDisposable
         uint selected;
         try
         {
-            var canRequest = _access != NotificationAccess.Allowed;
+            var canRequest = _muteReason == NotificationMuteReason.None && _access != NotificationAccess.Allowed;
             AppendMenu(menu, canRequest ? 0u : 1u, 1, Status);
             AppendMenu(menu, 0, 3, Localization.Get("Settings"));
             AppendMenu(menu, 0x800, 0, "");

@@ -6,7 +6,7 @@ namespace WindowsIsland.Services;
 internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotifications = true,
     bool WeChat = true, bool Telegram = true, bool Power = true, bool Animations = true,
     NotificationPosition Position = NotificationPosition.TopCenter, bool IncludePrereleaseUpdates = false,
-    string Language = LanguagePreferences.Default)
+    string Language = LanguagePreferences.Default, bool MuteDuringGames = true, bool MuteDuringFullScreen = true)
 {
     public bool AllowsClient(string identity) => identity switch
     {
@@ -38,9 +38,21 @@ internal sealed class SettingsStore
         try
         {
             var json = JsonNode.Parse(File.ReadAllText(_path));
+            if (json is JsonObject oldPreferences && !oldPreferences.ContainsKey(nameof(AppSettings.MuteDuringFullScreen)))
+            {
+                var oldMute = oldPreferences[nameof(AppSettings.MuteDuringGames)];
+                oldPreferences[nameof(AppSettings.MuteDuringFullScreen)] = oldMute is JsonValue oldValue
+                    && oldValue.TryGetValue<bool>(out var enabled) ? enabled : true;
+            }
             if (json is JsonObject preferences && preferences.TryGetPropertyValue(nameof(AppSettings.IncludePrereleaseUpdates), out var node)
                 && (node is not JsonValue value || !value.TryGetValue<bool>(out _)))
                 preferences.Remove(nameof(AppSettings.IncludePrereleaseUpdates));
+            if (json is JsonObject gamePreferences && gamePreferences.TryGetPropertyValue(nameof(AppSettings.MuteDuringGames), out var gameNode)
+                && (gameNode is not JsonValue gameValue || !gameValue.TryGetValue<bool>(out _)))
+                gamePreferences.Remove(nameof(AppSettings.MuteDuringGames));
+            if (json is JsonObject fullScreenPreferences && fullScreenPreferences.TryGetPropertyValue(nameof(AppSettings.MuteDuringFullScreen), out var fullScreenNode)
+                && (fullScreenNode is not JsonValue fullScreenValue || !fullScreenValue.TryGetValue<bool>(out _)))
+                fullScreenPreferences.Remove(nameof(AppSettings.MuteDuringFullScreen));
             if (json is JsonObject languagePreferences && languagePreferences.TryGetPropertyValue(nameof(AppSettings.Language), out var languageNode)
                 && (languageNode is not JsonValue languageValue || !languageValue.TryGetValue<string>(out _)))
                 languagePreferences.Remove(nameof(AppSettings.Language));

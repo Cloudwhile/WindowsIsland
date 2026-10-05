@@ -99,6 +99,11 @@ internal sealed class MessageRouter(TimeProvider? time = null)
     }
 
     public void Clear() { _pending.Clear(); _recent.Clear(); _events.Clear(); }
+    public void DiscardPending()
+    {
+        foreach (var item in _pending) Remember(item.Notification, item.MatchedClient);
+        _pending.Clear();
+    }
     public void ClearSystemHistory() => _recent.RemoveAll(item => item.Notification.Source == NotificationSource.SystemNotification);
 
     private void Remember(IslandNotification notification, bool matchedClient = false)

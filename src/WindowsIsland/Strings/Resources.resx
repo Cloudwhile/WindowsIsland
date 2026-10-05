@@ -172,17 +172,50 @@
   <data name="ActionOpenWindowsNotificationSettings" xml:space="preserve">
     <value>打开 Windows 通知设置</value>
   </data>
-  <data name="BannerTitle" xml:space="preserve">
-    <value>仅使用消息岛通知</value>
+  <data name="LaunchAtStartup" xml:space="preserve">
+    <value>开机自启</value>
   </data>
-  <data name="BannerStep1" xml:space="preserve">
-    <value>1. 打开 Windows 通知设置，选择需要接管的应用。</value>
+  <data name="ActionConfigureStartup" xml:space="preserve">
+    <value>配置开机自启（需要管理员权限）</value>
   </data>
-  <data name="BannerStep2" xml:space="preserve">
-    <value>2. 关闭“显示通知横幅”，保留该应用的“通知”和“在通知中心显示通知”。</value>
+  <data name="ErrorStartupSettings" xml:space="preserve">
+    <value>未能配置开机自启，请重试。</value>
   </data>
-  <data name="BannerStep3" xml:space="preserve">
-    <value>3. 回到消息岛，保持下方“系统通知”来源开启。</value>
+  <data name="StartupPermissionCancelled" xml:space="preserve">
+    <value>已取消管理员权限请求，开机自启设置未更改。</value>
+  </data>
+  <data name="Cancelled" xml:space="preserve">
+    <value>已取消</value>
+  </data>
+  <data name="StartupDisabledInWindows" xml:space="preserve">
+    <value>已被 Windows 禁用</value>
+  </data>
+  <data name="StartupOtherInstallation" xml:space="preserve">
+    <value>另一安装版本已设置自启</value>
+  </data>
+  <data name="HideSystemBanners" xml:space="preserve">
+    <value>隐藏系统横幅</value>
+  </data>
+  <data name="ActionHideAppBanners" xml:space="preserve">
+    <value>隐藏 {0} 的系统横幅</value>
+  </data>
+  <data name="BannersHidden" xml:space="preserve">
+    <value>已隐藏</value>
+  </data>
+  <data name="BannersShown" xml:space="preserve">
+    <value>显示</value>
+  </data>
+  <data name="NoNotificationApps" xml:space="preserve">
+    <value>暂无通知应用</value>
+  </data>
+  <data name="BannerApplications" xml:space="preserve">
+    <value>{0} 个应用</value>
+  </data>
+  <data name="ErrorBannerSettings" xml:space="preserve">
+    <value>未能更改系统横幅，请重试或打开 Windows 通知设置。</value>
+  </data>
+  <data name="ErrorReadWindowsSettings" xml:space="preserve">
+    <value>无法读取 Windows 设置</value>
   </data>
   <data name="NotificationNow" xml:space="preserve">
     <value>现在</value>
@@ -408,5 +441,23 @@
   </data>
   <data name="Exit" xml:space="preserve">
     <value>退出</value>
+  </data>
+  <data name="MuteDuringGames" xml:space="preserve">
+    <value>游戏时静音</value>
+  </data>
+  <data name="GameModeMonitoring" xml:space="preserve">
+    <value>自动检测</value>
+  </data>
+  <data name="GameModeMuted" xml:space="preserve">
+    <value>游戏中：通知已静音</value>
+  </data>
+  <data name="MuteDuringFullScreen" xml:space="preserve">
+    <value>全屏时静音</value>
+  </data>
+  <data name="FullScreenMuted" xml:space="preserve">
+    <value>全屏中：通知已静音</value>
+  </data>
+  <data name="GameAndFullScreenMuted" xml:space="preserve">
+    <value>游戏和全屏中：通知已静音</value>
   </data>
 </root>

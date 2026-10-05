@@ -14,6 +14,10 @@
     <Compile Include="../../src/WindowsIsland/Services/NotificationImageStore.cs" Link="NotificationImageStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/SingleInstance.cs" Link="SingleInstance.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessageRouter.cs" Link="MessageRouter.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/GameMode.cs" Link="GameMode.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/WindowsPreferences.cs" Link="WindowsPreferences.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/WindowsPreferenceStore.cs" Link="WindowsPreferenceStore.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/StartupElevation.cs" Link="StartupElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Services/PowerState.cs" Link="PowerState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessengerPopupRules.cs" Link="MessengerPopupRules.cs" />
     <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />

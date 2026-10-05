@@ -26,7 +26,7 @@ public partial class App : Application
         _instance = SingleInstance.TryAcquire(verification ? "Local\\WindowsIsland.Verification." + Environment.ProcessId : "Local\\WindowsIsland.Tray");
         if (_instance is null)
         {
-            if (!verification) AppActivation.ShowSettings();
+            if (!verification && !arguments.Contains("--startup", StringComparison.Ordinal)) AppActivation.ShowSettings();
             Exit();
             return;
         }

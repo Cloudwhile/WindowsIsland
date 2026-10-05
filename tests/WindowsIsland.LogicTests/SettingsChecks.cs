@@ -16,16 +16,58 @@ internal static class SettingsChecks
             "Existing preferences enable notification motion without resetting source choices");
         check(!upgraded.IncludePrereleaseUpdates, "Existing settings stay on stable updates until the user opts in");
         check(upgraded.Language == "zh-CN", "Existing preferences keep the Chinese interface after upgrading");
+        check(upgraded.MuteDuringGames, "Existing preferences enable automatic game mute without changing message sources");
+        check(upgraded.MuteDuringFullScreen, "Existing preferences enable the independent full-screen switch");
         var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false,
-            Animations = false, Position = NotificationPosition.RightCenter, IncludePrereleaseUpdates = true, Language = "en-US" };
+            Animations = false, Position = NotificationPosition.RightCenter, IncludePrereleaseUpdates = true, Language = "en-US", MuteDuringGames = false };
         var changes = 0;
         store.Changed += _ => changes++;
         store.Save(saved);
         check(new SettingsStore(path).Current == saved && changes == 1, "Setup completion and source preferences survive a restart");
         check(new SettingsStore(path).Current.IncludePrereleaseUpdates, "The prerelease update choice survives a restart");
         check(new SettingsStore(path).Current.Language == "en-US", "The selected language survives a restart");
+        check(!new SettingsStore(path).Current.MuteDuringGames, "Disabling game mute survives a restart");
+        check(new SettingsStore(path).Current.MuteDuringFullScreen,
+            "Saving the game switch leaves the full-screen preference enabled");
         store.Save(saved with { Language = "system" });
         check(new SettingsStore(path).Current.Language == "system", "Following the system remains a preference instead of a fixed culture");
+        store.Save(saved with { MuteDuringGames = true });
+        check(new SettingsStore(path).Current.MuteDuringGames, "Enabling game mute survives a restart");
+        foreach (var games in new[] { false, true })
+        foreach (var fullScreen in new[] { false, true })
+        {
+            store.Save(saved with { MuteDuringGames = games, MuteDuringFullScreen = fullScreen });
+            var restored = new SettingsStore(path).Current;
+            check(restored.MuteDuringGames == games && restored.MuteDuringFullScreen == fullScreen
+                && restored.Language == saved.Language && restored.WeChat == saved.WeChat,
+                $"Both mute preferences persist independently: games={games}, fullScreen={fullScreen}");
+        }
+        foreach (var oldMute in new[] { false, true })
+        {
+            File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Language\":\"en-US\",\"MuteDuringGames\":"
+                + oldMute.ToString().ToLowerInvariant() + "}");
+            var migrated = new SettingsStore(path).Current;
+            check(migrated.MuteDuringGames == oldMute && migrated.MuteDuringFullScreen == oldMute
+                && migrated.SetupCompleted && !migrated.WeChat && migrated.Language == "en-US",
+                "The old combined mute preference migrates to both switches: " + oldMute);
+        }
+        foreach (var gameMute in new[] { "999", "\"false\"", "null", "[]", "{}" })
+        {
+            File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Language\":\"en-US\",\"IncludePrereleaseUpdates\":true,\"MuteDuringGames\":" + gameMute + "}");
+            var invalidGameMute = new SettingsStore(path).Current;
+            check(invalidGameMute.MuteDuringGames && invalidGameMute.SetupCompleted && !invalidGameMute.WeChat
+                && invalidGameMute.Language == "en-US" && invalidGameMute.IncludePrereleaseUpdates,
+                "Invalid game mute values keep other valid preferences: " + gameMute);
+            File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Language\":\"en-US\",\"MuteDuringGames\":false,\"MuteDuringFullScreen\":" + gameMute + "}");
+            var invalidFullScreen = new SettingsStore(path).Current;
+            check(!invalidFullScreen.MuteDuringGames && invalidFullScreen.MuteDuringFullScreen
+                && invalidFullScreen.SetupCompleted && !invalidFullScreen.WeChat && invalidFullScreen.Language == "en-US",
+                "Invalid full-screen mute values preserve the disabled game preference: " + gameMute);
+            File.WriteAllText(path, "{\"SetupCompleted\":true,\"MuteDuringGames\":" + gameMute + ",\"MuteDuringFullScreen\":false}");
+            var invalidGameOnly = new SettingsStore(path).Current;
+            check(invalidGameOnly.MuteDuringGames && !invalidGameOnly.MuteDuringFullScreen && invalidGameOnly.SetupCompleted,
+                "Invalid game mute values preserve the disabled full-screen preference: " + gameMute);
+        }
         foreach (var language in new[] { "999", "true", "null", "[]", "{}", "\"fr-FR\"" })
         {
             File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"IncludePrereleaseUpdates\":true,\"Language\":" + language + "}");

@@ -27,6 +27,7 @@ public sealed class MainWindow : Window
     private readonly WeChatService _weChat;
     private readonly PowerService _power;
     private readonly MessageRouter _router = new();
+    private readonly GameModePolicy _gameMode = new();
     private readonly TrayIcon _tray;
     private readonly NotificationPresentation _notification = new();
     private readonly NotificationPanel _notificationPanel = new()
@@ -43,7 +44,7 @@ public sealed class MainWindow : Window
     private double _scale = 1;
     private RectInt32 _workArea;
     private RectInt32? _lastBounds;
-    private int _ticks;
+    private int _ticks, _gameModeRevision;
     private IslandNotification? _current;
     private readonly bool _verification;
     private bool _showUpdateResult;
@@ -178,6 +179,8 @@ public sealed class MainWindow : Window
     {
         if (_started || _closed) return;
         _started = true;
+        await PollGameModeAsync();
+        if (_closed) return;
         _messengers.Start();
         _weChat.Start();
         _telegram.RefreshClients(TelegramClients());
@@ -191,8 +194,8 @@ public sealed class MainWindow : Window
         if (_settingsWindow is null)
         {
             _settingsWindow = new SettingsWindow(_settings,
-                () => new SettingsSnapshot(_notifications.Access, AppInitialization.HasIdentity, _messengers.ConnectedApps, _weChat.Status),
-                InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult);
+                () => new SettingsSnapshot(_notifications.Access, AppInitialization.HasIdentity, _messengers.ConnectedApps, _weChat.Status, _gameMode.Reason),
+                InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult, _verification);
             _showUpdateResult = false;
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
@@ -236,8 +239,11 @@ public sealed class MainWindow : Window
                 MeasureNotification();
                 UpdatePresentation(newMessage: false);
             }
-            if (settings with { Language = previous.Language } == previous) return;
         }
+        if (previous.MuteDuringGames != settings.MuteDuringGames || previous.MuteDuringFullScreen != settings.MuteDuringFullScreen)
+            RefreshGameMode();
+        if (settings with { Language = previous.Language, MuteDuringGames = previous.MuteDuringGames,
+            MuteDuringFullScreen = previous.MuteDuringFullScreen } == previous) return;
         _router.Clear();
         _merge.Stop();
         if (_current is not null && !settings.Allows(_current)) DismissNotification(animate: false);
@@ -401,16 +407,18 @@ public sealed class MainWindow : Window
     {
         if (_closed) return;
         _tray.EnsureAdded();
-        _power.Poll();
-        if (++_ticks % 5 == 0)
-        {
-            _messengers.RefreshClients();
-            _telegram.RefreshClients(TelegramClients());
-        }
         if (_polling) return;
         _polling = true;
         try
         {
+            await PollGameModeAsync();
+            if (_closed) return;
+            _power.Poll();
+            if (++_ticks % 5 == 0)
+            {
+                _messengers.RefreshClients();
+                _telegram.RefreshClients(TelegramClients());
+            }
             await _notifications.PollAsync();
             if (!_closed && _isExpanded && !_motion.IsRunning)
             {
@@ -420,6 +428,41 @@ public sealed class MainWindow : Window
             }
         }
         finally { _polling = false; }
+    }
+
+    private async Task PollGameModeAsync()
+    {
+        var revision = _gameModeRevision;
+        var settings = _settings.Current;
+        var state = settings.MuteDuringGames || settings.MuteDuringFullScreen
+            ? await Task.Run(GameModeDetector.ReadState) : UserNotificationState.Unknown;
+        if (!_closed && revision == _gameModeRevision) ApplyGameMode(state);
+    }
+
+    private bool RefreshGameMode()
+    {
+        if (_closed) return true;
+        _gameModeRevision++;
+        var settings = _settings.Current;
+        return ApplyGameMode(settings.MuteDuringGames || settings.MuteDuringFullScreen
+            ? GameModeDetector.ReadState() : UserNotificationState.Unknown);
+    }
+
+    private bool ApplyGameMode(UserNotificationState state)
+    {
+        var settings = _settings.Current;
+        var wasMuted = _gameMode.IsMuted;
+        if (_gameMode.Update(settings.MuteDuringGames, settings.MuteDuringFullScreen, state))
+        {
+            _tray.SetMuteReason(_gameMode.Reason);
+            if (_gameMode.IsMuted && !wasMuted)
+            {
+                _router.DiscardPending();
+                _merge.Stop();
+                DismissNotification(animate: false);
+            }
+        }
+        return _gameMode.IsMuted;
     }
 
     private bool AllowsNotification(IslandNotification notification)
@@ -435,7 +478,14 @@ public sealed class MainWindow : Window
     private void ReceiveNotification(IslandNotification notification)
     {
         if (!AllowsNotification(notification)) return;
+        RefreshGameMode();
         var dispatch = _router.Receive(notification);
+        if (_gameMode.IsMuted)
+        {
+            _router.DiscardPending();
+            _merge.Stop();
+            return;
+        }
         if (dispatch is not null) DispatchMessage(dispatch);
         if (_router.HasPending) _merge.Start();
         else _merge.Stop();
@@ -446,6 +496,7 @@ public sealed class MainWindow : Window
         if (!AllowsNotification(dispatch.Notification)) return;
         if (dispatch.ReplaceCurrent)
         {
+            if (RefreshGameMode()) return;
             if (!_notification.Active || _current is null
                 || !MessageRouter.Matches(_current, dispatch.Notification)) return;
             _current = dispatch.Notification;
@@ -460,7 +511,7 @@ public sealed class MainWindow : Window
 
     private void ShowNotification(IslandNotification notification)
     {
-        if (_closed) return;
+        if (RefreshGameMode()) return;
         _current = notification;
         _notification.Show();
         _expiry.Start();
