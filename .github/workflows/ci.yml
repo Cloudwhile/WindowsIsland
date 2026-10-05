@@ -83,7 +83,7 @@ jobs:
             'WindowsIsland.runtimeconfig.json', 'WindowsIsland.TelegramHook.dll',
             'WindowsIsland.pri', 'App.xbf', 'Microsoft.UI.Xaml.dll', 'coreclr.dll',
             'hostfxr.dll', 'Assets/Island.ico', 'Icons/LOGO.png', 'Initialization/AppxManifest.xml',
-            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt',
+            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt', 'Updater/Apply-Update.ps1',
             'Assets/Shell/AppList.png', 'Assets/Shell/MediumTile.png', 'Assets/Shell/StoreLogo.png',
             'Assets/Shell/AppList.targetsize-24_altform-unplated.png',
             'Assets/Shell/AppList.targetsize-24_altform-lightunplated.png'
