@@ -3,6 +3,7 @@
 /scripts/
 /scripts/
 *.template.md
+AGENTS.MD
 
 # .NET / WinUI generated output (including local IDE builds)
 [Bb]in/
