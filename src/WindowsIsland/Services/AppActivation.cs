@@ -8,7 +8,8 @@ internal static class AppActivation
 
     public static void ShowSettings() => PostMessage((nint)0xFFFF, SettingsMessage, 0, 0);
 
-    public static void LaunchRegistered(string appId, bool showSettings = true) => Launch(appId, showSettings ? "--settings" : "");
+    public static void LaunchRegistered(string appId, bool showSettings = true, bool showUpdateResult = false) =>
+        Launch(appId, (showSettings ? "--settings" : "") + (showUpdateResult ? " --show-update-result" : ""));
 
     public static void Launch(string appId, string arguments)
     {

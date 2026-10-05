@@ -14,11 +14,11 @@ internal sealed class SettingsWindow : Window
     private readonly DispatcherQueueTimer _refresh;
 
     public SettingsWindow(SettingsStore settings, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
-        Func<Task> requestAccess, Action preview)
+        Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false)
     {
         Title = "Windows Island · 设置";
         SystemBackdrop = new MicaBackdrop();
-        var page = new SettingsPage(settings, snapshot, initialize, requestAccess, preview, Close);
+        var page = new SettingsPage(settings, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates);
         var titleBar = new TitleBar
         {
             Title = "Windows Island",
@@ -37,7 +37,7 @@ internal sealed class SettingsWindow : Window
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var scale = NativeWindow.GetDpiForWindow(hwnd) / 96d;
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
-        var width = Math.Min((int)(640 * scale), area.Width - 48);
+        var width = Math.Min((int)(840 * scale), area.Width - 48);
         var height = Math.Min((int)(720 * scale), area.Height - 48);
         AppWindow.MoveAndResize(new RectInt32(area.X + (area.Width - width) / 2,
             area.Y + (area.Height - height) / 2, width, height));

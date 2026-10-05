@@ -1,10 +1,11 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace WindowsIsland.Services;
 
 internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotifications = true,
     bool WeChat = true, bool Telegram = true, bool Power = true, bool Animations = true,
-    NotificationPosition Position = NotificationPosition.TopCenter)
+    NotificationPosition Position = NotificationPosition.TopCenter, bool IncludePrereleaseUpdates = false)
 {
     public bool AllowsClient(string identity) => identity switch
     {
@@ -33,7 +34,14 @@ internal sealed class SettingsStore
     {
         _path = path ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "WindowsIsland", "settings.json");
-        try { _current = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new(); }
+        try
+        {
+            var json = JsonNode.Parse(File.ReadAllText(_path));
+            if (json is JsonObject preferences && preferences.TryGetPropertyValue(nameof(AppSettings.IncludePrereleaseUpdates), out var node)
+                && (node is not JsonValue value || !value.TryGetValue<bool>(out _)))
+                preferences.Remove(nameof(AppSettings.IncludePrereleaseUpdates));
+            _current = json?.Deserialize<AppSettings>() ?? new();
+        }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { _current = new(); }
         _current = _current with { Position = NotificationPlacement.Normalize(_current.Position) };
     }

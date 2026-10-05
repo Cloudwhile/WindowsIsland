@@ -25,6 +25,8 @@
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\packaging\AppxManifest.xml" Link="Initialization\AppxManifest.xml"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\packaging\Apply-Update.ps1" Link="Updater\Apply-Update.ps1"
+      CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\native\vendor\minhook\LICENSE.txt" Link="Licenses\MinHook.txt"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\artifacts\native\Release\WindowsIsland.TelegramHook.dll" Link="WindowsIsland.TelegramHook.dll"

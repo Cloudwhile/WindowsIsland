@@ -24,13 +24,13 @@ internal static class AppInitialization
         return package is null ? null : package.Id.FamilyName + "!App";
     }
 
-    public static async Task<string> InitializeAsync()
+    public static async Task<string> InitializeAsync(bool force = false)
     {
-        if (HasIdentity) return Package.Current.Id.FamilyName + "!App";
+        if (!force && HasIdentity) return Package.Current.Id.FamilyName + "!App";
         var directory = Path.GetFullPath(AppContext.BaseDirectory);
         var manager = new PackageManager();
         var installed = manager.FindPackagesForUser(string.Empty).FirstOrDefault(package => package.Id.Name == "WindowsIsland.Desktop");
-        if (installed is not null && SameLocation(installed, directory)) return installed.Id.FamilyName + "!App";
+        if (!force && installed is not null && SameLocation(installed, directory)) return installed.Id.FamilyName + "!App";
         var installedVersion = installed?.Id.Version;
         var version = installedVersion is { } value ? new Version(value.Major, value.Minor, value.Build, value.Revision) : null;
         var manifest = InitializationManifest.Build(

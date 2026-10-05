@@ -25,32 +25,44 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly NotificationPositionPicker _position = new();
     private readonly SettingsHeader _header;
     private readonly SettingsSetup _setup;
+    private readonly SettingsNavigation _navigation = new();
+    private readonly SettingsUpdates _updates;
+    private readonly ScrollViewer _content = new()
+    {
+        HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        HorizontalContentAlignment = HorizontalAlignment.Stretch,
+        VerticalContentAlignment = VerticalAlignment.Top
+    };
+    private readonly Dictionary<string, (string Title, FrameworkElement Content)> _sections = [];
     private readonly ToggleSwitch _system, _weChat, _telegram, _power, _animations;
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _disposed;
     private bool? _ready;
 
     public SettingsPage(SettingsStore store, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
-        Func<Task> requestAccess, Action preview, Action close)
+        Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false)
     {
         _store = store;
         _snapshot = snapshot;
         _close = close;
-        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        RowDefinitions.Add(new RowDefinition());
-        var content = new StackPanel { Spacing = 0, Margin = new Thickness(24, 0, 24, 24), MaxWidth = 720 };
+        var layout = new Grid { MaxWidth = 720 };
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new RowDefinition());
         var refresh = new IconActionButton(Symbol.Refresh, "刷新状态", "RefreshSettings");
         refresh.Click += (_, _) => { _failed = false; Refresh(); };
         var previewButton = new IconActionButton(Symbol.Play, "显示测试通知", "PreviewNotification");
         previewButton.Click += (_, _) => preview();
         _header = new SettingsHeader(_progress, previewButton, refresh, _complete) { MaxWidth = 720 };
-        Children.Add(_header);
-        _notice.Margin = new Thickness(0, 0, 0, 12);
-        content.Children.Add(_notice);
+        layout.Children.Add(_header);
+        _notice.Margin = new Thickness(16, 0, 16, 12);
+        Grid.SetRow(_notice, 1);
+        layout.Children.Add(_notice);
         _initializationRow = new SettingsRow(Symbol.Download, "应用初始化", _initialize);
         _permissionRow = new SettingsRow(Symbol.Permissions, "通知访问", _permission);
         _setup = new SettingsSetup(_initializationRow, _permissionRow);
-        content.Children.Add(_setup);
+        AddSection("setup", "初始化", _setup);
         _animations = Switch("弹窗动画", "AnimationsToggle", settings => settings.Animations,
             (settings, value) => settings with { Animations = value });
         _animationsRow = new SettingsRow(Symbol.Play, "弹窗动画", _animations);
@@ -60,7 +72,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             try { _store.Save(_store.Current with { Position = position }); _failed = false; Refresh(); }
             catch (Exception error) { Trace.WriteLine(error); ShowError("位置未能保存，请重试。"); Refresh(); }
         };
-        content.Children.Add(new SettingsSection("外观", _positionRow, _animationsRow));
+        AddSection("appearance", "外观", _positionRow, _animationsRow);
         var bannerGuide = new NotificationBannerGuide();
         bannerGuide.OpenSettings.Click += async (_, _) => await RunAsync(async () =>
         {
@@ -68,7 +80,6 @@ internal sealed class SettingsPage : Grid, IDisposable
                 throw new InvalidOperationException("Windows notification settings did not open.");
         }, "通知设置暂时无法打开，请重试。");
         _actions.Add(bannerGuide.OpenSettings);
-        content.Children.Add(new SettingsSection("通知显示", bannerGuide));
         _system = Switch("系统通知", "SystemNotificationsToggle", settings => settings.SystemNotifications,
             (settings, value) => settings with { SystemNotifications = value });
         _weChat = Switch("微信", "WeChatToggle", settings => settings.WeChat, (settings, value) => settings with { WeChat = value });
@@ -78,16 +89,15 @@ internal sealed class SettingsPage : Grid, IDisposable
         _weChatRow = new SettingsRow(Symbol.Contact, "微信", _weChat);
         _telegramRow = new SettingsRow(Symbol.Send, "Telegram", _telegram);
         _powerRow = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE7E8), FontSize = 20 }, "电源", _power);
-        content.Children.Add(new SettingsSection("消息来源", _systemRow, _weChatRow, _telegramRow, _powerRow));
-        var scroller = new ScrollViewer
-        {
-            Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            VerticalContentAlignment = VerticalAlignment.Top
-        };
-        Grid.SetRow(scroller, 1);
-        Children.Add(scroller);
+        AddSection("sources", "消息来源", _systemRow, _weChatRow, _telegramRow, _powerRow,
+            new SettingsSection("通知显示", bannerGuide));
+        _updates = new SettingsUpdates(store, exit);
+        AddSection("updates", "更新", _updates);
+        Grid.SetRow(_content, 2);
+        layout.Children.Add(_content);
+        _navigation.Content = layout;
+        _navigation.SectionSelected += SelectSection;
+        Children.Add(_navigation);
         _actions.AddRange([_initialize, _permission, refresh, _complete, previewButton, _installSettings]);
         _initialize.Click += async (_, _) => await RunAsync(initialize, "初始化未完成，请打开系统设置后重试。", showInstallSettings: true);
         _permission.Click += async (_, _) => await RunAsync(requestAccess, "通知访问暂时不可用，请重试。");
@@ -101,6 +111,23 @@ internal sealed class SettingsPage : Grid, IDisposable
         AutomationProperties.SetAutomationId(this, "SettingsPage");
         AutomationProperties.SetAutomationId(_notice, "SetupStatus");
         Refresh();
+        _navigation.Select(openUpdates ? "updates" : store.Current.SetupCompleted ? "sources" : "setup");
+    }
+
+    private void AddSection(string id, string title, params UIElement[] rows)
+    {
+        var content = new StackPanel { Margin = new Thickness(16, 0, 16, 24) };
+        foreach (var row in rows) content.Children.Add(row);
+        _sections.Add(id, (title, content));
+        AutomationProperties.SetAutomationId(content, "SettingsSection" + id);
+    }
+
+    private void SelectSection(string section)
+    {
+        var selected = _sections[section];
+        _header.Title = selected.Title;
+        _content.Content = selected.Content;
+        _content.ChangeView(null, 0, null, disableAnimation: true);
     }
 
     private ToggleSwitch Switch(string label, string id, Func<AppSettings, bool> read,
@@ -240,5 +267,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     {
         _disposed = true;
         _store.Changed -= OnSettingsChanged;
+        _updates.Dispose();
+        _navigation.Dispose();
     }
 }

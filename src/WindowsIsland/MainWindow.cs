@@ -46,13 +46,15 @@ public sealed class MainWindow : Window
     private int _ticks;
     private IslandNotification? _current;
     private readonly bool _verification;
+    private bool _showUpdateResult;
     private NotificationPosition _position;
 
-    internal MainWindow(SettingsStore settings, bool verification = false)
+    internal MainWindow(SettingsStore settings, bool verification = false, bool showUpdateResult = false)
     {
         _settings = settings;
         _position = settings.Current.Position;
         _verification = verification;
+        _showUpdateResult = showUpdateResult;
         Title = "Windows Island";
         _root = new IslandSurface(_notificationPanel)
         {
@@ -187,7 +189,8 @@ public sealed class MainWindow : Window
         {
             _settingsWindow = new SettingsWindow(_settings,
                 () => new SettingsSnapshot(_notifications.Access, AppInitialization.HasIdentity, _messengers.ConnectedApps, _weChat.Status),
-                InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification);
+                InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult);
+            _showUpdateResult = false;
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
         _settingsWindow.Activate();
