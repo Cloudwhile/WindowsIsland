@@ -73,3 +73,63 @@ jobs:
           gh release upload "$RELEASE_TAG" "distribution/$name.zip" "distribution/$name.zip.sha256" \
             "distribution/$name.msi" "distribution/$name.msi.sha256" --clobber
           gh release edit "$RELEASE_TAG" --notes-file release.md --draft=false
+
+  update-feed:
+    name: Publish update manifest
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: windows-update-manifest
+      cancel-in-progress: false
+    steps:
+      - name: Checkout manifest generator
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Checkout update feed
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: master
+          path: update-feed
+
+      - name: Read published releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/releases" --paginate --slurp > "$RUNNER_TEMP/releases.json"
+
+      - name: Generate update manifest
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          ./packaging/New-UpdateManifest.ps1 -ReleaseDataPath "$env:RUNNER_TEMP/releases.json" `
+            -OutputPath update-feed/updates/releases.json -RequiredTag $env:RELEASE_TAG
+
+      - name: Commit update manifest
+        working-directory: update-feed
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/releases.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m 'chore: update release manifest' -m "Publish update metadata after $RELEASE_TAG."
+          for attempt in 1 2 3; do
+            git pull --rebase origin master
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

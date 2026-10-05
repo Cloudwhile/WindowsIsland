@@ -61,6 +61,9 @@ jobs:
       - name: Run notification logic checks
         run: dotnet run --project tests/WindowsIsland.LogicTests/WindowsIsland.LogicTests.csproj -c Release
 
+      - name: Check update manifest generation
+        run: ./packaging/Test-UpdateManifest.ps1
+
       - name: Run Telegram bridge checks
         run: dotnet run --project tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj -c Release
 
