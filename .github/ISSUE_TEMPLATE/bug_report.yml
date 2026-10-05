@@ -12,7 +12,7 @@ body:
     attributes:
       label: 消息岛版本 / App version
       description: 在设置的更新页查看版本；源码构建可填写提交号。Find the version in Settings → Updates, or provide the commit for a source build.
-      placeholder: v0.1.0-rc.2
+      placeholder: v0.1.0-rc.3
     validations:
       required: true
   - type: input
