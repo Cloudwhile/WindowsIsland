@@ -84,6 +84,7 @@ $success = $false
 $mutex = $null
 $acquired = $false
 $message = '更新未完成，请重试。'
+$messageKey = 'UpdateFailed'
 try {
     if ($job.InstallerPath) {
         $installer = Full-Path $job.InstallerPath
@@ -167,6 +168,7 @@ try {
     }
     $success = $true
     $message = '更新完成。'
+    $messageKey = 'UpdateComplete'
 } catch {
     $_ | Out-String | Set-Content -LiteralPath (Join-Path $jobDirectory 'error.log') -Encoding UTF8
     if ($modified) {
@@ -182,9 +184,11 @@ try {
                 elseif ([IO.File]::Exists($item.Target)) { Remove-Item -LiteralPath $item.Target -Force }
             }
             $message = '更新失败，已恢复原版本。请重试。'
+            $messageKey = 'UpdateRestored'
         } catch {
             $_ | Out-String | Add-Content -LiteralPath (Join-Path $jobDirectory 'error.log') -Encoding UTF8
             $message = '更新失败，原文件备份已保留。请重新安装消息岛。'
+            $messageKey = 'UpdateBackupRetained'
             $canRestart = $false
         }
     }
@@ -196,7 +200,7 @@ try {
     $parent.Dispose()
 }
 
-$result = @{ InstallDirectory = $install; Version = [string]$job.Version; Success = $success; Message = $message }
+$result = @{ InstallDirectory = $install; Version = [string]$job.Version; Success = $success; Message = $message; MessageKey = $messageKey }
 $resultPath = Join-Path $workRoot 'result.json'
 $temporaryResult = Join-Path $jobDirectory 'result.json'
 [IO.File]::WriteAllText($temporaryResult, ($result | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))

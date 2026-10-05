@@ -33,8 +33,12 @@ internal sealed class NotificationPositionPicker : Grid
             };
             var button = new ToggleButton { Content = icon, Width = 36, Height = 32, Padding = new Thickness(0) };
             AutomationProperties.SetAutomationId(button, "NotificationPosition" + position);
-            AutomationProperties.SetName(button, NotificationPlacement.Label(position));
-            ToolTipService.SetToolTip(button, NotificationPlacement.Label(position));
+            LocalizedUI.Bind(button, () =>
+            {
+                var label = NotificationPlacement.Label(position);
+                AutomationProperties.SetName(button, label);
+                ToolTipService.SetToolTip(button, label);
+            });
             button.Checked += (_, _) => { if (!_syncing) { Select(position); Selected?.Invoke(position); } };
             button.Unchecked += (_, _) => { if (!_syncing && position == _selected) Select(_selected); };
             SetColumn(button, (int)(anchor.X * 2));

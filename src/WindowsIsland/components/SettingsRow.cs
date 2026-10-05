@@ -32,7 +32,8 @@ internal sealed class SettingsRow : Grid
         icon.VerticalAlignment = VerticalAlignment.Center;
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         Children.Add(icon);
-        var name = IslandTheme.Text(title);
+        var name = LocalizedUI.Text(title);
+        _status.TextWrapping = TextWrapping.Wrap;
         name.FontWeight = FontWeights.SemiBold;
         _status.Visibility = Visibility.Collapsed;
         var text = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };

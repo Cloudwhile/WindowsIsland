@@ -82,7 +82,7 @@ internal sealed class GitHubReleaseClient : IDisposable
     internal async Task<HttpResponseMessage> DownloadAsync(Uri uri, CancellationToken cancellationToken)
     {
         if (!uri.AbsoluteUri.StartsWith(DownloadPrefix, StringComparison.Ordinal))
-            throw new InvalidDataException("更新资源地址无效，请重新检查更新。");
+            throw Localization.DataError("UpdateErrorAssetAddress");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
         try { EnsureSuccess(response); return response; }
@@ -92,7 +92,7 @@ internal sealed class GitHubReleaseClient : IDisposable
     private static void EnsureSuccess(HttpResponseMessage response)
     {
         if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests)
-            throw new HttpRequestException("GitHub 暂时限制了请求，请稍后重试。", null, response.StatusCode);
+            throw Localization.Error(new HttpRequestException(Localization.Get("UpdateErrorRateLimit"), null, response.StatusCode), "UpdateErrorRateLimit");
         response.EnsureSuccessStatusCode();
     }
 

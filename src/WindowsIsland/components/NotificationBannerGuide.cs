@@ -6,7 +6,7 @@ namespace WindowsIsland.Components;
 
 internal sealed class NotificationBannerGuide : Grid
 {
-    public IconActionButton OpenSettings { get; } = new(Symbol.Setting, "打开 Windows 通知设置", "OpenSystemNotificationSettings");
+    public IconActionButton OpenSettings { get; } = new(Symbol.Setting, "ActionOpenWindowsNotificationSettings", "OpenSystemNotificationSettings");
 
     public NotificationBannerGuide()
     {
@@ -14,19 +14,17 @@ internal sealed class NotificationBannerGuide : Grid
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.Children.Add(new SymbolIcon(Symbol.Message));
-        var title = IslandTheme.Text("仅使用消息岛通知");
+        var title = LocalizedUI.Text("BannerTitle");
         title.TextWrapping = TextWrapping.Wrap;
         SetColumn(title, 1);
         header.Children.Add(title);
         var steps = new StackPanel { Spacing = 12 };
         foreach (var text in new[]
         {
-            "1. 打开 Windows 通知设置，选择需要接管的应用。",
-            "2. 关闭“显示通知横幅”，保留该应用的“通知”和“在通知中心显示通知”。",
-            "3. 回到消息岛，保持下方“系统通知”来源开启。"
+            "BannerStep1", "BannerStep2", "BannerStep3"
         })
         {
-            var line = IslandTheme.Text(text, 14);
+            var line = LocalizedUI.Text(text, 14);
             line.TextWrapping = TextWrapping.Wrap;
             steps.Children.Add(line);
         }
@@ -37,7 +35,7 @@ internal sealed class NotificationBannerGuide : Grid
             HorizontalContentAlignment = HorizontalAlignment.Stretch
         };
         AutomationProperties.SetAutomationId(expander, "NotificationBannerGuide");
-        AutomationProperties.SetName(expander, "仅使用消息岛通知");
+        LocalizedUI.Label(expander, "BannerTitle");
         Children.Add(expander);
     }
 }

@@ -11,6 +11,7 @@ internal sealed class NotificationHeader : Grid
     private readonly AppIcon _icon = new(16) { Margin = new Thickness(0, 0, 8, 0) };
     private readonly TextBlock _app = IslandTheme.Text("", 12, secondary: true);
     private readonly TextBlock _time = IslandTheme.Text("", 12, secondary: true);
+    private IslandNotification? _notification;
 
     public NotificationHeader()
     {
@@ -26,14 +27,22 @@ internal sealed class NotificationHeader : Grid
         AutomationProperties.SetAutomationId(_icon, "NotificationHeaderIcon");
         AutomationProperties.SetAutomationId(_time, "NotificationTime");
         AutomationProperties.SetAutomationId(_app, "NotificationAppName");
+        LocalizedUI.Bind(this, RefreshText);
     }
 
     public void Show(IslandNotification notification)
     {
-        _app.Text = notification.AppName;
+        _notification = notification;
         _ = _icon.ShowAsync(notification.AppName, notification.AppIcon, notification.Symbol);
+        RefreshText();
+    }
+
+    private void RefreshText()
+    {
+        if (_notification is not { } notification) return;
+        _app.Text = notification.Source == NotificationSource.Power ? Localization.Get("Power") : notification.AppName;
         var age = DateTimeOffset.Now - notification.CreatedAt;
-        _time.Text = age.TotalSeconds < 60 ? "现在" : notification.CreatedAt.ToLocalTime().ToString("HH:mm");
+        _time.Text = age.TotalSeconds < 60 ? Localization.Get("NotificationNow") : notification.CreatedAt.ToLocalTime().ToString("HH:mm", Localization.Culture);
     }
 
     public double NaturalWidth()
@@ -45,6 +54,7 @@ internal sealed class NotificationHeader : Grid
 
     public void Clear()
     {
+        _notification = null;
         _app.Text = _time.Text = "";
         _icon.Clear();
     }

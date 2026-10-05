@@ -1,13 +1,14 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using WindowsIsland.Services;
 
 namespace WindowsIsland.Components;
 
 internal sealed class IconActionButton : Button
 {
     private Symbol? _symbol;
-    private string? _label;
+    private string? _labelKey;
 
     public IconActionButton(Symbol symbol, string label, string automationId)
     {
@@ -18,14 +19,22 @@ internal sealed class IconActionButton : Button
         HorizontalAlignment = HorizontalAlignment.Right;
         AutomationProperties.SetAutomationId(this, automationId);
         SetAction(symbol, label);
+        LocalizedUI.Bind(this, RefreshLabel);
     }
 
     public void SetAction(Symbol symbol, string label)
     {
-        if (_symbol == symbol && _label == label) return;
+        if (_symbol == symbol && _labelKey == label) return;
         _symbol = symbol;
-        _label = label;
+        _labelKey = label;
         Content = new FontIcon { Glyph = char.ConvertFromUtf32((int)symbol), FontSize = 16 };
+        RefreshLabel();
+    }
+
+    private void RefreshLabel()
+    {
+        if (_labelKey is null) return;
+        var label = Localization.Get(_labelKey);
         AutomationProperties.SetName(this, label);
         ToolTipService.SetToolTip(this, label);
     }

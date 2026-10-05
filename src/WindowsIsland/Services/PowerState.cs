@@ -14,14 +14,14 @@ internal sealed class PowerTracker
         if (!current.HasBattery || previous is null || !previous.HasBattery) return null;
         string? title = null;
         if (current.Connected != previous.Connected)
-            title = current.Connected ? current.Charging ? "开始充电" : "已连接电源" : "已断开电源";
+            title = current.Connected ? current.Charging ? Localization.Get("PowerCharging") : Localization.Get("PowerConnected") : Localization.Get("PowerDisconnected");
         else if (current.Connected && current.Percent == 100 && previous.Percent != 100)
-            title = "电池已充满";
+            title = Localization.Get("PowerFull");
         else if (current.Connected && current.Charging && !previous.Charging)
-            title = "开始充电";
+            title = Localization.Get("PowerCharging");
         if (title is null) return null;
-        return new(++_sequence, DateTimeOffset.UtcNow, "电源", title,
-            current.Percent is { } percent ? $"电量 {percent}%" : "",
+        return new(++_sequence, DateTimeOffset.UtcNow, Localization.Get("Power"), title,
+            current.Percent is { } percent ? Localization.Format("PowerBattery", percent) : "",
             Source: NotificationSource.Power, AppId: "power", Symbol: current.Connected && current.Charging ? "⚡" : "🔋");
     }
 }

@@ -23,7 +23,7 @@ internal sealed class SettingsSetup : Grid
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         header.Children.Add(new SymbolIcon(Symbol.Permissions));
-        var title = IslandTheme.Text("初始化");
+        var title = LocalizedUI.Text("Setup");
         title.FontWeight = FontWeights.SemiBold;
         Grid.SetColumn(title, 1);
         Grid.SetColumn(_status, 2);
@@ -35,6 +35,6 @@ internal sealed class SettingsSetup : Grid
         _expander.Content = content;
         Children.Add(_expander);
         AutomationProperties.SetAutomationId(_expander, "InitializationSection");
-        AutomationProperties.SetName(_expander, "初始化");
+        LocalizedUI.Label(_expander, "Setup");
     }
 }

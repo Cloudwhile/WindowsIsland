@@ -16,7 +16,7 @@ internal sealed class SettingsWindow : Window
     public SettingsWindow(SettingsStore settings, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false)
     {
-        Title = "Windows Island · 设置";
+        Title = Localization.Get("WindowSettingsTitle");
         SystemBackdrop = new MicaBackdrop();
         var page = new SettingsPage(settings, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates);
         var titleBar = new TitleBar
@@ -24,7 +24,12 @@ internal sealed class SettingsWindow : Window
             Title = "Windows Island",
             IconSource = new ImageIconSource { ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Icons/LOGO.png")) }
         };
-        var layout = new Grid();
+        var layout = new Grid { Language = Localization.Language };
+        LocalizedUI.Bind(layout, () =>
+        {
+            Title = Localization.Get("WindowSettingsTitle");
+            layout.Language = Localization.Language;
+        });
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition());
         Grid.SetRow(page, 1);

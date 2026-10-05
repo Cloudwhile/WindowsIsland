@@ -94,7 +94,7 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
                     ?? notification.Notification.Visual.Bindings.FirstOrDefault();
                 var text = binding?.GetTextElements().Select(item => item.Text)
                     .Where(value => !string.IsNullOrWhiteSpace(value)).ToArray() ?? [];
-                string app = notification.AppInfo?.DisplayInfo?.DisplayName ?? "通知";
+                string app = notification.AppInfo?.DisplayInfo?.DisplayName ?? Localization.Get("NotificationFallback");
                 snapshot.Add(new IslandNotification(notification.Id, notification.CreationTime,
                     app, text.FirstOrDefault() ?? app, string.Join("\n", text.Skip(1)),
                     AppId: notification.AppInfo?.AppUserModelId));

@@ -15,7 +15,8 @@ internal sealed class TrayIcon : IDisposable
     private NotifyIconData _data;
     private bool _added, _disposed, _menuOpen;
     private NotificationAccess _access = NotificationAccess.Waiting;
-    private string _status = "正在连接通知";
+    private string _statusKey = "TrayConnecting";
+    private string Status => Localization.Get(_statusKey);
 
     public TrayIcon(nint window, Action exit, Action requestAccess, Action openSettings)
     {
@@ -44,7 +45,7 @@ internal sealed class TrayIcon : IDisposable
         {
             Size = (uint)Marshal.SizeOf<NotifyIconData>(), Window = window, Id = 1,
             Flags = 1 | 2 | 4 | 0x80, CallbackMessage = CallbackMessage, Icon = _icon,
-            Tip = "Windows Island · 正在连接通知", Info = "", InfoTitle = "", Version = 4
+            Tip = "Windows Island · " + Status, Info = "", InfoTitle = "", Version = 4
         };
         EnsureAdded();
     }
@@ -78,15 +79,15 @@ internal sealed class TrayIcon : IDisposable
     public void UpdateAccess(NotificationAccess access, bool enabled = true)
     {
         _access = access;
-        _status = !enabled ? "系统通知已关闭" : access switch
+        _statusKey = !enabled ? "TrayDisabled" : access switch
         {
-            NotificationAccess.Allowed => "通知监听中",
-            NotificationAccess.Denied => "允许通知访问",
-            NotificationAccess.NeedsRegistration => "完成应用初始化",
-            NotificationAccess.Unavailable => "重试通知连接",
-            _ => "开启通知访问"
+            NotificationAccess.Allowed => "TrayListening",
+            NotificationAccess.Denied => "TrayAllowAccess",
+            NotificationAccess.NeedsRegistration => "TrayCompleteSetup",
+            NotificationAccess.Unavailable => "TrayRetry",
+            _ => "TrayEnableAccess"
         };
-        _data.Tip = "Windows Island · " + _status;
+        _data.Tip = "Windows Island · " + Status;
         if (_added && !ShellNotifyIcon(1, ref _data)) _added = false;
     }
 
@@ -117,10 +118,10 @@ internal sealed class TrayIcon : IDisposable
         try
         {
             var canRequest = _access != NotificationAccess.Allowed;
-            AppendMenu(menu, canRequest ? 0u : 1u, 1, _status);
-            AppendMenu(menu, 0, 3, "设置");
+            AppendMenu(menu, canRequest ? 0u : 1u, 1, Status);
+            AppendMenu(menu, 0, 3, Localization.Get("Settings"));
             AppendMenu(menu, 0x800, 0, "");
-            AppendMenu(menu, 0, 2, "退出");
+            AppendMenu(menu, 0, 2, Localization.Get("Exit"));
             GetCursorPos(out var point);
             ShowWindow(_menuOwner, 4);
             SetForegroundWindow(_menuOwner);

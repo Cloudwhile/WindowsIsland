@@ -5,7 +5,7 @@ using System.Text;
 
 namespace WindowsIsland.Services;
 
-internal sealed record UpdateProgress(string Message, double? Percent = null);
+internal sealed record UpdateProgress(string MessageKey, double? Percent = null);
 
 internal sealed class PreparedUpdate(string directory, string stagingDirectory, string? installerPath,
     string version, string root) : IDisposable
@@ -32,6 +32,7 @@ internal static class UpdatePackage
     [
         "WindowsIsland.exe", "WindowsIsland.dll", "WindowsIsland.deps.json", "WindowsIsland.runtimeconfig.json",
         "WindowsIsland.pri", "App.xbf", "Microsoft.UI.Xaml.dll", "coreclr.dll", "hostfxr.dll",
+        "en-US/WindowsIsland.resources.dll",
         "WindowsIsland.TelegramHook.dll", "Assets/Island.ico", "Icons/LOGO.png", "Initialization/AppxManifest.xml",
         "Initialization/RuntimeManifest.xml", "Licenses/MinHook.txt", "Updater/Apply-Update.ps1", "Assets/Shell/AppList.png",
         "Assets/Shell/MediumTile.png", "Assets/Shell/StoreLogo.png",
@@ -42,7 +43,7 @@ internal static class UpdatePackage
         bool useInstaller, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken, string? workRoot = null)
     {
         if (useInstaller && (release.Installer is null || release.InstallerChecksum is null))
-            throw new InvalidDataException("此版本的安装包尚未就绪，请稍后重试。");
+            throw Localization.DataError("UpdateErrorInstallerMissing");
         var root = Path.GetFullPath(workRoot ?? WorkRoot);
         var directory = Path.Combine(root, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -50,7 +51,7 @@ internal static class UpdatePackage
         {
             var archive = Path.Combine(directory, "update.zip");
             await DownloadVerifiedAsync(client, release.Archive, release.Checksum, archive, progress, cancellationToken).ConfigureAwait(false);
-            progress?.Report(new("正在解压更新"));
+            progress?.Report(new("UpdateExtracting"));
             var staging = Path.Combine(directory, "payload");
             await Task.Run(() => Extract(archive, staging, cancellationToken), cancellationToken).ConfigureAwait(false);
             string? installer = null;
@@ -76,11 +77,11 @@ internal static class UpdatePackage
         await DownloadAsync(client, checksum, checksumPath, 4096, null, cancellationToken).ConfigureAwait(false);
         var expected = ReadChecksum(await File.ReadAllTextAsync(checksumPath, cancellationToken).ConfigureAwait(false), asset.Name);
         await DownloadAsync(client, asset, destination, MaximumDownload, progress, cancellationToken).ConfigureAwait(false);
-        progress?.Report(new("正在校验更新"));
+        progress?.Report(new("UpdateVerifying"));
         await using var file = File.OpenRead(destination);
         var actual = await SHA256.HashDataAsync(file, cancellationToken).ConfigureAwait(false);
         if (!CryptographicOperations.FixedTimeEquals(actual, expected))
-            throw new InvalidDataException("更新包校验失败，请重新下载。");
+            throw Localization.DataError("UpdateErrorChecksumMismatch");
     }
 
     internal static byte[] ReadChecksum(string text, string filename)
@@ -88,49 +89,49 @@ internal static class UpdatePackage
         var parts = text.Trim().Trim((char)0xFEFF).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2 || parts[0].Length != 64 || !parts[0].All(char.IsAsciiHexDigit)
             || parts[1].TrimStart('*') != filename)
-            throw new InvalidDataException("更新校验文件无效，请稍后重试。");
+            throw Localization.DataError("UpdateErrorChecksumInvalid");
         return Convert.FromHexString(parts[0]);
     }
 
     private static async Task DownloadAsync(GitHubReleaseClient client, ReleaseAsset asset, string destination, long limit,
         IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
     {
-        if (asset.Size <= 0 || asset.Size > limit) throw new InvalidDataException("更新文件大小无效，请稍后重试。");
+        if (asset.Size <= 0 || asset.Size > limit) throw Localization.DataError("UpdateErrorSizeInvalid");
         using var response = await client.DownloadAsync(asset.Download, cancellationToken).ConfigureAwait(false);
         if (response.Content.Headers.ContentLength is { } length && length != asset.Size)
-            throw new InvalidDataException("更新文件不完整，请重新下载。");
+            throw Localization.DataError("UpdateErrorIncomplete");
         await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
         await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None,
             128 * 1024, FileOptions.Asynchronous);
         var buffer = new byte[128 * 1024];
         long received = 0;
         var report = Stopwatch.StartNew();
-        progress?.Report(new("正在下载更新", 0));
+        progress?.Report(new("UpdateDownloading", 0));
         int count;
         while ((count = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
             received += count;
-            if (received > asset.Size) throw new InvalidDataException("更新文件大小不匹配，请重新下载。");
+            if (received > asset.Size) throw Localization.DataError("UpdateErrorSizeMismatch");
             await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
             if (report.ElapsedMilliseconds >= 100)
             {
-                progress?.Report(new("正在下载更新", received * 100d / asset.Size));
+                progress?.Report(new("UpdateDownloading", received * 100d / asset.Size));
                 report.Restart();
             }
         }
-        if (received != asset.Size) throw new InvalidDataException("更新文件不完整，请重新下载。");
-        progress?.Report(new("下载完成", 100));
+        if (received != asset.Size) throw Localization.DataError("UpdateErrorIncomplete");
+        progress?.Report(new("UpdateDownloadComplete", 100));
     }
 
     internal static void Extract(string archivePath, string destination, CancellationToken cancellationToken)
     {
-        if (Directory.Exists(destination)) throw new IOException("更新解压目录已存在。");
+        if (Directory.Exists(destination)) throw Localization.IoError("UpdateErrorDirectoryExists");
         var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
         using var archive = ZipFile.OpenRead(archivePath);
         var entries = new List<(ZipArchiveEntry Entry, string Path)>();
         var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         long expanded = 0;
-        if (archive.Entries.Count > 10000) throw new InvalidDataException("更新包包含过多文件。");
+        if (archive.Entries.Count > 10000) throw Localization.DataError("UpdateErrorTooManyFiles");
         foreach (var entry in archive.Entries)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -140,19 +141,19 @@ internal static class UpdatePackage
                 || part.EndsWith(' ') || part.EndsWith('.') || part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
                 || ((entry.ExternalAttributes >> 16) & 0xF000) == 0xA000
                 || (entry.ExternalAttributes & (int)FileAttributes.ReparsePoint) != 0)
-                throw new InvalidDataException("更新包包含无效路径。");
+                throw Localization.DataError("UpdateErrorInvalidPath");
             var path = Path.GetFullPath(Path.Combine(destination, Path.Combine(parts)));
             if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !paths.Add(path))
-                throw new InvalidDataException("更新包包含冲突路径。");
+                throw Localization.DataError("UpdateErrorConflictingPath");
             expanded = checked(expanded + entry.Length);
-            if (expanded > MaximumExpanded) throw new InvalidDataException("更新包解压大小超出限制。");
+            if (expanded > MaximumExpanded) throw Localization.DataError("UpdateErrorTooLarge");
             entries.Add((entry, path));
         }
         foreach (var required in RequiredFiles)
         {
             if (!entries.Any(item => string.Equals(item.Entry.FullName.Replace('\\', '/'), required,
                 StringComparison.OrdinalIgnoreCase) && item.Entry.Length > 0))
-                throw new InvalidDataException("更新包缺少必要文件，请稍后重试。");
+                throw Localization.DataError("UpdateErrorRequiredFile");
         }
         Directory.CreateDirectory(destination);
         foreach (var (entry, path) in entries)
@@ -172,7 +173,7 @@ internal static class UpdatePackage
         var full = Path.GetFullPath(directory);
         if (!string.Equals(Path.GetDirectoryName(full), Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)), StringComparison.OrdinalIgnoreCase)
             || !Guid.TryParseExact(Path.GetFileName(full), "N", out _))
-            throw new IOException("更新临时目录无效。");
+            throw Localization.IoError("UpdateErrorWorkDir");
         try
         {
             if (Directory.Exists(full) && (File.GetAttributes(full) & FileAttributes.ReparsePoint) == 0)

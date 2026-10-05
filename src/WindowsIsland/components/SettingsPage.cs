@@ -15,14 +15,15 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly Action _close;
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false };
     private readonly ProgressRing _progress = new() { Width = 20, Height = 20, Visibility = Visibility.Collapsed };
-    private readonly IconActionButton _initialize = new(Symbol.Download, "初始化应用", "InitializeApplication");
-    private readonly IconActionButton _permission = new(Symbol.Permissions, "允许通知访问", "RequestNotificationAccess");
-    private readonly IconActionButton _complete = new(Symbol.Accept, "完成初始化", "CompleteSetup");
-    private readonly IconActionButton _installSettings = new(Symbol.Setting, "打开系统设置", "OpenInstallationSettings");
+    private readonly IconActionButton _initialize = new(Symbol.Download, "ActionInitialize", "InitializeApplication");
+    private readonly IconActionButton _permission = new(Symbol.Permissions, "ActionAllowAccess", "RequestNotificationAccess");
+    private readonly IconActionButton _complete = new(Symbol.Accept, "ActionCompleteSetup", "CompleteSetup");
+    private readonly IconActionButton _installSettings = new(Symbol.Setting, "ActionOpenSystemSettings", "OpenInstallationSettings");
     private readonly SettingsRow _initializationRow, _permissionRow, _systemRow, _weChatRow, _telegramRow, _powerRow;
     private readonly SettingsRow _animationsRow;
     private readonly SettingsRow _positionRow;
     private readonly NotificationPositionPicker _position = new();
+    private readonly SettingsLanguagePicker _language = new();
     private readonly SettingsHeader _header;
     private readonly SettingsSetup _setup;
     private readonly SettingsNavigation _navigation = new();
@@ -39,6 +40,8 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _disposed;
     private bool? _ready;
+    private string _selectedSection = "setup";
+    private string _errorKey = "ErrorSettingsSave";
 
     public SettingsPage(SettingsStore store, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false)
@@ -50,66 +53,73 @@ internal sealed class SettingsPage : Grid, IDisposable
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition());
-        var refresh = new IconActionButton(Symbol.Refresh, "刷新状态", "RefreshSettings");
+        var refresh = new IconActionButton(Symbol.Refresh, "ActionRefreshStatus", "RefreshSettings");
         refresh.Click += (_, _) => { _failed = false; Refresh(); };
-        var previewButton = new IconActionButton(Symbol.Play, "显示测试通知", "PreviewNotification");
+        var previewButton = new IconActionButton(Symbol.Play, "ActionPreview", "PreviewNotification");
         previewButton.Click += (_, _) => preview();
         _header = new SettingsHeader(_progress, previewButton, refresh, _complete) { MaxWidth = 720 };
         layout.Children.Add(_header);
         _notice.Margin = new Thickness(16, 0, 16, 12);
         Grid.SetRow(_notice, 1);
         layout.Children.Add(_notice);
-        _initializationRow = new SettingsRow(Symbol.Download, "应用初始化", _initialize);
-        _permissionRow = new SettingsRow(Symbol.Permissions, "通知访问", _permission);
+        _initializationRow = new SettingsRow(Symbol.Download, "Initialization", _initialize);
+        _permissionRow = new SettingsRow(Symbol.Permissions, "NotificationAccess", _permission);
         _setup = new SettingsSetup(_initializationRow, _permissionRow);
-        AddSection("setup", "初始化", _setup);
-        _animations = Switch("弹窗动画", "AnimationsToggle", settings => settings.Animations,
+        AddSection("setup", "Setup", _setup);
+        _animations = Switch("Animations", "AnimationsToggle", settings => settings.Animations,
             (settings, value) => settings with { Animations = value });
-        _animationsRow = new SettingsRow(Symbol.Play, "弹窗动画", _animations);
-        _positionRow = new SettingsRow(Symbol.Map, "弹窗位置", _position);
+        _animationsRow = new SettingsRow(Symbol.Play, "Animations", _animations);
+        _positionRow = new SettingsRow(Symbol.Map, "NotificationPosition", _position);
         _position.Selected += position =>
         {
             try { _store.Save(_store.Current with { Position = position }); _failed = false; Refresh(); }
-            catch (Exception error) { Trace.WriteLine(error); ShowError("位置未能保存，请重试。"); Refresh(); }
+            catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorPositionSave"); Refresh(); }
         };
-        AddSection("appearance", "外观", _positionRow, _animationsRow);
+        _language.LanguageSelected += language =>
+        {
+            try { _store.Save(_store.Current with { Language = language }); _failed = false; Refresh(); }
+            catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
+        };
+        _actions.Add(_language.Input);
+        AddSection("appearance", "Appearance", new SettingsRow(Symbol.World, "Language", _language), _positionRow, _animationsRow);
         var bannerGuide = new NotificationBannerGuide();
         bannerGuide.OpenSettings.Click += async (_, _) => await RunAsync(async () =>
         {
             if (!await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:notifications")))
                 throw new InvalidOperationException("Windows notification settings did not open.");
-        }, "通知设置暂时无法打开，请重试。");
+        }, "ErrorNotificationSettings");
         _actions.Add(bannerGuide.OpenSettings);
-        _system = Switch("系统通知", "SystemNotificationsToggle", settings => settings.SystemNotifications,
+        _system = Switch("SystemNotifications", "SystemNotificationsToggle", settings => settings.SystemNotifications,
             (settings, value) => settings with { SystemNotifications = value });
-        _weChat = Switch("微信", "WeChatToggle", settings => settings.WeChat, (settings, value) => settings with { WeChat = value });
+        _weChat = Switch("WeChat", "WeChatToggle", settings => settings.WeChat, (settings, value) => settings with { WeChat = value });
         _telegram = Switch("Telegram", "TelegramToggle", settings => settings.Telegram, (settings, value) => settings with { Telegram = value });
-        _power = Switch("电源", "PowerToggle", settings => settings.Power, (settings, value) => settings with { Power = value });
-        _systemRow = new SettingsRow(Symbol.Message, "系统通知", _system);
-        _weChatRow = new SettingsRow(Symbol.Contact, "微信", _weChat);
+        _power = Switch("Power", "PowerToggle", settings => settings.Power, (settings, value) => settings with { Power = value });
+        _systemRow = new SettingsRow(Symbol.Message, "SystemNotifications", _system);
+        _weChatRow = new SettingsRow(Symbol.Contact, "WeChat", _weChat);
         _telegramRow = new SettingsRow(Symbol.Send, "Telegram", _telegram);
-        _powerRow = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE7E8), FontSize = 20 }, "电源", _power);
-        AddSection("sources", "消息来源", _systemRow, _weChatRow, _telegramRow, _powerRow,
-            new SettingsSection("通知显示", bannerGuide));
+        _powerRow = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE7E8), FontSize = 20 }, "Power", _power);
+        AddSection("sources", "Sources", _systemRow, _weChatRow, _telegramRow, _powerRow,
+            new SettingsSection("NotificationDisplay", bannerGuide));
         _updates = new SettingsUpdates(store, exit);
-        AddSection("updates", "更新", _updates);
+        AddSection("updates", "Updates", _updates);
         Grid.SetRow(_content, 2);
         layout.Children.Add(_content);
         _navigation.Content = layout;
         _navigation.SectionSelected += SelectSection;
         Children.Add(_navigation);
         _actions.AddRange([_initialize, _permission, refresh, _complete, previewButton, _installSettings]);
-        _initialize.Click += async (_, _) => await RunAsync(initialize, "初始化未完成，请打开系统设置后重试。", showInstallSettings: true);
-        _permission.Click += async (_, _) => await RunAsync(requestAccess, "通知访问暂时不可用，请重试。");
+        _initialize.Click += async (_, _) => await RunAsync(initialize, "ErrorInitialize", showInstallSettings: true);
+        _permission.Click += async (_, _) => await RunAsync(requestAccess, "ErrorAccess");
         _installSettings.Click += async (_, _) => await RunAsync(async () =>
         {
             if (!await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:developers")))
                 throw new InvalidOperationException("Windows settings did not open.");
-        }, "系统设置暂时无法打开，请重试。");
+        }, "ErrorSystemSettings");
         _complete.Click += (_, _) => Complete();
         _store.Changed += OnSettingsChanged;
         AutomationProperties.SetAutomationId(this, "SettingsPage");
         AutomationProperties.SetAutomationId(_notice, "SetupStatus");
+        LocalizedUI.Bind(this, RefreshLanguage);
         Refresh();
         _navigation.Select(openUpdates ? "updates" : store.Current.SetupCompleted ? "sources" : "setup");
     }
@@ -124,8 +134,9 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     private void SelectSection(string section)
     {
+        _selectedSection = section;
         var selected = _sections[section];
-        _header.Title = selected.Title;
+        _header.Title = Localization.Get(selected.Title);
         _content.Content = selected.Content;
         _content.ChangeView(null, 0, null, disableAnimation: true);
     }
@@ -138,14 +149,13 @@ internal sealed class SettingsPage : Grid, IDisposable
             IsOn = read(_store.Current), OnContent = null, OffContent = null, MinWidth = 0,
             VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right
         };
-        AutomationProperties.SetName(toggle, label);
+        LocalizedUI.Label(toggle, label);
         AutomationProperties.SetAutomationId(toggle, id);
-        ToolTipService.SetToolTip(toggle, label);
         toggle.Toggled += (_, _) =>
         {
             if (_syncing || _disposed) return;
             try { _store.Save(update(_store.Current, toggle.IsOn)); _failed = false; Refresh(); }
-            catch (Exception error) { Trace.WriteLine(error); ShowError("设置未能保存，请重试。"); Refresh(); }
+            catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
         };
         _actions.Add(toggle);
         return toggle;
@@ -158,8 +168,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         _failed = false;
         _notice.ActionButton = null;
         _notice.Visibility = Visibility.Visible;
-        _notice.Title = "正在处理";
-        _notice.Message = "请稍候。";
+        _notice.Title = Localization.Get("Busy");
+        _notice.Message = Localization.Get("PleaseWait");
         _notice.Severity = InfoBarSeverity.Informational;
         _progress.IsActive = true;
         _progress.Visibility = Visibility.Visible;
@@ -191,18 +201,25 @@ internal sealed class SettingsPage : Grid, IDisposable
             return;
         }
         try { _store.Save(_store.Current with { SetupCompleted = true }); _close(); }
-        catch (Exception error) { Trace.WriteLine(error); ShowError("初始化状态未能保存，请重试。"); }
+        catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorSetupSave"); }
     }
 
     private void ShowError(string message, bool showInstallSettings = false)
     {
         _failed = true;
-        _header.Status = "需要处理";
+        _errorKey = message;
+        _header.Status = Localization.Get("NeedsAttention");
         _notice.Visibility = Visibility.Visible;
-        _notice.Title = "未完成";
-        _notice.Message = message;
+        _notice.Title = Localization.Get("Incomplete");
+        _notice.Message = Localization.Get(message);
         _notice.Severity = InfoBarSeverity.Error;
         _notice.ActionButton = showInstallSettings ? _installSettings : null;
+    }
+
+    private void RefreshLanguage()
+    {
+        _header.Title = Localization.Get(_sections[_selectedSection].Title);
+        Refresh();
     }
 
     private void OnSettingsChanged(AppSettings _) => Refresh();
@@ -221,47 +238,59 @@ internal sealed class SettingsPage : Grid, IDisposable
             _power.IsOn = settings.Power;
             _animations.IsOn = settings.Animations;
             _position.Select(settings.Position);
+            _language.Select(settings.Language);
         }
         finally { _syncing = false; }
         foreach (var action in _actions) action.IsEnabled = !_busy;
         _position.SetEnabled(!_busy);
         _positionRow.Status = NotificationPlacement.Label(settings.Position);
-        _initializationRow.Status = state.Initialized ? "已完成" : settings.SystemNotifications ? "待完成" : "可跳过";
-        _permissionRow.Status = state.Access switch
+        _initializationRow.Status = Localization.Get(state.Initialized ? "Complete" : settings.SystemNotifications ? "Pending" : "Optional");
+        _permissionRow.Status = Localization.Get(state.Access switch
         {
-            NotificationAccess.Allowed => "已允许",
-            NotificationAccess.Denied => "未允许",
-            NotificationAccess.NeedsRegistration => "待初始化",
-            NotificationAccess.Unavailable => "连接暂时不可用",
-            _ => "等待授权"
-        };
+            NotificationAccess.Allowed => "Allowed",
+            NotificationAccess.Denied => "Denied",
+            NotificationAccess.NeedsRegistration => "NeedsSetup",
+            NotificationAccess.Unavailable => "Unavailable",
+            _ => "AwaitingPermission"
+        });
         _initialize.IsEnabled = !_busy && !state.Initialized && settings.SystemNotifications;
         _permission.IsEnabled = !_busy && state.Initialized && settings.SystemNotifications;
         _permission.SetAction(state.Access == NotificationAccess.Allowed ? Symbol.Setting : Symbol.Permissions,
-            state.Access == NotificationAccess.Allowed ? "管理通知访问" : "允许通知访问");
+            state.Access == NotificationAccess.Allowed ? "ActionManageAccess" : "ActionAllowAccess");
         var ready = !settings.SystemNotifications || state.Initialized && state.Access == NotificationAccess.Allowed;
         if (_ready != ready) _setup.IsExpanded = !ready;
         _ready = ready;
-        _setup.Status = ready ? "已就绪" : "待完成";
+        _setup.Status = Localization.Get(ready ? "Ready" : "Pending");
         _complete.IsEnabled = !_busy && ready;
         _complete.Visibility = settings.SetupCompleted ? Visibility.Collapsed : Visibility.Visible;
-        _complete.SetAction(Symbol.Accept, settings.SetupCompleted ? "关闭设置" : "完成初始化");
-        _systemRow.Status = !settings.SystemNotifications ? "已关闭" : state.Access == NotificationAccess.Allowed ? "已开启" : "等待授权";
-        _weChatRow.Status = settings.WeChat ? state.WeChatStatus : "已关闭";
+        _complete.SetAction(Symbol.Accept, settings.SetupCompleted ? "ActionCloseSettings" : "ActionCompleteSetup");
+        _systemRow.Status = Localization.Get(!settings.SystemNotifications ? "Off" : state.Access == NotificationAccess.Allowed ? "On" : "AwaitingPermission");
+        _weChatRow.Status = settings.WeChat ? state.WeChatStatus : Localization.Get("Off");
         _telegramRow.Status = ClientStatus(settings.Telegram, state.ConnectedApps.Contains("telegram"));
-        _powerRow.Status = settings.Power ? "已开启" : "已关闭";
-        _animationsRow.Status = settings.Animations ? "已开启" : "已关闭";
-        if (_busy) { _header.Status = "正在处理"; return; }
-        if (_failed) return;
-        _header.Status = ready ? "已就绪" : "初始化未完成";
+        _powerRow.Status = Localization.Get(settings.Power ? "On" : "Off");
+        _animationsRow.Status = Localization.Get(settings.Animations ? "On" : "Off");
+        if (_busy)
+        {
+            _header.Status = _notice.Title = Localization.Get("Busy");
+            _notice.Message = Localization.Get("PleaseWait");
+            return;
+        }
+        if (_failed)
+        {
+            _header.Status = Localization.Get("NeedsAttention");
+            _notice.Title = Localization.Get("Incomplete");
+            _notice.Message = Localization.Get(_errorKey);
+            return;
+        }
+        _header.Status = Localization.Get(ready ? "Ready" : "IncompleteSetup");
         _notice.Visibility = ready ? Visibility.Collapsed : Visibility.Visible;
         _notice.ActionButton = null;
-        _notice.Title = ready ? "已就绪" : "初始化未完成";
-        _notice.Message = ready ? "设置已保存。" : state.Initialized ? "请允许通知访问，或关闭系统通知后继续。" : "请先完成应用初始化，再允许通知访问。";
+        _notice.Title = Localization.Get(ready ? "Ready" : "IncompleteSetup");
+        _notice.Message = Localization.Get(ready ? "SettingsSaved" : state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess");
         _notice.Severity = ready ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
     }
 
-    private static string ClientStatus(bool enabled, bool connected) => !enabled ? "已关闭" : connected ? "已连接" : "未运行";
+    private static string ClientStatus(bool enabled, bool connected) => Localization.Get(!enabled ? "Off" : connected ? "Connected" : "NotRunning");
 
     public void Dispose()
     {

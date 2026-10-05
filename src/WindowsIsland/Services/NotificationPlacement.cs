@@ -22,14 +22,14 @@ internal static class NotificationPlacement
 
     public static string Label(NotificationPosition position) => Normalize(position) switch
     {
-        NotificationPosition.TopLeft => "左上",
-        NotificationPosition.LeftCenter => "左中",
-        NotificationPosition.BottomLeft => "左下",
-        NotificationPosition.BottomCenter => "中下",
-        NotificationPosition.BottomRight => "右下",
-        NotificationPosition.RightCenter => "右中",
-        NotificationPosition.TopRight => "右上",
-        _ => "中上"
+        NotificationPosition.TopLeft => Localization.Get("PositionTopLeft"),
+        NotificationPosition.LeftCenter => Localization.Get("PositionLeftCenter"),
+        NotificationPosition.BottomLeft => Localization.Get("PositionBottomLeft"),
+        NotificationPosition.BottomCenter => Localization.Get("PositionBottomCenter"),
+        NotificationPosition.BottomRight => Localization.Get("PositionBottomRight"),
+        NotificationPosition.RightCenter => Localization.Get("PositionRightCenter"),
+        NotificationPosition.TopRight => Localization.Get("PositionTopRight"),
+        _ => Localization.Get("PositionTopCenter")
     };
 
     public static Vector2 Offset(NotificationPosition position, Vector2 container, Vector2 content, float inset = 0)

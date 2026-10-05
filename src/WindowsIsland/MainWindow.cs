@@ -48,10 +48,12 @@ public sealed class MainWindow : Window
     private readonly bool _verification;
     private bool _showUpdateResult;
     private NotificationPosition _position;
+    private AppSettings _appliedSettings;
 
     internal MainWindow(SettingsStore settings, bool verification = false, bool showUpdateResult = false)
     {
         _settings = settings;
+        _appliedSettings = settings.Current;
         _position = settings.Current.Position;
         _verification = verification;
         _showUpdateResult = showUpdateResult;
@@ -69,7 +71,8 @@ public sealed class MainWindow : Window
         _host.Children.Add(_surfaceLayer);
         Content = _host;
         SystemBackdrop = new OverlayBackdrop();
-        AutomationProperties.SetName(_root, "消息岛");
+        _root.Language = Localization.Language;
+        LocalizedUI.Label(_root, "AppName");
         AutomationProperties.SetAutomationId(_root, "IslandSurface");
         AutomationProperties.SetAutomationId(_notificationPanel, "NotificationContent");
         _notifications = new NotificationService(DispatcherQueue);
@@ -210,12 +213,31 @@ public sealed class MainWindow : Window
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
         if (_closed) return;
-        ShowNotification(new IslandNotification(0, DateTimeOffset.Now, "Windows Island", "通知预览", "你好，通知已准备就绪。", icon));
+        ShowNotification(new IslandNotification(0, DateTimeOffset.Now, "Windows Island", Localization.Get("PreviewTitle"), Localization.Get("PreviewBody"), icon));
     }
 
     private void OnSettingsChanged(AppSettings settings)
     {
         if (_closed) return;
+        var previous = _appliedSettings;
+        _appliedSettings = settings;
+        if (previous.Language != settings.Language)
+        {
+            App.ApplyLanguage(settings.Language);
+            _root.Language = Localization.Language;
+            _tray.UpdateAccess(_notifications.Access, settings.SystemNotifications);
+            if (_notification.Active && _current is not null)
+            {
+                if (_current is { Id: 0, AppName: "Windows Island", AppId: null })
+                {
+                    _current = _current with { Title = Localization.Get("PreviewTitle"), Body = Localization.Get("PreviewBody") };
+                    _notificationPanel.Show(_current);
+                }
+                MeasureNotification();
+                UpdatePresentation(newMessage: false);
+            }
+            if (settings with { Language = previous.Language } == previous) return;
+        }
         _router.Clear();
         _merge.Stop();
         if (_current is not null && !settings.Allows(_current)) DismissNotification(animate: false);

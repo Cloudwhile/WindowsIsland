@@ -36,11 +36,11 @@ internal sealed class WeChatService : IDisposable
     private readonly Dictionary<int, WeChatAccessibilitySession> _accessibility = [];
     private readonly Thread _thread;
     private int[] _connected = [];
-    private string _status = "正在连接";
+    private string _status = "WeChatConnecting";
     private volatile bool _disposed;
     private bool _started;
     public event Action<IslandNotification>? Received;
-    public string Status => Volatile.Read(ref _status);
+    public string Status => Localization.Get(Volatile.Read(ref _status));
     public bool IsConnected(int id) => Volatile.Read(ref _connected).Contains(id);
     public bool AllowsConversation(string conversation, int? processId = null) => !_disposed && _enabled()
         && _conversations.IsMuted(conversation, processId) is false;
@@ -86,7 +86,7 @@ internal sealed class WeChatService : IDisposable
                     {
                         ClearClients();
                         Volatile.Write(ref _connected, []);
-                        Volatile.Write(ref _status, "已关闭");
+                        Volatile.Write(ref _status, "Off");
                         scanned = -5000;
                         _wake.WaitOne(500);
                         continue;
@@ -164,7 +164,7 @@ internal sealed class WeChatService : IDisposable
                         }
                     }
                     Volatile.Write(ref _connected, connected.Distinct().ToArray());
-                    Volatile.Write(ref _status, connected.Count > 0 ? "监听中" : _clients.Count > 0 ? "等待会话列表" : "等待客户端");
+                    Volatile.Write(ref _status, connected.Count > 0 ? "WeChatListening" : _clients.Count > 0 ? "WeChatWaitingChats" : "WeChatWaitingClient");
                     _wake.WaitOne(connected.Count > 0 ? 500 : 1000);
                 }
                 catch (Exception error)
@@ -172,13 +172,13 @@ internal sealed class WeChatService : IDisposable
                     Trace.WriteLine($"WeChat listener: {error.GetType().Name}");
                     ClearClients();
                     Volatile.Write(ref _connected, []);
-                    Volatile.Write(ref _status, "正在重新连接");
+                    Volatile.Write(ref _status, "WeChatReconnecting");
                     scanned = -5000;
                     if (!_disposed) _wake.WaitOne(1000);
                 }
             }
         }
-        catch (Exception error) { Trace.WriteLine($"WeChat listener: {error.GetType().Name}"); Volatile.Write(ref _status, "连接暂时不可用"); }
+        catch (Exception error) { Trace.WriteLine($"WeChat listener: {error.GetType().Name}"); Volatile.Write(ref _status, "Unavailable"); }
         finally { ClearClients(); Volatile.Write(ref _connected, []); _wake.Dispose(); }
     }
 

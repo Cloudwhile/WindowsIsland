@@ -9,7 +9,7 @@ internal sealed class SettingsSection : StackPanel
     public SettingsSection(string title, params UIElement[] rows)
     {
         Spacing = 0;
-        var heading = IslandTheme.Text(title, 14, secondary: true);
+        var heading = LocalizedUI.Text(title, 14, secondary: true);
         heading.FontWeight = FontWeights.SemiBold;
         heading.Margin = new Thickness(12, 20, 0, 8);
         Children.Add(heading);

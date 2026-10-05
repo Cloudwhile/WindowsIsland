@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="AppName" xml:space="preserve">
+    <value>Windows Island</value>
+  </data>
+  <data name="Settings" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="WindowSettingsTitle" xml:space="preserve">
+    <value>Windows Island · Settings</value>
+  </data>
+  <data name="SettingsNavigation" xml:space="preserve">
+    <value>Settings navigation</value>
+  </data>
+  <data name="Setup" xml:space="preserve">
+    <value>Setup</value>
+  </data>
+  <data name="Sources" xml:space="preserve">
+    <value>Sources</value>
+  </data>
+  <data name="Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Updates" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="LanguageSystem" xml:space="preserve">
+    <value>System default</value>
+  </data>
+  <data name="ActionInitialize" xml:space="preserve">
+    <value>Initialize app</value>
+  </data>
+  <data name="ActionAllowAccess" xml:space="preserve">
+    <value>Allow notification access</value>
+  </data>
+  <data name="ActionManageAccess" xml:space="preserve">
+    <value>Manage notification access</value>
+  </data>
+  <data name="ActionCompleteSetup" xml:space="preserve">
+    <value>Complete setup</value>
+  </data>
+  <data name="ActionCloseSettings" xml:space="preserve">
+    <value>Close settings</value>
+  </data>
+  <data name="ActionOpenSystemSettings" xml:space="preserve">
+    <value>Open system settings</value>
+  </data>
+  <data name="ActionRefreshStatus" xml:space="preserve">
+    <value>Refresh status</value>
+  </data>
+  <data name="ActionPreview" xml:space="preserve">
+    <value>Show a test notification</value>
+  </data>
+  <data name="Initialization" xml:space="preserve">
+    <value>App initialization</value>
+  </data>
+  <data name="NotificationAccess" xml:space="preserve">
+    <value>Notification access</value>
+  </data>
+  <data name="Animations" xml:space="preserve">
+    <value>Animations</value>
+  </data>
+  <data name="NotificationPosition" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="SystemNotifications" xml:space="preserve">
+    <value>System notifications</value>
+  </data>
+  <data name="WeChat" xml:space="preserve">
+    <value>WeChat</value>
+  </data>
+  <data name="Telegram" xml:space="preserve">
+    <value>Telegram</value>
+  </data>
+  <data name="Power" xml:space="preserve">
+    <value>Power</value>
+  </data>
+  <data name="NotificationDisplay" xml:space="preserve">
+    <value>Notification display</value>
+  </data>
+  <data name="ErrorPositionSave" xml:space="preserve">
+    <value>Could not save the position. Try again.</value>
+  </data>
+  <data name="ErrorSettingsSave" xml:space="preserve">
+    <value>Could not save your settings. Try again.</value>
+  </data>
+  <data name="ErrorNotificationSettings" xml:space="preserve">
+    <value>Could not open notification settings. Try again.</value>
+  </data>
+  <data name="ErrorInitialize" xml:space="preserve">
+    <value>Setup could not finish. Open system settings and try again.</value>
+  </data>
+  <data name="ErrorAccess" xml:space="preserve">
+    <value>Notification access is unavailable. Try again.</value>
+  </data>
+  <data name="ErrorSystemSettings" xml:space="preserve">
+    <value>Could not open system settings. Try again.</value>
+  </data>
+  <data name="ErrorSetupSave" xml:space="preserve">
+    <value>Could not save the setup status. Try again.</value>
+  </data>
+  <data name="Busy" xml:space="preserve">
+    <value>Working</value>
+  </data>
+  <data name="PleaseWait" xml:space="preserve">
+    <value>Please wait.</value>
+  </data>
+  <data name="NeedsAttention" xml:space="preserve">
+    <value>Action needed</value>
+  </data>
+  <data name="Incomplete" xml:space="preserve">
+    <value>Incomplete</value>
+  </data>
+  <data name="Complete" xml:space="preserve">
+    <value>Complete</value>
+  </data>
+  <data name="Pending" xml:space="preserve">
+    <value>Pending</value>
+  </data>
+  <data name="Optional" xml:space="preserve">
+    <value>Optional</value>
+  </data>
+  <data name="Allowed" xml:space="preserve">
+    <value>Allowed</value>
+  </data>
+  <data name="Denied" xml:space="preserve">
+    <value>Not allowed</value>
+  </data>
+  <data name="NeedsSetup" xml:space="preserve">
+    <value>Setup required</value>
+  </data>
+  <data name="Unavailable" xml:space="preserve">
+    <value>Connection unavailable</value>
+  </data>
+  <data name="AwaitingPermission" xml:space="preserve">
+    <value>Awaiting permission</value>
+  </data>
+  <data name="Ready" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="On" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="Connected" xml:space="preserve">
+    <value>Connected</value>
+  </data>
+  <data name="NotRunning" xml:space="preserve">
+    <value>Not running</value>
+  </data>
+  <data name="IncompleteSetup" xml:space="preserve">
+    <value>Setup incomplete</value>
+  </data>
+  <data name="SettingsSaved" xml:space="preserve">
+    <value>Settings saved.</value>
+  </data>
+  <data name="GrantAccessOrDisable" xml:space="preserve">
+    <value>Allow notification access, or turn off system notifications to continue.</value>
+  </data>
+  <data name="InitializeThenGrantAccess" xml:space="preserve">
+    <value>Initialize the app, then allow notification access.</value>
+  </data>
+  <data name="ActionOpenWindowsNotificationSettings" xml:space="preserve">
+    <value>Open Windows notification settings</value>
+  </data>
+  <data name="BannerTitle" xml:space="preserve">
+    <value>Use only Windows Island notifications</value>
+  </data>
+  <data name="BannerStep1" xml:space="preserve">
+    <value>1. Open Windows notification settings and select an app.</value>
+  </data>
+  <data name="BannerStep2" xml:space="preserve">
+    <value>2. Turn off “Show notification banners”. Keep “Notifications” and “Show notifications in notification center” on.</value>
+  </data>
+  <data name="BannerStep3" xml:space="preserve">
+    <value>3. Return to Windows Island and keep “System notifications” on.</value>
+  </data>
+  <data name="NotificationNow" xml:space="preserve">
+    <value>Now</value>
+  </data>
+  <data name="NotificationFallback" xml:space="preserve">
+    <value>Notification</value>
+  </data>
+  <data name="PreviewTitle" xml:space="preserve">
+    <value>Notification preview</value>
+  </data>
+  <data name="PreviewBody" xml:space="preserve">
+    <value>Hello, notifications are ready.</value>
+  </data>
+  <data name="PositionTopLeft" xml:space="preserve">
+    <value>Top left</value>
+  </data>
+  <data name="PositionLeftCenter" xml:space="preserve">
+    <value>Left center</value>
+  </data>
+  <data name="PositionBottomLeft" xml:space="preserve">
+    <value>Bottom left</value>
+  </data>
+  <data name="PositionBottomCenter" xml:space="preserve">
+    <value>Bottom center</value>
+  </data>
+  <data name="PositionBottomRight" xml:space="preserve">
+    <value>Bottom right</value>
+  </data>
+  <data name="PositionRightCenter" xml:space="preserve">
+    <value>Right center</value>
+  </data>
+  <data name="PositionTopRight" xml:space="preserve">
+    <value>Top right</value>
+  </data>
+  <data name="PositionTopCenter" xml:space="preserve">
+    <value>Top center</value>
+  </data>
+  <data name="ActionCheckUpdates" xml:space="preserve">
+    <value>Check for updates</value>
+  </data>
+  <data name="ActionInstallUpdate" xml:space="preserve">
+    <value>Download update and restart</value>
+  </data>
+  <data name="ActionOpenRelease" xml:space="preserve">
+    <value>View this release on GitHub</value>
+  </data>
+  <data name="ActionCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="UpdateCurrentVersion" xml:space="preserve">
+    <value>Current version</value>
+  </data>
+  <data name="UpdateIncludePrereleases" xml:space="preserve">
+    <value>Include prereleases</value>
+  </data>
+  <data name="UpdateAvailable" xml:space="preserve">
+    <value>Available update</value>
+  </data>
+  <data name="UpdateLinkError" xml:space="preserve">
+    <value>Could not open the link. Try again.</value>
+  </data>
+  <data name="UpdatePreferenceError" xml:space="preserve">
+    <value>Could not save your update preference. Try again.</value>
+  </data>
+  <data name="UpdateComplete" xml:space="preserve">
+    <value>Updated to v{0}</value>
+  </data>
+  <data name="UpdateChecking" xml:space="preserve">
+    <value>Checking for updates.</value>
+  </data>
+  <data name="UpdateNone" xml:space="preserve">
+    <value>No new version is available.</value>
+  </data>
+  <data name="UpdateFound" xml:space="preserve">
+    <value>Version v{0} is available. Windows Island will restart after updating.</value>
+  </data>
+  <data name="UpdateFoundPrerelease" xml:space="preserve">
+    <value>Prerelease v{0} is available. Windows Island will restart after updating.</value>
+  </data>
+  <data name="UpdateNotesEmpty" xml:space="preserve">
+    <value>This release has no update notes.</value>
+  </data>
+  <data name="UpdateCheckCanceled" xml:space="preserve">
+    <value>The check was canceled or timed out. Try again.</value>
+  </data>
+  <data name="UpdateFetchError" xml:space="preserve">
+    <value>Could not check for updates. Check your connection and try again.</value>
+  </data>
+  <data name="UpdatePreparing" xml:space="preserve">
+    <value>Preparing the update.</value>
+  </data>
+  <data name="UpdateInstalling" xml:space="preserve">
+    <value>Installing the update and restarting Windows Island.</value>
+  </data>
+  <data name="UpdateCanceled" xml:space="preserve">
+    <value>The update was canceled or timed out. You can continue using the current version.</value>
+  </data>
+  <data name="UpdateFailed" xml:space="preserve">
+    <value>The update could not finish. Try again.</value>
+  </data>
+  <data name="UpdateRestored" xml:space="preserve">
+    <value>The update failed. The previous version has been restored. Try again.</value>
+  </data>
+  <data name="UpdateBackupRetained" xml:space="preserve">
+    <value>The update failed. A backup has been kept. Reinstall Windows Island.</value>
+  </data>
+  <data name="UpdateExtracting" xml:space="preserve">
+    <value>Extracting the update</value>
+  </data>
+  <data name="UpdateVerifying" xml:space="preserve">
+    <value>Verifying the update</value>
+  </data>
+  <data name="UpdateDownloading" xml:space="preserve">
+    <value>Downloading the update</value>
+  </data>
+  <data name="UpdateDownloadComplete" xml:space="preserve">
+    <value>Download complete</value>
+  </data>
+  <data name="UpdateProgressPercent" xml:space="preserve">
+    <value>{0} {1:0}%</value>
+  </data>
+  <data name="UpdateErrorInstallerMissing" xml:space="preserve">
+    <value>The installer for this version is not ready. Try again later.</value>
+  </data>
+  <data name="UpdateErrorChecksumMismatch" xml:space="preserve">
+    <value>The update checksum did not match. Download it again.</value>
+  </data>
+  <data name="UpdateErrorChecksumInvalid" xml:space="preserve">
+    <value>The update checksum file is invalid. Try again later.</value>
+  </data>
+  <data name="UpdateErrorSizeInvalid" xml:space="preserve">
+    <value>The update file size is invalid. Try again later.</value>
+  </data>
+  <data name="UpdateErrorIncomplete" xml:space="preserve">
+    <value>The update file is incomplete. Download it again.</value>
+  </data>
+  <data name="UpdateErrorSizeMismatch" xml:space="preserve">
+    <value>The update file size did not match. Download it again.</value>
+  </data>
+  <data name="UpdateErrorDirectoryExists" xml:space="preserve">
+    <value>The update extraction folder already exists.</value>
+  </data>
+  <data name="UpdateErrorTooManyFiles" xml:space="preserve">
+    <value>The update package contains too many files.</value>
+  </data>
+  <data name="UpdateErrorInvalidPath" xml:space="preserve">
+    <value>The update package contains an invalid path.</value>
+  </data>
+  <data name="UpdateErrorConflictingPath" xml:space="preserve">
+    <value>The update package contains conflicting paths.</value>
+  </data>
+  <data name="UpdateErrorTooLarge" xml:space="preserve">
+    <value>The update package is too large to extract.</value>
+  </data>
+  <data name="UpdateErrorRequiredFile" xml:space="preserve">
+    <value>The update package is missing required files. Try again later.</value>
+  </data>
+  <data name="UpdateErrorWorkDir" xml:space="preserve">
+    <value>The temporary update folder is invalid.</value>
+  </data>
+  <data name="UpdateErrorAssetAddress" xml:space="preserve">
+    <value>The update download address is invalid. Check for updates again.</value>
+  </data>
+  <data name="UpdateErrorRateLimit" xml:space="preserve">
+    <value>GitHub is limiting requests. Try again later.</value>
+  </data>
+  <data name="UpdateErrorHelperStart" xml:space="preserve">
+    <value>Could not start the updater. Try again.</value>
+  </data>
+  <data name="UpdateErrorHelperReady" xml:space="preserve">
+    <value>The updater could not get ready. Try again.</value>
+  </data>
+  <data name="WeChatConnecting" xml:space="preserve">
+    <value>Connecting</value>
+  </data>
+  <data name="WeChatListening" xml:space="preserve">
+    <value>Listening</value>
+  </data>
+  <data name="WeChatWaitingChats" xml:space="preserve">
+    <value>Waiting for chats</value>
+  </data>
+  <data name="WeChatWaitingClient" xml:space="preserve">
+    <value>Waiting for WeChat</value>
+  </data>
+  <data name="WeChatReconnecting" xml:space="preserve">
+    <value>Reconnecting</value>
+  </data>
+  <data name="PowerCharging" xml:space="preserve">
+    <value>Charging started</value>
+  </data>
+  <data name="PowerConnected" xml:space="preserve">
+    <value>Power connected</value>
+  </data>
+  <data name="PowerDisconnected" xml:space="preserve">
+    <value>Power disconnected</value>
+  </data>
+  <data name="PowerFull" xml:space="preserve">
+    <value>Battery fully charged</value>
+  </data>
+  <data name="PowerBattery" xml:space="preserve">
+    <value>Battery {0}%</value>
+  </data>
+  <data name="TrayConnecting" xml:space="preserve">
+    <value>Connecting to notifications</value>
+  </data>
+  <data name="TrayDisabled" xml:space="preserve">
+    <value>System notifications off</value>
+  </data>
+  <data name="TrayListening" xml:space="preserve">
+    <value>Listening for notifications</value>
+  </data>
+  <data name="TrayAllowAccess" xml:space="preserve">
+    <value>Allow notification access</value>
+  </data>
+  <data name="TrayCompleteSetup" xml:space="preserve">
+    <value>Complete app setup</value>
+  </data>
+  <data name="TrayRetry" xml:space="preserve">
+    <value>Retry notification connection</value>
+  </data>
+  <data name="TrayEnableAccess" xml:space="preserve">
+    <value>Enable notification access</value>
+  </data>
+  <data name="Exit" xml:space="preserve">
+    <value>Exit</value>
+  </data>
+</root>

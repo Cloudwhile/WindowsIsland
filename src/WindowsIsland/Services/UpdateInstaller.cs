@@ -8,7 +8,7 @@ namespace WindowsIsland.Services;
 
 internal sealed record UpdateJob(string InstallDirectory, string PayloadDirectory, string? InstallerPath,
     int ProcessId, long ProcessStartedUtcTicks, string Version, string MutexName = @"Local\WindowsIsland.Tray");
-internal sealed record UpdateResult(string InstallDirectory, string Version, bool Success, string Message);
+internal sealed record UpdateResult(string InstallDirectory, string Version, bool Success, string Message, string? MessageKey = null);
 
 internal static class UpdateInstaller
 {
@@ -50,7 +50,7 @@ internal static class UpdateInstaller
         };
         foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-JobPath", jobPath })
             start.ArgumentList.Add(argument);
-        using var helper = Process.Start(start) ?? throw new IOException("更新程序未能启动，请重试。");
+        using var helper = Process.Start(start) ?? throw Localization.IoError("UpdateErrorHelperStart");
         var ready = Path.Combine(update.Directory, "ready");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
@@ -58,7 +58,7 @@ internal static class UpdateInstaller
         {
             while (!File.Exists(ready))
             {
-                if (helper.HasExited) throw new IOException("更新程序未能准备就绪，请重试。");
+                if (helper.HasExited) throw Localization.IoError("UpdateErrorHelperReady");
                 await Task.Delay(100, timeout.Token).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();

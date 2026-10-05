@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using WindowsIsland.Services;
 
 namespace WindowsIsland.Components;
 
@@ -24,21 +25,21 @@ internal sealed class SettingsNavigation : Grid, IDisposable
     public SettingsNavigation()
     {
         Children.Add(_view);
-        Add("setup", "初始化", Symbol.Permissions);
-        Add("sources", "消息来源", Symbol.Message);
-        Add("appearance", "外观", Symbol.Map);
-        Add("updates", "更新", Symbol.Download);
+        Add("setup", "Setup", Symbol.Permissions);
+        Add("sources", "Sources", Symbol.Message);
+        Add("appearance", "Appearance", Symbol.Map);
+        Add("updates", "Updates", Symbol.Download);
         _view.SelectionChanged += OnSelectionChanged;
         AutomationProperties.SetAutomationId(this, "SettingsNavigation");
-        AutomationProperties.SetName(this, "设置导航");
+        LocalizedUI.Label(this, "SettingsNavigation");
     }
 
     private void Add(string section, string label, Symbol icon)
     {
-        var item = new NavigationViewItem { Content = label, Icon = new SymbolIcon(icon), Tag = section };
+        var item = new NavigationViewItem { Icon = new SymbolIcon(icon), Tag = section };
         AutomationProperties.SetAutomationId(item, "SettingsNav" + section);
-        AutomationProperties.SetName(item, label);
-        ToolTipService.SetToolTip(item, label);
+        LocalizedUI.Bind(item, () => item.Content = Localization.Get(label));
+        LocalizedUI.Label(item, label);
         _items.Add(section, item);
         _view.MenuItems.Add(item);
     }

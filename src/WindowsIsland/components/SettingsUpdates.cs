@@ -14,10 +14,10 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     private readonly Action _restart;
     private readonly GitHubReleaseClient _client = new();
     private readonly ToggleSwitch _prereleases = new() { OnContent = null, OffContent = null, MinWidth = 0 };
-    private readonly IconActionButton _check = new(Symbol.Refresh, "检查更新", "CheckForUpdates");
-    private readonly IconActionButton _install = new(Symbol.Download, "下载更新并重启", "InstallUpdate") { IsEnabled = false };
-    private readonly IconActionButton _releasePage = new(Symbol.OpenFile, "在 GitHub 查看此版本", "OpenReleasePage") { Visibility = Visibility.Collapsed };
-    private readonly IconActionButton _cancel = new(Symbol.Cancel, "取消", "CancelUpdate") { Visibility = Visibility.Collapsed };
+    private readonly IconActionButton _check = new(Symbol.Refresh, "ActionCheckUpdates", "CheckForUpdates");
+    private readonly IconActionButton _install = new(Symbol.Download, "ActionInstallUpdate", "InstallUpdate") { IsEnabled = false };
+    private readonly IconActionButton _releasePage = new(Symbol.OpenFile, "ActionOpenRelease", "OpenReleasePage") { Visibility = Visibility.Collapsed };
+    private readonly IconActionButton _cancel = new(Symbol.Cancel, "ActionCancel", "CancelUpdate") { Visibility = Visibility.Collapsed };
     private readonly InfoBar _status = new() { IsClosable = false, IsOpen = true, Visibility = Visibility.Collapsed };
     private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Visibility = Visibility.Collapsed, Margin = new Thickness(12, 12, 12, 4) };
     private readonly TextBlock _releaseName = IslandTheme.Text("", 18);
@@ -28,21 +28,24 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     private GitHubRelease? _candidate;
     private bool _disposed, _syncing, _busy;
     private bool _includePrereleases;
+    private string? _messageKey;
+    private object[] _messageArguments = [];
+    private double? _percent;
 
     public SettingsUpdates(SettingsStore store, Action restart)
     {
         _store = store;
         _restart = restart;
         _versionRow = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE946), FontSize = 20 },
-            "当前版本", _check) { Status = "v" + ReleaseVersion.Current.Display };
+            "UpdateCurrentVersion", _check) { Status = "v" + ReleaseVersion.Current.Display };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         actions.Children.Add(_releasePage);
         actions.Children.Add(_cancel);
         actions.Children.Add(_install);
         Children.Add(_versionRow);
-        var channel = new SettingsRow(Symbol.Flag, "接收预发布更新", _prereleases);
+        var channel = new SettingsRow(Symbol.Flag, "UpdateIncludePrereleases", _prereleases);
         Children.Add(channel);
-        Children.Add(new SettingsRow(Symbol.Download, "可用更新", actions));
+        Children.Add(new SettingsRow(Symbol.Download, "UpdateAvailable", actions));
         _status.Margin = new Thickness(0, 12, 0, 0);
         Children.Add(_status);
         Children.Add(_progress);
@@ -61,25 +64,26 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         {
             if (_candidate is not { } candidate) return;
             try { await Windows.System.Launcher.LaunchUriAsync(candidate.Page); }
-            catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show("链接暂时无法打开，请重试。", InfoBarSeverity.Error); }
+            catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show("UpdateLinkError", InfoBarSeverity.Error); }
         };
         _prereleases.Toggled += (_, _) =>
         {
             if (_syncing || _disposed) return;
             try { _store.Save(_store.Current with { IncludePrereleaseUpdates = _prereleases.IsOn }); }
-            catch (Exception error) { Trace.WriteLine(error); Show("更新偏好未能保存，请重试。", InfoBarSeverity.Error); Refresh(); }
+            catch (Exception error) { Trace.WriteLine(error); Show("UpdatePreferenceError", InfoBarSeverity.Error); Refresh(); }
         };
-        AutomationProperties.SetName(_prereleases, "接收预发布更新");
+        LocalizedUI.Label(_prereleases, "UpdateIncludePrereleases");
         AutomationProperties.SetAutomationId(_prereleases, "PrereleaseUpdatesToggle");
         AutomationProperties.SetAutomationId(_status, "UpdateStatus");
         AutomationProperties.SetAutomationId(_progress, "UpdateProgress");
         AutomationProperties.SetAutomationId(_notes, "UpdateReleaseNotes");
-        ToolTipService.SetToolTip(_prereleases, "接收预发布更新");
         _store.Changed += OnSettingsChanged;
+        LocalizedUI.Bind(this, RefreshLanguage);
         Refresh();
         if (UpdateInstaller.ReadResult() is { } result)
-            Show(result.Success ? "已更新至 v" + result.Version : result.Message,
-                result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+            Show(result.Success ? "UpdateComplete" : result.MessageKey is "UpdateRestored" or "UpdateBackupRetained" ? result.MessageKey : "UpdateFailed",
+                result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error,
+                result.Success ? [result.Version] : []);
     }
 
     private async Task CheckAsync()
@@ -88,23 +92,23 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         Begin(TimeSpan.FromSeconds(45));
         _candidate = null;
         _release.Visibility = _releasePage.Visibility = Visibility.Collapsed;
-        Show("正在检查更新。", InfoBarSeverity.Informational);
+        Show("UpdateChecking", InfoBarSeverity.Informational);
         try
         {
             var candidate = await _client.FindUpdateAsync(ReleaseVersion.Current, _includePrereleases, _operation!.Token);
             if (_disposed) return;
             _candidate = candidate;
-            if (candidate is null) Show("没有可用的新版本。", InfoBarSeverity.Success);
+            if (candidate is null) Show("UpdateNone", InfoBarSeverity.Success);
             else
             {
-                Show("发现新版本 v" + candidate.Version.Display + (candidate.IsPrerelease ? "（预发布）" : "") + "，更新后将重启消息岛。", InfoBarSeverity.Informational);
+                Show(candidate.IsPrerelease ? "UpdateFoundPrerelease" : "UpdateFound", InfoBarSeverity.Informational, candidate.Version.Display);
                 _releaseName.Text = candidate.Name;
-                _notes.Text = candidate.Notes.Length == 0 ? "此版本未提供更新说明。" : candidate.Notes;
+                _notes.Text = candidate.Notes.Length == 0 ? Localization.Get("UpdateNotesEmpty") : candidate.Notes;
                 _release.Visibility = _releasePage.Visibility = Visibility.Visible;
             }
         }
-        catch (OperationCanceledException) { if (!_disposed) Show("检查已取消或超时，可重试。", InfoBarSeverity.Informational); }
-        catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show(ErrorMessage(error, "无法获取更新，请检查网络后重试。"), InfoBarSeverity.Error); }
+        catch (OperationCanceledException) { if (!_disposed) Show("UpdateCheckCanceled", InfoBarSeverity.Informational); }
+        catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show(Localization.ErrorKey(error, "UpdateFetchError"), InfoBarSeverity.Error); }
         finally { End(); }
     }
 
@@ -112,35 +116,30 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     {
         if (_busy || _disposed || _candidate is not { } candidate) return;
         Begin(TimeSpan.FromMinutes(15));
-        Show("正在准备更新。", InfoBarSeverity.Informational);
+        Show("UpdatePreparing", InfoBarSeverity.Informational);
         try
         {
             var operation = _operation!;
             var progress = new Progress<UpdateProgress>(value =>
             {
                 if (_disposed || !_busy || !ReferenceEquals(_operation, operation) || operation.IsCancellationRequested) return;
-                Show(value.Message + (value.Percent is { } percent ? $" {percent:0}%" : ""), InfoBarSeverity.Informational);
+                Show(value.MessageKey, InfoBarSeverity.Informational);
+                _percent = value.Percent;
+                RefreshLanguage();
                 _progress.IsIndeterminate = !value.Percent.HasValue;
                 _progress.Value = value.Percent ?? 0;
             });
             using var update = await UpdatePackage.PrepareAsync(_client, candidate, UpdateInstaller.IsMsiInstallation(), progress, _operation!.Token);
             if (_disposed) return;
-            Show("正在安装更新并重启消息岛。", InfoBarSeverity.Informational);
+            Show("UpdateInstalling", InfoBarSeverity.Informational);
             _cancel.IsEnabled = false;
             await UpdateInstaller.StartAsync(update, _operation.Token);
             _restart();
         }
-        catch (OperationCanceledException) { if (!_disposed) Show("更新已取消或超时，原版本可以继续使用。", InfoBarSeverity.Informational); }
-        catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show(ErrorMessage(error, "更新未完成，请重试。"), InfoBarSeverity.Error); }
+        catch (OperationCanceledException) { if (!_disposed) Show("UpdateCanceled", InfoBarSeverity.Informational); }
+        catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show(Localization.ErrorKey(error, "UpdateFailed"), InfoBarSeverity.Error); }
         finally { End(); }
     }
-
-    private static string ErrorMessage(Exception error, string fallback) => error switch
-    {
-        InvalidDataException => error.Message,
-        HttpRequestException { StatusCode: System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests } => error.Message,
-        _ => fallback
-    };
 
     private void Begin(TimeSpan timeout)
     {
@@ -162,12 +161,26 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         Refresh();
     }
 
-    private void Show(string message, InfoBarSeverity severity)
+    private void Show(string messageKey, InfoBarSeverity severity, params object[] arguments)
     {
+        _messageKey = messageKey;
+        _messageArguments = arguments;
+        _percent = null;
         _status.Title = "";
-        _status.Message = message;
+        RefreshLanguage();
         _status.Severity = severity;
         _status.Visibility = Visibility.Visible;
+    }
+
+    private void RefreshLanguage()
+    {
+        if (_disposed) return;
+        if (_messageKey is { } key)
+        {
+            var message = Localization.Format(key, _messageArguments);
+            _status.Message = _percent is { } percent ? Localization.Format("UpdateProgressPercent", message, percent) : message;
+        }
+        if (_candidate is { Notes.Length: 0 }) _notes.Text = Localization.Get("UpdateNotesEmpty");
     }
 
     private void OnSettingsChanged(AppSettings _) => Refresh();
