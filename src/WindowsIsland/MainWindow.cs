@@ -202,12 +202,14 @@ public sealed class MainWindow : Window
         if (!AppInitialization.HasIdentity) ((App)Application.Current).RestartRegistered(appId);
     }
 
-    private void PreviewNotification()
+    private async void PreviewNotification()
     {
         if (_closed) return;
         byte[]? icon = null;
-        try { icon = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Assets", "Island.ico")); }
+        try { icon = await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Icons", "LOGO.png")); }
         catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        if (_closed) return;
         ShowNotification(new IslandNotification(0, DateTimeOffset.Now, "Windows Island", "通知预览", "你好，通知已准备就绪。", icon));
     }
 
