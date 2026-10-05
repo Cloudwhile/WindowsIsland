@@ -32,7 +32,7 @@ internal static class UpdateScriptChecks
             using var locked = new FileStream(fixture.Installed("z-locked.dll"), FileMode.Open, FileAccess.Read, FileShare.Read);
             await fixture.StartAsync();
             var result = await fixture.ResultAsync();
-            check(!result.Success && result.Message.Contains("已恢复原版本", StringComparison.Ordinal)
+            check(!result.Success && result.MessageKey == "UpdateRestored" && result.Message.Contains("已恢复原版本", StringComparison.Ordinal)
                 && File.ReadAllText(fixture.Installed("a-library.dll")) == "old library", "A locked installed module rolls back files already changed by the real helper");
             check(!File.Exists(fixture.Installed("new-file.txt")) && File.ReadAllText(fixture.Installed("obsolete.txt")) == "old managed file"
                 && File.ReadAllText(fixture.Installed("resources.pri")) == "old resources", "Rollback removes new files and restores obsolete files and registered resources");

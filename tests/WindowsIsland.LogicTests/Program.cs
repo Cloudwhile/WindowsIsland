@@ -183,6 +183,7 @@ Check(!MessengerPopupRules.IsMessagePopup("QtNotification", 0x80070000, 0x88, 32
 Check(!MessengerPopupRules.IsMessagePopup("tooltips_class32", 0x80000000, 0x88, 320, 160, false), "Tooltips are not treated as messages");
 Check(!MessengerPopupRules.IsMessagePopup("#32768", 0x80000000, 0x88, 320, 160, false), "Client menus are not treated as messages");
 Check(!MessengerPopupRules.IsMessagePopup("QtNotification", 0x80000000, 0x88, 1100, 750, false), "Main client windows are excluded");
+LocalizationChecks.Run(Check);
 SettingsChecks.Run(Check);
 WeChatChecks.Run(Check);
 WeChatRoutingChecks.Run(Check);

@@ -4,8 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NeutralLanguage>zh-CN</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/WindowsIsland/Services/Localization.cs" Link="Localization.cs" />
+    <EmbeddedResource Include="../../src/WindowsIsland/Strings/*.resx" Link="Strings/%(Filename)%(Extension)" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationState.cs" Link="NotificationState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/ToastImageReference.cs" Link="ToastImageReference.cs" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationImageStore.cs" Link="NotificationImageStore.cs" />

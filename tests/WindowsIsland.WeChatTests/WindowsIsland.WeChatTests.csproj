@@ -7,8 +7,11 @@
     <PlatformTarget>x64</PlatformTarget>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NeutralLanguage>zh-CN</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/WindowsIsland/Services/Localization.cs" Link="Localization.cs" />
+    <EmbeddedResource Include="../../src/WindowsIsland/Strings/*.resx" Link="Strings/%(Filename)%(Extension)" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatAccessibilitySession.cs" Link="WeChatAccessibilitySession.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatReader.cs" Link="WeChatReader.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatAvatarReader.cs" Link="WeChatAvatarReader.cs" />

@@ -15,13 +15,24 @@ internal static class SettingsChecks
         check(upgraded.Animations && upgraded.SetupCompleted && !upgraded.WeChat && upgraded.Position == NotificationPosition.TopCenter,
             "Existing preferences enable notification motion without resetting source choices");
         check(!upgraded.IncludePrereleaseUpdates, "Existing settings stay on stable updates until the user opts in");
+        check(upgraded.Language == "zh-CN", "Existing preferences keep the Chinese interface after upgrading");
         var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false,
-            Animations = false, Position = NotificationPosition.RightCenter, IncludePrereleaseUpdates = true };
+            Animations = false, Position = NotificationPosition.RightCenter, IncludePrereleaseUpdates = true, Language = "en-US" };
         var changes = 0;
         store.Changed += _ => changes++;
         store.Save(saved);
         check(new SettingsStore(path).Current == saved && changes == 1, "Setup completion and source preferences survive a restart");
         check(new SettingsStore(path).Current.IncludePrereleaseUpdates, "The prerelease update choice survives a restart");
+        check(new SettingsStore(path).Current.Language == "en-US", "The selected language survives a restart");
+        store.Save(saved with { Language = "system" });
+        check(new SettingsStore(path).Current.Language == "system", "Following the system remains a preference instead of a fixed culture");
+        foreach (var language in new[] { "999", "true", "null", "[]", "{}", "\"fr-FR\"" })
+        {
+            File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"IncludePrereleaseUpdates\":true,\"Language\":" + language + "}");
+            var invalidLanguage = new SettingsStore(path).Current;
+            check(invalidLanguage.Language == "zh-CN" && invalidLanguage.SetupCompleted && !invalidLanguage.WeChat
+                && invalidLanguage.IncludePrereleaseUpdates, "Invalid language values preserve the other saved choices: " + language);
+        }
         File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Animations\":false,\"IncludePrereleaseUpdates\":\"unknown\"}");
         var invalidChannel = new SettingsStore(path).Current;
         check(invalidChannel.SetupCompleted && !invalidChannel.WeChat && !invalidChannel.Animations && !invalidChannel.IncludePrereleaseUpdates,
