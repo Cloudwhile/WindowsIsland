@@ -1,5 +1,20 @@
 using WindowsIsland.Services;
 
+if (args.FirstOrDefault() == "--update-fixture")
+{
+    var directory = args[1];
+    using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), null, "9.9.9", Path.GetDirectoryName(directory)!);
+    await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory));
+    return;
+}
+if (args.Contains("--settings"))
+{
+    var restartArguments = Path.Combine(AppContext.BaseDirectory, "restart.args");
+    await File.WriteAllTextAsync(restartArguments + ".tmp", string.Join(' ', args));
+    File.Move(restartArguments + ".tmp", restartArguments, overwrite: true);
+    return;
+}
+
 int checks = 0;
 void Check(bool condition, string name)
 {
@@ -173,6 +188,8 @@ WeChatChecks.Run(Check);
 WeChatRoutingChecks.Run(Check);
 ToastImageChecks.Run(Check);
 NotificationImageStoreChecks.Run(Check);
+await UpdateChecks.RunAsync(Check);
+await UpdateScriptChecks.RunAsync(Check);
 Console.WriteLine($"{checks} checks passed.");
 
 sealed class ManualTime : TimeProvider

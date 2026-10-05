@@ -14,12 +14,18 @@ internal static class SettingsChecks
         var upgraded = new SettingsStore(path).Current;
         check(upgraded.Animations && upgraded.SetupCompleted && !upgraded.WeChat && upgraded.Position == NotificationPosition.TopCenter,
             "Existing preferences enable notification motion without resetting source choices");
+        check(!upgraded.IncludePrereleaseUpdates, "Existing settings stay on stable updates until the user opts in");
         var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false,
-            Animations = false, Position = NotificationPosition.RightCenter };
+            Animations = false, Position = NotificationPosition.RightCenter, IncludePrereleaseUpdates = true };
         var changes = 0;
         store.Changed += _ => changes++;
         store.Save(saved);
         check(new SettingsStore(path).Current == saved && changes == 1, "Setup completion and source preferences survive a restart");
+        check(new SettingsStore(path).Current.IncludePrereleaseUpdates, "The prerelease update choice survives a restart");
+        File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Animations\":false,\"IncludePrereleaseUpdates\":\"unknown\"}");
+        var invalidChannel = new SettingsStore(path).Current;
+        check(invalidChannel.SetupCompleted && !invalidChannel.WeChat && !invalidChannel.Animations && !invalidChannel.IncludePrereleaseUpdates,
+            "An invalid update channel falls back to stable releases without resetting valid preferences");
         File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Position\":999}");
         var invalidPosition = new SettingsStore(path).Current;
         check(invalidPosition.Position == NotificationPosition.TopCenter && invalidPosition.SetupCompleted && !invalidPosition.WeChat,
