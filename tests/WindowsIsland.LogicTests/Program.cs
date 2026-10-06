@@ -3,8 +3,21 @@ using WindowsIsland.Services;
 if (args.FirstOrDefault() == "--update-fixture")
 {
     var directory = args[1];
-    using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), null, "9.9.9", Path.GetDirectoryName(directory)!);
-    await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory));
+    var installer = Path.Combine(directory, "update.msi");
+    using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), File.Exists(installer) ? installer : null,
+        "9.9.9", Path.GetDirectoryName(directory)!);
+    try { await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory)); }
+    catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
+    return;
+}
+if (args.FirstOrDefault() == "/i" && File.Exists(Path.Combine(AppContext.BaseDirectory, "msi-fixture-exit.txt")))
+{
+    var code = int.Parse(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "msi-fixture-exit.txt")));
+    var marker = Path.Combine(AppContext.BaseDirectory, "msi.args");
+    await File.WriteAllTextAsync(marker + ".tmp", string.Join(' ', args));
+    File.Move(marker + ".tmp", marker, overwrite: true);
+    if (code is 0 or 3010) await File.WriteAllTextAsync(Path.Combine(AppContext.BaseDirectory, "a-library.dll"), "new MSI library");
+    Environment.ExitCode = code;
     return;
 }
 if (args.Contains("--settings"))

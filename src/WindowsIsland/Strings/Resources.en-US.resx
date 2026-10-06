@@ -391,6 +391,9 @@
   <data name="UpdateErrorHelperReady" xml:space="preserve">
     <value>The updater could not get ready. Try again.</value>
   </data>
+  <data name="UpdateErrorHelperTimeout" xml:space="preserve">
+    <value>The updater took too long to start. Your current version is unchanged. Try again later.</value>
+  </data>
   <data name="WeChatConnecting" xml:space="preserve">
     <value>Connecting</value>
   </data>

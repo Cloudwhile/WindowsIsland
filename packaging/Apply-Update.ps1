@@ -1,4 +1,5 @@
 param([Parameter(Mandatory)][string]$JobPath)
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -73,10 +74,6 @@ if ($parent.StartTime.ToUniversalTime().Ticks -ne [long]$job.ProcessStartedUtcTi
     !(Full-Path $parent.MainModule.FileName).Equals($executable, [StringComparison]::OrdinalIgnoreCase)) {
     throw '更新进程与安装目录不匹配。'
 }
-$probe = Join-Path $install ('.island-update-' + $jobId.ToString('N'))
-[IO.File]::WriteAllText($probe, '')
-Remove-Item -LiteralPath $probe -Force
-
 $plan = [Collections.Generic.List[object]]::new()
 $modified = $false
 $canRestart = $false
@@ -95,38 +92,42 @@ try {
         if (!(Full-Path $registration.InstallDirectory).Equals($install, [StringComparison]::OrdinalIgnoreCase)) {
             throw '安装记录与更新目录不匹配。'
         }
-    }
-    $files = @(Get-ChildItem -LiteralPath $payload -Recurse -File -Force)
-    if ($files.Count -eq 0 -or !(Test-Path -LiteralPath (Join-Path $payload 'WindowsIsland.exe') -PathType Leaf)) {
-        throw '更新包不完整。'
-    }
-    $owned = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($file in $files) {
-        $relative = $file.FullName.Substring($payload.Length + 1)
-        [void](Child-Path $payload $relative)
-        if ($relative -in @('AppxManifest.xml', 'resources.pri', 'Uninstall.ps1', 'settings.json', '.update-files.json')) { continue }
-        [void]$owned.Add($relative)
-        $target = Child-Path $install $relative
-        if (Test-Path -LiteralPath $target -PathType Container) { throw '更新文件与已有目录冲突。' }
-        $plan.Add([pscustomobject]@{ Relative = $relative; Target = $target; Source = $file.FullName; Existed = [IO.File]::Exists($target) })
-    }
-    $inventory = Join-Path $install '.update-files.json'
-    if ([IO.File]::Exists($inventory)) {
-        $previousFiles = ConvertFrom-Json -InputObject (Get-Content -LiteralPath $inventory -Raw -Encoding UTF8)
-        foreach ($relative in $previousFiles) {
+    } else {
+        $probe = Join-Path $install ('.island-update-' + $jobId.ToString('N'))
+        [IO.File]::WriteAllText($probe, '')
+        Remove-Item -LiteralPath $probe -Force
+        $files = @(Get-ChildItem -LiteralPath $payload -Recurse -File -Force)
+        if ($files.Count -eq 0 -or !(Test-Path -LiteralPath (Join-Path $payload 'WindowsIsland.exe') -PathType Leaf)) {
+            throw '更新包不完整。'
+        }
+        $owned = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+        foreach ($file in $files) {
+            $relative = $file.FullName.Substring($payload.Length + 1)
+            [void](Child-Path $payload $relative)
             if ($relative -in @('AppxManifest.xml', 'resources.pri', 'Uninstall.ps1', 'settings.json', '.update-files.json')) { continue }
+            [void]$owned.Add($relative)
             $target = Child-Path $install $relative
-            if (!$owned.Contains($relative) -and [IO.File]::Exists($target)) {
-                $plan.Add([pscustomobject]@{ Relative = $relative; Target = $target; Source = $null; Existed = $true })
+            if (Test-Path -LiteralPath $target -PathType Container) { throw '更新文件与已有目录冲突。' }
+            $plan.Add([pscustomobject]@{ Relative = $relative; Target = $target; Source = $file.FullName; Existed = [IO.File]::Exists($target) })
+        }
+        $inventory = Join-Path $install '.update-files.json'
+        if ([IO.File]::Exists($inventory)) {
+            $previousFiles = ConvertFrom-Json -InputObject (Get-Content -LiteralPath $inventory -Raw -Encoding UTF8)
+            foreach ($relative in $previousFiles) {
+                if ($relative -in @('AppxManifest.xml', 'resources.pri', 'Uninstall.ps1', 'settings.json', '.update-files.json')) { continue }
+                $target = Child-Path $install $relative
+                if (!$owned.Contains($relative) -and [IO.File]::Exists($target)) {
+                    $plan.Add([pscustomobject]@{ Relative = $relative; Target = $target; Source = $null; Existed = $true })
+                }
             }
         }
+        if ([IO.File]::Exists((Join-Path $install 'resources.pri'))) {
+            $plan.Add([pscustomobject]@{ Relative = 'resources.pri'; Target = (Child-Path $install 'resources.pri');
+                Source = (Child-Path $payload 'WindowsIsland.pri'); Existed = $true })
+        }
+        $plan.Add([pscustomobject]@{ Relative = '.update-files.json'; Target = (Child-Path $install '.update-files.json');
+            Source = $null; Existed = [IO.File]::Exists($inventory) })
     }
-    if ([IO.File]::Exists((Join-Path $install 'resources.pri'))) {
-        $plan.Add([pscustomobject]@{ Relative = 'resources.pri'; Target = (Child-Path $install 'resources.pri');
-            Source = (Child-Path $payload 'WindowsIsland.pri'); Existed = $true })
-    }
-    $plan.Add([pscustomobject]@{ Relative = '.update-files.json'; Target = (Child-Path $install '.update-files.json');
-        Source = $null; Existed = [IO.File]::Exists($inventory) })
     [IO.File]::WriteAllText((Join-Path $jobDirectory 'ready'), '')
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
     while (!(Test-Path -LiteralPath (Join-Path $jobDirectory 'commit'))) {

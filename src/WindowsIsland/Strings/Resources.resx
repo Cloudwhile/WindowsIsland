@@ -391,6 +391,9 @@
   <data name="UpdateErrorHelperReady" xml:space="preserve">
     <value>更新程序未能准备就绪，请重试。</value>
   </data>
+  <data name="UpdateErrorHelperTimeout" xml:space="preserve">
+    <value>启动更新程序超时，原版本未更改。请稍后重试。</value>
+  </data>
   <data name="WeChatConnecting" xml:space="preserve">
     <value>正在连接</value>
   </data>

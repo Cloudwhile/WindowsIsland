@@ -125,6 +125,43 @@ internal static class UpdateChecks
             }
             check(!Directory.Exists(directory), "Cancelling a prepared update removes only its temporary job directory");
         }
+        var installer = Encoding.UTF8.GetBytes("verified MSI fixture");
+        var installerDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(installer)).ToLowerInvariant()
+            + "  " + release.Installer!.Name + "\n");
+        var msiRelease = release with
+        {
+            Installer = release.Installer with { Size = installer.Length },
+            InstallerChecksum = release.InstallerChecksum! with { Size = installerDigest.Length }
+        };
+        var requested = new List<string>();
+        var stages = new List<UpdateProgress>();
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            var name = Path.GetFileName(request.RequestUri!.AbsolutePath);
+            requested.Add(name);
+            var content = name == msiRelease.InstallerChecksum!.Name ? installerDigest
+                : name == msiRelease.Installer!.Name ? installer : throw new InvalidOperationException("Unexpected ZIP request in MSI update: " + name);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(content) });
+        })))
+        using (var prepared = await UpdatePackage.PrepareAsync(client, msiRelease, true,
+            new InlineProgress(stages.Add), CancellationToken.None, root))
+        {
+            check(requested.SequenceEqual(new[] { msiRelease.InstallerChecksum!.Name, msiRelease.Installer!.Name })
+                && prepared.InstallerPath is not null && File.ReadAllBytes(prepared.InstallerPath).SequenceEqual(installer),
+                "MSI updates download only their checksum and verified installer exactly once");
+            check(!Directory.Exists(prepared.StagingDirectory) && !File.Exists(Path.Combine(prepared.Directory, "update.zip"))
+                && stages.All(value => value.MessageKey != "UpdateExtracting")
+                && stages.Count(value => value.MessageKey == "UpdateDownloading" && value.Percent == 0) == 1,
+                "MSI preparation never extracts a ZIP or restarts download progress after extraction");
+        }
+        using (var client = new GitHubReleaseClient(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            { Content = new ByteArrayContent(request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal) ? installerDigest : installer[..^1]) }))))
+        {
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, msiRelease, true, null, CancellationToken.None, root), check,
+                "A truncated MSI is rejected without falling back to a ZIP or leaving a prepared job");
+            check(!Directory.EnumerateDirectories(root).Any(), "Failed MSI preparation removes only its own incomplete work directory");
+        }
         var wrong = Encoding.UTF8.GetBytes(new string('0', 64) + "  " + release.Archive.Name + "\n");
         using (var client = DownloadClient(zip, wrong))
         {
@@ -220,5 +257,10 @@ internal static class UpdateChecks
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
+    }
+
+    private sealed class InlineProgress(Action<UpdateProgress> report) : IProgress<UpdateProgress>
+    {
+        public void Report(UpdateProgress value) => report(value);
     }
 }

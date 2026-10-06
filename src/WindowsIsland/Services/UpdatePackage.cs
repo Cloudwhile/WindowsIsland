@@ -49,16 +49,19 @@ internal static class UpdatePackage
         Directory.CreateDirectory(directory);
         try
         {
-            var archive = Path.Combine(directory, "update.zip");
-            await DownloadVerifiedAsync(client, release.Archive, release.Checksum, archive, progress, cancellationToken).ConfigureAwait(false);
-            progress?.Report(new("UpdateExtracting"));
             var staging = Path.Combine(directory, "payload");
-            await Task.Run(() => Extract(archive, staging, cancellationToken), cancellationToken).ConfigureAwait(false);
             string? installer = null;
             if (useInstaller)
             {
                 installer = Path.Combine(directory, "update.msi");
                 await DownloadVerifiedAsync(client, release.Installer!, release.InstallerChecksum!, installer, progress, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                var archive = Path.Combine(directory, "update.zip");
+                await DownloadVerifiedAsync(client, release.Archive, release.Checksum, archive, progress, cancellationToken).ConfigureAwait(false);
+                progress?.Report(new("UpdateExtracting"));
+                await Task.Run(() => Extract(archive, staging, cancellationToken), cancellationToken).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
             return new(directory, staging, installer, release.Version.Text, root);

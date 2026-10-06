@@ -46,6 +46,35 @@ internal static class UpdateScriptChecks
             var exited = await fixture.StartAsync(expectReady: false);
             check(exited != 0 && !File.Exists(Path.Combine(fixture.Job, "commit"))
                 && File.ReadAllText(fixture.Installed("a-library.dll")) == "old library", "Preflight directory conflicts never commit or replace the running application");
+            check(File.ReadAllText(fixture.FailureLog).Contains("已有目录冲突", StringComparison.Ordinal),
+                "Preflight failure details survive disposal of the failed update job");
+        }
+        using (var fixture = new Fixture(Path.Combine(root, "helper-start-failure")))
+        {
+            File.WriteAllText(fixture.Installed("Updater/Apply-Update.ps1"),
+                "param([string]$JobPath)\n[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)\nthrow '模拟更新启动失败。'\n");
+            var exited = await fixture.StartAsync(expectReady: false);
+            check(exited != 0 && !File.Exists(Path.Combine(fixture.Job, "commit"))
+                && File.ReadAllText(fixture.FailureLog).Contains("模拟更新启动失败", StringComparison.Ordinal),
+                "Early helper crashes retain bounded UTF-8 diagnostics and never request application exit");
+        }
+        foreach (var code in new[] { 0, 3010, 1603 })
+        using (var fixture = new Fixture(Path.Combine(root, "msi-" + code), code))
+        {
+            File.WriteAllText(fixture.Installed(".update-files.json"), "broken ZIP inventory");
+            await fixture.StartAsync();
+            var result = await fixture.ResultAsync();
+            var arguments = File.ReadAllText(fixture.Installed("msi.args"));
+            var success = code is 0 or 3010;
+            check(result.Success == success && !Directory.Exists(fixture.Payload)
+                && arguments.Contains(Path.Combine(fixture.Job, "update.msi"), StringComparison.Ordinal)
+                && arguments.Contains("/qn /norestart", StringComparison.Ordinal)
+                && arguments.Contains("INSTALLFOLDER=" + Path.GetDirectoryName(fixture.Installed("WindowsIsland.exe")), StringComparison.Ordinal),
+                "The real MSI helper hands off without ZIP payload or inventory and invokes the simulated installer: " + code);
+            check(File.ReadAllText(fixture.Installed("a-library.dll")) == (success ? "new MSI library" : "old library")
+                && File.ReadAllText(fixture.Installed("settings.json")) == "saved preferences"
+                && (await fixture.RestartArgumentsAsync()).Contains(success ? "--after-update" : "--show-update-result", StringComparison.Ordinal),
+                "MSI helper success, reboot-required and failure retain preferences and restart the appropriate version: " + code);
         }
     }
 
@@ -66,8 +95,9 @@ internal static class UpdateScriptChecks
         private Process? _application;
         public string Job { get; }
         public string Payload { get; }
+        public string FailureLog => Path.Combine(_work, "last-helper-error.log");
 
-        public Fixture(string directory)
+        public Fixture(string directory, int? installerExitCode = null)
         {
             _install = Path.Combine(directory, "installed with spaces");
             _work = Path.Combine(directory, "work");
@@ -92,6 +122,20 @@ internal static class UpdateScriptChecks
             File.WriteAllText(Installed("obsolete.txt"), "old managed file");
             File.WriteAllText(Installed("user.txt"), "user file");
             File.WriteAllText(Installed(".update-files.json"), "[\"obsolete.txt\",\"a-library.dll\"]");
+            if (installerExitCode is { } code)
+            {
+                Directory.CreateDirectory(Job);
+                File.WriteAllText(Path.Combine(Job, "update.msi"), "simulated verified MSI");
+                File.Copy(Installed("WindowsIsland.exe"), Installed("msiexec-fixture.exe"));
+                File.WriteAllText(Installed("msi-fixture-exit.txt"), code.ToString());
+                var script = File.ReadAllText(updater)
+                    .Replace("$registration = Get-ItemProperty -LiteralPath 'HKCU:\\Software\\Cloudwhile\\WindowsIsland\\Installer'",
+                        "$registration = [pscustomobject]@{ InstallDirectory = $install }", StringComparison.Ordinal)
+                    .Replace("$start.FileName = Join-Path ([Environment]::GetFolderPath('System')) 'msiexec.exe'",
+                        "$start.FileName = Join-Path $install 'msiexec-fixture.exe'", StringComparison.Ordinal);
+                File.WriteAllText(updater, script);
+                return;
+            }
             Directory.CreateDirectory(Payload);
             File.Copy(Installed("WindowsIsland.exe"), Path.Combine(Payload, "WindowsIsland.exe"));
             File.WriteAllText(Path.Combine(Payload, "a-library.dll"), "new library");
