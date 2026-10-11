@@ -6,7 +6,8 @@ namespace WindowsIsland.Services;
 internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotifications = true,
     bool WeChat = true, bool Telegram = true, bool Power = true, bool Animations = true,
     NotificationPosition Position = NotificationPosition.TopCenter, bool IncludePrereleaseUpdates = false,
-    string Language = LanguagePreferences.Default, bool MuteDuringGames = true, bool MuteDuringFullScreen = true)
+    string Language = LanguagePreferences.Default, bool MuteDuringGames = true, bool MuteDuringFullScreen = true,
+    bool LocalDiagnostics = true)
 {
     public bool AllowsClient(string identity) => identity switch
     {
@@ -44,21 +45,29 @@ internal sealed class SettingsStore
                 oldPreferences[nameof(AppSettings.MuteDuringFullScreen)] = oldMute is JsonValue oldValue
                     && oldValue.TryGetValue<bool>(out var enabled) ? enabled : true;
             }
-            if (json is JsonObject preferences && preferences.TryGetPropertyValue(nameof(AppSettings.IncludePrereleaseUpdates), out var node)
-                && (node is not JsonValue value || !value.TryGetValue<bool>(out _)))
-                preferences.Remove(nameof(AppSettings.IncludePrereleaseUpdates));
-            if (json is JsonObject gamePreferences && gamePreferences.TryGetPropertyValue(nameof(AppSettings.MuteDuringGames), out var gameNode)
-                && (gameNode is not JsonValue gameValue || !gameValue.TryGetValue<bool>(out _)))
-                gamePreferences.Remove(nameof(AppSettings.MuteDuringGames));
-            if (json is JsonObject fullScreenPreferences && fullScreenPreferences.TryGetPropertyValue(nameof(AppSettings.MuteDuringFullScreen), out var fullScreenNode)
-                && (fullScreenNode is not JsonValue fullScreenValue || !fullScreenValue.TryGetValue<bool>(out _)))
-                fullScreenPreferences.Remove(nameof(AppSettings.MuteDuringFullScreen));
-            if (json is JsonObject languagePreferences && languagePreferences.TryGetPropertyValue(nameof(AppSettings.Language), out var languageNode)
-                && (languageNode is not JsonValue languageValue || !languageValue.TryGetValue<string>(out _)))
-                languagePreferences.Remove(nameof(AppSettings.Language));
+            if (json is JsonObject preferences)
+            {
+                foreach (var name in new[] { nameof(AppSettings.SetupCompleted), nameof(AppSettings.SystemNotifications),
+                    nameof(AppSettings.WeChat), nameof(AppSettings.Telegram), nameof(AppSettings.Power), nameof(AppSettings.Animations),
+                    nameof(AppSettings.IncludePrereleaseUpdates), nameof(AppSettings.MuteDuringGames), nameof(AppSettings.MuteDuringFullScreen),
+                    nameof(AppSettings.LocalDiagnostics) })
+                    if (preferences.TryGetPropertyValue(name, out var node)
+                        && (node is not JsonValue value || !value.TryGetValue<bool>(out _))) preferences.Remove(name);
+                if (preferences.TryGetPropertyValue(nameof(AppSettings.Language), out var language)
+                    && (language is not JsonValue languageValue || !languageValue.TryGetValue<string>(out _)))
+                    preferences.Remove(nameof(AppSettings.Language));
+                if (preferences.TryGetPropertyValue(nameof(AppSettings.Position), out var position)
+                    && (position is not JsonValue positionValue || !positionValue.TryGetValue<int>(out _)))
+                    preferences.Remove(nameof(AppSettings.Position));
+            }
             _current = json?.Deserialize<AppSettings>() ?? new();
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException) { _current = new(); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        {
+            if (error is not (FileNotFoundException or DirectoryNotFoundException))
+                Diagnostics.Capture(DiagnosticArea.Settings, error, "ReadPreferences");
+            _current = new();
+        }
         _current = _current with { Position = NotificationPlacement.Normalize(_current.Position), Language = LanguagePreferences.Normalize(_current.Language) };
     }
 

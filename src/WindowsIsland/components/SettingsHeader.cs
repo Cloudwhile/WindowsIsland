@@ -15,7 +15,7 @@ internal sealed class SettingsHeader : Grid
 
     public SettingsHeader(params UIElement[] actions)
     {
-        Margin = new Thickness(16, 12, 16, 16);
+        Margin = new Thickness(16, 8, 16, 8);
         ColumnSpacing = 16;
         ColumnDefinitions.Add(new ColumnDefinition());
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

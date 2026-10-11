@@ -7,10 +7,13 @@ namespace WindowsIsland.Components;
 
 internal sealed class IconActionButton : Button
 {
-    private Symbol? _symbol;
+    private int? _glyph;
     private string? _labelKey;
 
-    public IconActionButton(Symbol symbol, string label, string automationId)
+    public IconActionButton(Symbol symbol, string label, string automationId) : this((int)symbol, label, automationId) { }
+
+    // Segoe Fluent glyphs not exposed by Symbol, such as chevrons and the palette.
+    public IconActionButton(int glyph, string label, string automationId)
     {
         Width = Height = 36;
         Padding = new Thickness(0);
@@ -18,16 +21,18 @@ internal sealed class IconActionButton : Button
         VerticalAlignment = VerticalAlignment.Center;
         HorizontalAlignment = HorizontalAlignment.Right;
         AutomationProperties.SetAutomationId(this, automationId);
-        SetAction(symbol, label);
+        SetAction(glyph, label);
         LocalizedUI.Bind(this, RefreshLabel);
     }
 
-    public void SetAction(Symbol symbol, string label)
+    public void SetAction(Symbol symbol, string label) => SetAction((int)symbol, label);
+
+    public void SetAction(int glyph, string label)
     {
-        if (_symbol == symbol && _labelKey == label) return;
-        _symbol = symbol;
+        if (_glyph == glyph && _labelKey == label) return;
+        _glyph = glyph;
         _labelKey = label;
-        Content = new FontIcon { Glyph = char.ConvertFromUtf32((int)symbol), FontSize = 16 };
+        Content = new FontIcon { Glyph = char.ConvertFromUtf32(glyph), FontSize = 16 };
         RefreshLabel();
     }
 

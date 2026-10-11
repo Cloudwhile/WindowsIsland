@@ -4,9 +4,49 @@ using System.Text;
 using System.Windows.Automation;
 using WindowsIsland.Services;
 
-if (args.Length >= 3 && args[0] == "--fixture") return WeChatFixture.Run(args[1], args[2]);
+if (args.Length >= 3 && args[0] == "--fixture") return WeChatFixture.Run(args[1], args[2], args.Length > 3 ? args[3] : null);
+if (args.Length == 2 && args[0] == "--check-module") return AccessibilityChecks.CheckModule(args[1]);
+if (args.Length == 1 && args[0] == "--accessibility") { AccessibilityChecks.Run(); return 0; }
 if (args.Length > 0 && args[0] == "--observe") return LiveListener.Run();
-if (args.Length == 0) return ListenerChecks.Run();
+if (args.Length == 1 && args[0] == "--probe-preview") return LivePreviewProbe.Run();
+if (args.Length == 1 && args[0] == "--accessibility-health")
+{
+    var readable = false;
+    foreach (var process in Process.GetProcessesByName("Weixin"))
+    {
+        using (process)
+        using (var session = WeChatAccessibilitySession.TryOpen(process, out var failure))
+        {
+            if (session is null) { Console.WriteLine("Accessibility check: " + failure); continue; }
+            EnumWindows((window, _) =>
+            {
+                GetWindowThreadProcessId(window, out var owner);
+                if (owner != process.Id) return true;
+                var name = new StringBuilder(256);
+                GetClassName(window, name, name.Capacity);
+                if (!name.ToString().Contains("QWindowIcon", StringComparison.Ordinal)) return true;
+                var root = AutomationElement.FromHandle(window);
+                for (var attempt = 0; attempt < 6; attempt++)
+                {
+                    var lists = root.FindAll(TreeScope.Descendants,
+                        new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.List));
+                    if (lists.Count > 0)
+                    {
+                        readable = true;
+                        Console.WriteLine("PASS verified accessibility opens UIAutomation list controls; no row content inspected.");
+                        break;
+                    }
+                    Thread.Sleep(300);
+                }
+                return true;
+            }, 0);
+        }
+    }
+    if (!readable) Console.WriteLine("No accessible list controls were available.");
+    return readable ? 0 : 1;
+}
+if (args.Length == 0) { AccessibilityChecks.Run(); ListenerChecks.Run(); return AccessibilityRecoveryChecks.Run(); }
+if (args.Length == 1 && args[0] == "--recovery") return AccessibilityRecoveryChecks.Run();
 if (args[0] != "--inspect") throw new ArgumentException("Unknown verification mode.");
 Trace.Listeners.Add(new ConsoleTraceListener());
 var sessions = new List<WeChatAccessibilitySession>();

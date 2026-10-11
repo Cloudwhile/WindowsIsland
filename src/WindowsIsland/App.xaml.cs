@@ -8,13 +8,18 @@ public partial class App : Application
 {
     private MainWindow? _window;
     private SingleInstance? _instance;
+    private bool _restarting;
     public App()
     {
         try
         {
             ApplyLanguage(new SettingsStore(PreferencesPath(Environment.GetCommandLineArgs().Contains("--verify-local"))).Current.Language);
             InitializeComponent();
-            UnhandledException += (_, error) => RecordVerificationError(error.Exception);
+            UnhandledException += (_, error) =>
+            {
+                Diagnostics.Capture(DiagnosticArea.Application, error.Exception, "UserInterface", fatal: true);
+                RecordVerificationError(error.Exception);
+            };
         }
         catch (Exception error) { RecordVerificationError(error); throw; }
     }
@@ -35,6 +40,9 @@ public partial class App : Application
         var showSettings = !settings.Current.SetupCompleted || arguments.Contains("--settings", StringComparison.Ordinal);
         var afterUpdate = arguments.Contains("--after-update", StringComparison.Ordinal);
         var showUpdateResult = afterUpdate || arguments.Contains("--show-update-result", StringComparison.Ordinal);
+        if (!verification && showUpdateResult && UpdateInstaller.ReadResult() is { Success: false } failedUpdate)
+            Diagnostics.State(DiagnosticArea.Updates, failedUpdate.MessageKey is "UpdateRestored" or "UpdateBackupRetained"
+                ? failedUpdate.MessageKey : "UpdateInstallFailed");
         if (!verification && afterUpdate && settings.Current.SystemNotifications)
         {
             try
@@ -42,11 +50,11 @@ public partial class App : Application
                 var appId = await AppInitialization.InitializeAsync(force: true);
                 if (!AppInitialization.HasIdentity)
                 {
-                    RestartRegistered(appId, showSettings: true, showUpdateResult: true);
+                    await RestartRegisteredAsync(appId, showSettings: true, showUpdateResult: true);
                     return;
                 }
             }
-            catch (Exception error) { Trace.WriteLine(error); showSettings = true; }
+            catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Application, error, "RegisterAfterUpdate"); Trace.WriteLine(error); showSettings = true; }
         }
         if (!verification && settings.Current.SystemNotifications && !AppInitialization.HasIdentity)
         {
@@ -54,12 +62,13 @@ public partial class App : Application
             {
                 if (AppInitialization.RegisteredAppId() is { } appId)
                 {
-                    RestartRegistered(appId, showSettings, showUpdateResult);
+                    await RestartRegisteredAsync(appId, showSettings, showUpdateResult);
                     return;
                 }
             }
             catch (Exception error)
             {
+                Diagnostics.Capture(DiagnosticArea.Application, error, "RegisteredActivation");
                 Trace.WriteLine(error);
                 if (_instance is null) return;
             }
@@ -71,14 +80,15 @@ public partial class App : Application
         await _window.StartListeningAsync();
     }
 
-    internal void RestartRegistered(string appId, bool showSettings = true, bool showUpdateResult = false)
+    internal async Task RestartRegisteredAsync(string appId, bool showSettings = true, bool showUpdateResult = false)
     {
-        _instance?.Dispose();
-        try { AppActivation.LaunchRegistered(appId, showSettings, showUpdateResult); }
+        if (_restarting) return;
+        _restarting = true;
+        try { await RegisteredRestart.PrepareAsync(appId, showSettings, showUpdateResult,
+            Environment.GetCommandLineArgs().Contains("--verify-local")); }
         catch
         {
-            _instance = SingleInstance.TryAcquire("Local\\WindowsIsland.Tray");
-            if (_instance is null) CloseApplication();
+            _restarting = false;
             throw;
         }
         CloseApplication();

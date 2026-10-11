@@ -14,11 +14,13 @@ internal sealed class SettingsWindow : Window
     private readonly DispatcherQueueTimer _refresh;
 
     public SettingsWindow(SettingsStore settings, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
-        Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false)
+        Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false,
+        Func<string, Task>? retrySource = null)
     {
         Title = Localization.Get("WindowSettingsTitle");
         SystemBackdrop = new MicaBackdrop();
-        var page = new SettingsPage(settings, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification);
+        var page = new SettingsPage(settings, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification,
+            PickDiagnosticFileAsync, retrySource);
         var titleBar = new TitleBar
         {
             Title = "Windows Island",
@@ -51,5 +53,16 @@ internal sealed class SettingsWindow : Window
         _refresh.Tick += (_, _) => page.Refresh();
         _refresh.Start();
         Closed += (_, _) => { _refresh.Stop(); page.Dispose(); };
+    }
+
+    private async Task<string?> PickDiagnosticFileAsync()
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
+        {
+            SuggestedFileName = "WindowsIsland-diagnostics-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"),
+            DefaultFileExtension = ".json"
+        };
+        picker.FileTypeChoices.Add(Localization.Get("DiagnosticsFileType"), new List<string> { ".json" });
+        return (await picker.PickSaveFileAsync())?.Path;
     }
 }

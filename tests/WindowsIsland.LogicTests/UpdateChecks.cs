@@ -20,6 +20,10 @@ internal static class UpdateChecks
             .All(value => !ReleaseVersion.TryParse(value, out _)), "Malformed release tags cannot become update candidates");
         check(ReleaseVersion.FromInformationalVersion("0.1.0-rc.1+git123").Prerelease == "rc.1",
             "Current application versions retain prerelease information from assembly metadata");
+        check(ReleaseVersion.FromInformationalVersion("v0.1.0-rc.4").Tag == "v0.1.0-rc.4"
+            && ReleaseVersion.FromInformationalVersion("0.1.0-rc.4+git123").Tag == "v0.1.0-rc.4"
+            && ReleaseVersion.FromInformationalVersion("v1.2.3").Tag == "v1.2.3",
+            "Displayed release tags retain the v prefix and complete prerelease suffix without duplicating the prefix");
 
         var requests = new List<Uri>();
         using (var client = new GitHubReleaseClient(new Handler((request, token) =>

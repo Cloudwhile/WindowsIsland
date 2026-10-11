@@ -37,6 +37,19 @@ internal static class WeChatChecks
         check(WeChatText.MatchesPreview("这是一个较长的预览…", "这是一个较长的预览，后面还有正文")
             && !WeChatText.MatchesPreview("你好", "你好世界"), "Truncated previews match without conflating short messages");
         check(WeChatText.Recent(stamp, now) && !WeChatText.Recent("昨天", now), "Only recent new sessions can generate arrivals");
+        check(preview.Pinned && WeChatText.ParsePreview("session_item_示例群", $"示例群\nPinned\n新消息\n{stamp}", [])!.Pinned,
+            "Session pin metadata is retained independently of message content");
+        var pinnedTracker = new WeChatTracker();
+        var pinned = new WeChatPreview("pinned", "置顶会话", "已有消息", 0, stamp, Pinned: true);
+        var existing = new WeChatPreview("existing", "已有会话", "历史消息", 0, "昨天");
+        pinnedTracker.Update(new("", [pinned, existing], [], true, false), now);
+        var firstArrival = new WeChatPreview("first-arrival", "首次出现的会话", "手机发来的新消息", 1, stamp);
+        check(pinnedTracker.Update(new("", [pinned, firstArrival, existing], [], true, false), now).Single().Conversation == firstArrival.Conversation,
+            "A newly arrived conversation below pinned sessions is detected without opening the chat");
+        check(pinnedTracker.Update(new("", [pinned, firstArrival, existing], [], true, false), now).Count == 0,
+            "The first arrival below pinned sessions is not repeated");
+        check(pinnedTracker.Update(new("", [pinned, firstArrival, existing, firstArrival with { Key = "scrolled", Conversation = "滚动出现的会话" }], [], true, false), now).Count == 0,
+            "A newly visible row below ordinary sessions is not mistaken for an arrival");
 
         var tracker = new WeChatTracker();
         var friend = new WeChatPreview("friend", "小林", "历史消息", 4, "昨天");
@@ -47,6 +60,15 @@ internal static class WeChatChecks
         check(tracker.Update(Sessions(friend), now).Single() == new WeChatArrival("小林", "新消息"), "New unread preview changes produce an arrival");
         friend = friend with { Unread = 6 };
         check(tracker.Update(Sessions(friend), now).Count == 1, "Identical text sent twice remains two distinct arrivals");
+        friend = friend with { Body = "在手机上发出的回复", Avatar = [1, 2, 3] };
+        check(tracker.Update(Sessions(friend), now).Count == 0,
+            "A remote-device reply changing a known preview with unchanged unread count and a cached avatar stays silent");
+        friend = friend with { Body = "另一设备上继续回复" };
+        check(tracker.Update(Sessions(friend), now).Count == 0,
+            "Repeated remote-device replies do not become incoming notifications");
+        friend = friend with { Body = "对方随后发来的消息", Unread = 7 };
+        check(tracker.Update(Sessions(friend), now).Single().Body == friend.Body,
+            "A real unread increase after a remote-device reply still notifies");
         friend = friend with { Unread = 0 };
         check(tracker.Update(Sessions(friend), now).Count == 0, "Opening a conversation does not replay unread messages");
         friend = friend with { Body = "我发出的消息" };
@@ -81,6 +103,12 @@ internal static class WeChatChecks
         var groupMessage = incoming with { Sender = "小林", Body = "下午见" };
         check(combined.Update(Group(basePreview with { Body = "小林: 下午见", Unread = 1 }, first, groupMessage), now).Count == 1,
             "Session and chat events merge into a single group notification");
+        var directed = new WeChatTracker();
+        directed.Update(Group(basePreview with { Unread = 2 }, first), now);
+        check(directed.Update(Group(basePreview with { Body = outgoing.Body, Unread = 3 }, first, outgoing), now).Count == 0,
+            "An explicit outgoing row cannot be reclassified by a temporarily increased unread preview");
+        check(directed.Update(Group(basePreview with { Body = groupMessage.Body, Unread = 3 }, first, outgoing, groupMessage), now).Count == 1,
+            "An explicit incoming row still notifies when the unread count remains unchanged");
         var fullBody = "这是一条较长的完整正文，用于检查预览补全";
         var unknownMessage = unknown with { Body = fullBody };
         check(combined.Update(Group(basePreview with { Body = fullBody[..10] + "…", Unread = 2 }, first, groupMessage, unknownMessage), now).Single().Body == fullBody,

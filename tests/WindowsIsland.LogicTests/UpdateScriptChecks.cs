@@ -73,8 +73,8 @@ internal static class UpdateScriptChecks
                 "The real MSI helper hands off without ZIP payload or inventory and invokes the simulated installer: " + code);
             check(File.ReadAllText(fixture.Installed("a-library.dll")) == (success ? "new MSI library" : "old library")
                 && File.ReadAllText(fixture.Installed("settings.json")) == "saved preferences"
-                && (await fixture.RestartArgumentsAsync()).Contains(success ? "--after-update" : "--show-update-result", StringComparison.Ordinal),
-                "MSI helper success, reboot-required and failure retain preferences and restart the appropriate version: " + code);
+                && (await fixture.RestartArgumentsAsync()).Contains("--after-update", StringComparison.Ordinal),
+                "MSI helper success, reboot-required and failure retain preferences and refresh app registration on restart: " + code);
         }
     }
 

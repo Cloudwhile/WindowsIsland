@@ -1,10 +1,13 @@
 namespace WindowsIsland.Services;
 
+internal enum NotificationAccess { NeedsRegistration, Waiting, Allowed, Denied, Unavailable }
+
 internal enum NotificationSource { SystemNotification, ClientHook, Power, ClientAutomation }
 
 internal sealed record IslandNotification(uint Id, DateTimeOffset CreatedAt, string AppName, string Title, string Body,
     byte[]? AppIcon = null, NotificationSource Source = NotificationSource.SystemNotification,
-    string? AppId = null, string? EventId = null, string? Symbol = null, byte[]? SenderAvatar = null, int? OriginProcessId = null);
+    string? AppId = null, string? EventId = null, string? Symbol = null, byte[]? SenderAvatar = null, int? OriginProcessId = null,
+    bool IsMetadataUpdate = false);
 
 internal sealed class NotificationTracker
 {

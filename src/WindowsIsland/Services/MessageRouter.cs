@@ -19,6 +19,7 @@ internal sealed class MessageRouter(TimeProvider? time = null)
     public MessageDispatch? Receive(IslandNotification notification)
     {
         Prune();
+        if (notification.IsMetadataUpdate) return EnrichKnown(notification);
         if (notification.Source == NotificationSource.Power) return new(notification);
         if (IsClient(notification))
         {
@@ -69,6 +70,27 @@ internal sealed class MessageRouter(TimeProvider? time = null)
         return new(notification, ReplaceCurrent: hook is not null);
     }
 
+    private MessageDispatch? EnrichKnown(IslandNotification notification)
+    {
+        if (!IsClient(notification) || notification.EventId is null) return null;
+        var pendingIndex = _pending.FindIndex(item => SameEvent(item.Notification, notification));
+        if (pendingIndex >= 0)
+        {
+            var pending = _pending[pendingIndex];
+            _pending[pendingIndex] = pending with { Notification = PreserveImages(pending.Notification, notification) };
+            return null;
+        }
+        var recentIndex = _recent.FindLastIndex(item => SameEvent(item.Notification, notification)
+            || item.Notification.Source == NotificationSource.SystemNotification && Matches(item.Notification, notification));
+        if (recentIndex < 0) return null;
+        var recent = _recent[recentIndex];
+        var enriched = PreserveImages(recent.Notification, notification);
+        if (ReferenceEquals(enriched.AppIcon, recent.Notification.AppIcon)
+            && ReferenceEquals(enriched.SenderAvatar, recent.Notification.SenderAvatar)) return null;
+        _recent[recentIndex] = recent with { Notification = enriched };
+        return new(enriched, ReplaceCurrent: true);
+    }
+
     private static bool IsClient(IslandNotification notification) => notification.Source is NotificationSource.ClientHook or NotificationSource.ClientAutomation;
     private static bool OtherClient(Entry entry, IslandNotification notification) => !entry.MatchedClient
         && IsClient(entry.Notification) && entry.Notification.Source != notification.Source && Matches(entry.Notification, notification);
@@ -99,6 +121,14 @@ internal sealed class MessageRouter(TimeProvider? time = null)
     }
 
     public void Clear() { _pending.Clear(); _recent.Clear(); _events.Clear(); }
+    public void ApplySettings(AppSettings settings)
+    {
+        foreach (var item in _pending.Where(item => !settings.Allows(item.Notification)).ToArray())
+        {
+            Remember(item.Notification, item.MatchedClient);
+            _pending.Remove(item);
+        }
+    }
     public void DiscardPending()
     {
         foreach (var item in _pending) Remember(item.Notification, item.MatchedClient);
@@ -142,9 +172,22 @@ internal sealed class MessageRouter(TimeProvider? time = null)
     private static bool GenericTitle(string title, IslandNotification notification) =>
         title.Length == 0 || title == Normalize(notification.AppName);
 
-    private static string Normalize(string text) => string.Concat(text.Normalize(NormalizationForm.FormKC)
+    private static string Normalize(string text) => string.Concat(NormalizeUnicode(text)
         .Where(character => !char.IsWhiteSpace(character) && character is not '\u200B' and not '\u200E' and not '\u200F'))
         .TrimEnd('…', '.').ToUpperInvariant();
+
+    private static string NormalizeUnicode(string text)
+    {
+        try { return text.Normalize(NormalizationForm.FormKC); }
+        catch (ArgumentException)
+        {
+            // UIAutomation strings can contain unmatched UTF-16 surrogates.
+            // Replace malformed scalars only for matching; keep the message text intact.
+            var repaired = new StringBuilder(text.Length);
+            foreach (var rune in text.EnumerateRunes()) repaired.Append(rune.ToString());
+            return repaired.ToString().Normalize(NormalizationForm.FormKC);
+        }
+    }
 }
 
 internal static class MessengerIdentity

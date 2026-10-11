@@ -49,12 +49,12 @@ internal sealed record ToastImageReference(string Title, string Body, string? Av
         try
         {
             if (Path.IsPathFullyQualified(Avatar) && !Avatar.StartsWith("\\\\", StringComparison.Ordinal))
-                return Path.GetFullPath(Avatar);
+                return LocalFile(Avatar);
             if (!Uri.TryCreate(Avatar, UriKind.Absolute, out var uri))
             {
                 if (!Uri.TryCreate(BaseUri, UriKind.Absolute, out var root) || !Uri.TryCreate(root, Avatar, out uri)) return null;
             }
-            if (uri.IsFile) return uri.IsUnc ? null : uri.LocalPath;
+            if (uri.IsFile) return uri.IsUnc ? null : LocalFile(uri.LocalPath);
             if (uri.Scheme == "ms-appx") return UnderFolder(packageFolder, uri.AbsolutePath);
             if (uri.Scheme == "ms-appdata")
             {
@@ -73,7 +73,19 @@ internal sealed record ToastImageReference(string Title, string Body, string? Av
         if (string.IsNullOrWhiteSpace(folder)) return null;
         var root = Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var path = Path.GetFullPath(Path.Combine(root, Uri.UnescapeDataString(relative).TrimStart('/', '\\')));
-        return path.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? path : null;
+        return path.StartsWith(root, StringComparison.OrdinalIgnoreCase) ? LocalFile(path) : null;
+    }
+
+    private static string? LocalFile(string path)
+    {
+        var full = Path.GetFullPath(path);
+        if (OperatingSystem.IsWindows())
+        {
+            // Normalize first: both //server/share and \\server\share are UNC paths.
+            if (full.Length < 3 || !char.IsAsciiLetter(full[0]) || full[1] != ':' || full[2] != '\\'
+                || full.AsSpan(2).Contains(':')) return null;
+        }
+        return full;
     }
 
     private static string Normalize(string value) => string.Concat(value.Where(character => !char.IsWhiteSpace(character)));

@@ -83,4 +83,9 @@ body:
     id: attachments
     attributes:
       label: 截图与日志 / Screenshots and logs
-      description: 可拖入截图或日志；上传前请遮盖消息内容、头像、账号等个人信息。Attach screenshots or logs with private messages, avatars and account details redacted.
+      description: 可在“设置 → 诊断与反馈”查看并导出诊断报告，确认后拖入此处。此 Issue 公开可见；截图与其他日志请遮盖消息、头像、账号等个人信息。Review and export a report from Settings → Diagnostics & feedback, then attach it here. This issue is public; redact private content from screenshots and other logs.
+  - type: input
+    id: diagnostic-id
+    attributes:
+      label: 诊断编号 / Diagnostic ID
+      description: 如有，请填写诊断页显示的编号，以便匹配报告。If available, copy the ID shown on the diagnostics page to match your report.

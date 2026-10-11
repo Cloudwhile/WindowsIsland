@@ -15,6 +15,7 @@ internal static class LiveListener
         using var service = new WeChatService(() => true, action => action(), directory);
         service.Received += notification =>
         {
+            if (notification.IsMetadataUpdate) { Console.WriteLine("AVATAR updated existing event"); return; }
             Interlocked.Increment(ref arrivals);
             Console.WriteLine($"ARRIVAL titleChars={notification.Title.Length} bodyChars={notification.Body.Length} appIcon={notification.AppIcon is { Length: > 0 }}");
         };

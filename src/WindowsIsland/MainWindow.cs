@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Numerics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
@@ -9,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using Windows.Graphics;
 using WindowsIsland.Components;
+using WindowsIsland.Plugins;
 using WindowsIsland.Services;
 
 namespace WindowsIsland;
@@ -19,13 +19,9 @@ public sealed class MainWindow : Window
     private readonly IslandSurface _root;
     private readonly Grid _host = new();
     private readonly Grid _surfaceLayer;
-    private readonly NotificationService _notifications;
+    private readonly NotificationPluginHost _plugins;
     private readonly SettingsStore _settings;
     private SettingsWindow? _settingsWindow;
-    private readonly MessengerHookService _messengers;
-    private readonly TelegramNativeService _telegram;
-    private readonly WeChatService _weChat;
-    private readonly PowerService _power;
     private readonly MessageRouter _router = new();
     private readonly GameModePolicy _gameMode = new();
     private readonly TrayIcon _tray;
@@ -44,7 +40,7 @@ public sealed class MainWindow : Window
     private double _scale = 1;
     private RectInt32 _workArea;
     private RectInt32? _lastBounds;
-    private int _ticks, _gameModeRevision;
+    private int _gameModeRevision;
     private IslandNotification? _current;
     private readonly bool _verification;
     private bool _showUpdateResult;
@@ -76,10 +72,6 @@ public sealed class MainWindow : Window
         LocalizedUI.Label(_root, "AppName");
         AutomationProperties.SetAutomationId(_root, "IslandSurface");
         AutomationProperties.SetAutomationId(_notificationPanel, "NotificationContent");
-        _notifications = new NotificationService(DispatcherQueue);
-        _notifications.SetEnabled(_settings.Current.SystemNotifications);
-        _notifications.Received += ReceiveNotification;
-
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         _input = new NotificationInput(_hwnd, right => DispatcherQueue.TryEnqueue(() =>
         {
@@ -98,25 +90,14 @@ public sealed class MainWindow : Window
         AppWindow.IsShownInSwitchers = false;
         AppWindow.Hide();
         NativeWindow.ConfigureOverlay(_hwnd);
-        _messengers = new MessengerHookService(DispatcherQueue, verification
-            ? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "bin", "WindowsIsland.HookFixture")) : null,
-            identity => _settings.Current.AllowsClient(identity));
-        _messengers.Received += ReceiveNotification;
-        _telegram = new TelegramNativeService(DispatcherQueue, verification);
-        _messengers.NativeTelegramConnected = _telegram.IsConnected;
-        _telegram.Received += ReceiveNotification;
-        _weChat = new WeChatService(() => _settings.Current.WeChat,
-            action => DispatcherQueue.TryEnqueue(() => { if (!_closed) action(); }), verification
-                ? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "bin", "WindowsIsland.WeChatTests")) : null);
-        _weChat.Received += ReceiveNotification;
-        _power = new PowerService(_hwnd, DispatcherQueue);
-        _power.Received += ReceiveNotification;
+        _plugins = BuiltInPlugins.Create(new(DispatcherQueue, _hwnd, verification), settings.Current);
+        _plugins.Received += ReceiveNotification;
         _tray = new TrayIcon(_hwnd,
             () => DispatcherQueue.TryEnqueue(ExitApplication),
             () => DispatcherQueue.TryEnqueue(OpenSettings),
             () => DispatcherQueue.TryEnqueue(OpenSettings));
         _settings.Changed += OnSettingsChanged;
-        _notifications.AccessChanged += access =>
+        _plugins.AccessChanged += access =>
         {
             if (_closed) return;
             _tray.UpdateAccess(access, _settings.Current.SystemNotifications);
@@ -164,11 +145,8 @@ public sealed class MainWindow : Window
             _expiry.Stop();
             _merge.Stop();
             _router.Clear();
-            _messengers.Dispose();
-            _telegram.Dispose();
-            _weChat.Dispose();
-            _power.Dispose();
-            _notifications.Dispose();
+            _plugins.Received -= ReceiveNotification;
+            _plugins.Dispose();
             _tray.Dispose();
         };
         RefreshDisplayMetrics();
@@ -181,11 +159,8 @@ public sealed class MainWindow : Window
         _started = true;
         await PollGameModeAsync();
         if (_closed) return;
-        _messengers.Start();
-        _weChat.Start();
-        _telegram.RefreshClients(TelegramClients());
         _pulse.Start();
-        await _notifications.InitializeAsync(requestAccess: _verification);
+        await _plugins.StartAsync();
     }
 
     internal void OpenSettings()
@@ -194,8 +169,9 @@ public sealed class MainWindow : Window
         if (_settingsWindow is null)
         {
             _settingsWindow = new SettingsWindow(_settings,
-                () => new SettingsSnapshot(_notifications.Access, AppInitialization.HasIdentity, _messengers.ConnectedApps, _weChat.Status, _gameMode.Reason),
-                InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult, _verification);
+                () => new SettingsSnapshot(_plugins.Access, AppInitialization.HasIdentity, _plugins.Snapshot(), _gameMode.Reason),
+                InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult, _verification,
+                _plugins.RetryAsync);
             _showUpdateResult = false;
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
@@ -205,7 +181,7 @@ public sealed class MainWindow : Window
     private async Task InitializeApplicationAsync()
     {
         var appId = await AppInitialization.InitializeAsync();
-        if (!AppInitialization.HasIdentity) ((App)Application.Current).RestartRegistered(appId);
+        if (!AppInitialization.HasIdentity) await ((App)Application.Current).RestartRegisteredAsync(appId);
     }
 
     private async void PreviewNotification()
@@ -224,11 +200,12 @@ public sealed class MainWindow : Window
         if (_closed) return;
         var previous = _appliedSettings;
         _appliedSettings = settings;
+        Diagnostics.Store?.SetEnabled(settings.LocalDiagnostics);
         if (previous.Language != settings.Language)
         {
             App.ApplyLanguage(settings.Language);
             _root.Language = Localization.Language;
-            _tray.UpdateAccess(_notifications.Access, settings.SystemNotifications);
+            _tray.UpdateAccess(_plugins.Access, settings.SystemNotifications);
             if (_notification.Active && _current is not null)
             {
                 if (_current is { Id: 0, AppName: "Windows Island", AppId: null })
@@ -242,13 +219,11 @@ public sealed class MainWindow : Window
         }
         if (previous.MuteDuringGames != settings.MuteDuringGames || previous.MuteDuringFullScreen != settings.MuteDuringFullScreen)
             RefreshGameMode();
-        if (settings with { Language = previous.Language, MuteDuringGames = previous.MuteDuringGames,
-            MuteDuringFullScreen = previous.MuteDuringFullScreen } == previous) return;
-        _router.Clear();
-        _merge.Stop();
+        _router.ApplySettings(settings);
+        if (!_router.HasPending) _merge.Stop();
         if (_current is not null && !settings.Allows(_current)) DismissNotification(animate: false);
-        _notifications.SetEnabled(settings.SystemNotifications);
-        _tray.UpdateAccess(_notifications.Access, settings.SystemNotifications);
+        _ = _plugins.ApplySettingsAsync(settings);
+        _tray.UpdateAccess(_plugins.Access, settings.SystemNotifications);
         if (_position != settings.Position)
         {
             _input.Hide();
@@ -262,30 +237,11 @@ public sealed class MainWindow : Window
             }
             else HideIsland();
         }
-        if (!_started) return;
-        _messengers.RefreshClients();
-        _weChat.Refresh();
-        _telegram.RefreshClients(TelegramClients());
-        if (settings.SystemNotifications) _ = _notifications.InitializeAsync(requestAccess: false);
-    }
-
-    private int[] TelegramClients()
-    {
-        if (!_verification) return _messengers.TelegramProcessIds;
-        var expected = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "native", "Release", "WindowsIsland.TelegramFixture.exe"));
-        var clients = new List<int>();
-        foreach (var process in Process.GetProcessesByName("WindowsIsland.TelegramFixture"))
+        if (previous.Animations && !settings.Animations)
         {
-            using (process)
-            {
-                try
-                {
-                    if (string.Equals(process.MainModule?.FileName, expected, StringComparison.OrdinalIgnoreCase)) clients.Add(process.Id);
-                }
-                catch (Exception) { }
-            }
+            if (_notification.Active) UpdatePresentation(newMessage: false);
+            else HideIsland();
         }
-        return clients.ToArray();
     }
 
     internal void ExitApplication()
@@ -299,15 +255,15 @@ public sealed class MainWindow : Window
     private async Task RequestNotificationAccessAsync()
     {
         if (_closed) return;
-        if (_notifications.Access == NotificationAccess.Allowed)
+        if (_plugins.Access == NotificationAccess.Allowed)
         {
             await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-notifications"));
             return;
         }
-        await _notifications.InitializeAsync();
-        if (_closed || _notifications.Access != NotificationAccess.Denied) return;
+        await _plugins.RequestAccessAsync();
+        if (_closed || _plugins.Access != NotificationAccess.Denied) return;
         try { await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:privacy-notifications")); }
-        catch (Exception) { _tray.UpdateAccess(NotificationAccess.Unavailable); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Notifications, error, "OpenAccessSettings"); _tray.UpdateAccess(NotificationAccess.Unavailable); }
     }
 
     private void UpdatePresentation(bool newMessage)
@@ -413,13 +369,7 @@ public sealed class MainWindow : Window
         {
             await PollGameModeAsync();
             if (_closed) return;
-            _power.Poll();
-            if (++_ticks % 5 == 0)
-            {
-                _messengers.RefreshClients();
-                _telegram.RefreshClients(TelegramClients());
-            }
-            await _notifications.PollAsync();
+            await _plugins.PollAsync();
             if (!_closed && _isExpanded && !_motion.IsRunning)
             {
                 RefreshDisplayMetrics();
@@ -467,9 +417,7 @@ public sealed class MainWindow : Window
 
     private bool AllowsNotification(IslandNotification notification)
     {
-        if (_closed || !_settings.Current.Allows(notification)) return false;
-        if (MessengerIdentity.FromNotification(notification) == "wechat"
-            && !_weChat.AllowsConversation(notification.Title, notification.OriginProcessId)) return false;
+        if (_closed || !_plugins.Allows(notification)) return false;
         if (_verification && notification.Source == NotificationSource.SystemNotification
             && notification.AppId != Windows.ApplicationModel.Package.Current.Id.FamilyName + "!App") return false;
         return true;

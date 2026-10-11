@@ -3,11 +3,12 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using WindowsIsland.Services;
+using WindowsIsland.Plugins;
 
 namespace WindowsIsland.Components;
 
-internal sealed record SettingsSnapshot(NotificationAccess Access, bool Initialized, IReadOnlyCollection<string> ConnectedApps,
-    string WeChatStatus, NotificationMuteReason MuteReason = NotificationMuteReason.None);
+internal sealed record SettingsSnapshot(NotificationAccess Access, bool Initialized, IReadOnlyList<NotificationPluginStatus> Sources,
+    NotificationMuteReason MuteReason = NotificationMuteReason.None);
 
 internal sealed class SettingsPage : Grid, IDisposable
 {
@@ -20,13 +21,18 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly IconActionButton _permission = new(Symbol.Permissions, "ActionAllowAccess", "RequestNotificationAccess");
     private readonly IconActionButton _complete = new(Symbol.Accept, "ActionCompleteSetup", "CompleteSetup");
     private readonly IconActionButton _installSettings = new(Symbol.Setting, "ActionOpenSystemSettings", "OpenInstallationSettings");
-    private readonly SettingsRow _initializationRow, _permissionRow, _systemRow, _weChatRow, _telegramRow, _powerRow;
+    // Page-specific toolbar: preview where notification appearance matters, refresh where status is shown.
+    private readonly IconActionButton _previewButton = new(0xE7E7, "ActionPreview", "PreviewNotification");
+    private readonly IconActionButton _refreshButton = new(Symbol.Refresh, "ActionRefreshStatus", "RefreshSettings");
+    private static readonly HashSet<string> PreviewSections = ["sources", "appearance"], RefreshSections = ["setup", "sources"];
+    private readonly SettingsRow _initializationRow, _permissionRow;
+    private readonly SettingsSources _sources;
     private readonly SettingsRow _animationsRow;
     private readonly SettingsRow _gameModeRow, _fullScreenRow;
     private readonly SettingsRow _startupRow;
     private readonly ToggleSwitch _startup;
     private readonly WindowsSettingsService _windowsSettings;
-    private readonly NotificationBannerSettings _bannerSettings;
+    private readonly DoNotDisturbSettings _doNotDisturbSettings;
     private readonly SettingsRow _positionRow;
     private readonly NotificationPositionPicker _position = new();
     private readonly SettingsLanguagePicker _language = new();
@@ -34,6 +40,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly SettingsSetup _setup;
     private readonly SettingsNavigation _navigation = new();
     private readonly SettingsUpdates _updates;
+    private readonly SettingsDiagnostics _diagnostics;
     private readonly ScrollViewer _content = new()
     {
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -42,7 +49,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         VerticalContentAlignment = VerticalAlignment.Top
     };
     private readonly Dictionary<string, (string Title, FrameworkElement Content)> _sections = [];
-    private readonly ToggleSwitch _system, _weChat, _telegram, _power, _animations, _muteDuringGames, _muteDuringFullScreen;
+    private readonly ToggleSwitch _animations, _muteDuringGames, _muteDuringFullScreen;
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _cancelled, _disposed;
     private bool? _ready;
@@ -53,9 +60,11 @@ internal sealed class SettingsPage : Grid, IDisposable
     private int _windowsRevision;
 
     public SettingsPage(SettingsStore store, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
-        Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false)
+        Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false,
+        Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null)
     {
         _store = store;
+        retrySource ??= _ => Task.CompletedTask;
         _snapshot = snapshot;
         _close = close;
         _windowsSettings = new WindowsSettingsService(verification);
@@ -63,11 +72,9 @@ internal sealed class SettingsPage : Grid, IDisposable
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition());
-        var refresh = new IconActionButton(Symbol.Refresh, "ActionRefreshStatus", "RefreshSettings");
-        refresh.Click += (_, _) => { _failed = _cancelled = false; Refresh(); };
-        var previewButton = new IconActionButton(Symbol.Play, "ActionPreview", "PreviewNotification");
-        previewButton.Click += (_, _) => preview();
-        _header = new SettingsHeader(_progress, previewButton, refresh, _complete) { MaxWidth = 720 };
+        _refreshButton.Click += (_, _) => { _failed = _cancelled = false; Refresh(); };
+        _previewButton.Click += (_, _) => preview();
+        _header = new SettingsHeader(_progress, _previewButton, _refreshButton, _complete) { MaxWidth = 720 };
         layout.Children.Add(_header);
         _notice.Margin = new Thickness(16, 0, 16, 12);
         Grid.SetRow(_notice, 1);
@@ -93,7 +100,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             }, "ErrorStartupSettings");
         };
         _actions.Add(_startup);
-        AddSection("setup", "Setup", _setup, _startupRow);
+        AddSection("setup", "Setup", _setup, new SettingsSection("General", _startupRow));
         _animations = Switch("Animations", "AnimationsToggle", settings => settings.Animations,
             (settings, value) => settings with { Animations = value });
         _animationsRow = new SettingsRow(Symbol.Play, "Animations", _animations);
@@ -101,46 +108,47 @@ internal sealed class SettingsPage : Grid, IDisposable
         _position.Selected += position =>
         {
             try { _store.Save(_store.Current with { Position = position }); _failed = false; Refresh(); }
-            catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorPositionSave"); Refresh(); }
+            catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorPositionSave"); Refresh(); }
         };
         _language.LanguageSelected += language =>
         {
             try { _store.Save(_store.Current with { Language = language }); _failed = false; Refresh(); }
-            catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
+            catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
         };
         _actions.Add(_language.Input);
         AddSection("appearance", "Appearance", new SettingsRow(Symbol.World, "Language", _language), _positionRow, _animationsRow);
-        _bannerSettings = new NotificationBannerSettings(_windowsSettings, (action, message) => RunAsync(action, message));
-        _bannerSettings.OpenSettings.Click += async (_, _) => await RunAsync(async () =>
+        _doNotDisturbSettings = new DoNotDisturbSettings(_windowsSettings.DoNotDisturb, (action, message) => RunAsync(action, message));
+        _doNotDisturbSettings.OpenSettings.Click += async (_, _) => await RunAsync(async () =>
         {
             if (!await Windows.System.Launcher.LaunchUriAsync(new Uri("ms-settings:notifications")))
                 throw new InvalidOperationException("Windows notification settings did not open.");
         }, "ErrorNotificationSettings");
-        _system = Switch("SystemNotifications", "SystemNotificationsToggle", settings => settings.SystemNotifications,
-            (settings, value) => settings with { SystemNotifications = value });
-        _weChat = Switch("WeChat", "WeChatToggle", settings => settings.WeChat, (settings, value) => settings with { WeChat = value });
-        _telegram = Switch("Telegram", "TelegramToggle", settings => settings.Telegram, (settings, value) => settings with { Telegram = value });
-        _power = Switch("Power", "PowerToggle", settings => settings.Power, (settings, value) => settings with { Power = value });
-        _systemRow = new SettingsRow(Symbol.Message, "SystemNotifications", _system);
-        _weChatRow = new SettingsRow(Symbol.Contact, "WeChat", _weChat);
-        _telegramRow = new SettingsRow(Symbol.Send, "Telegram", _telegram);
-        _powerRow = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE7E8), FontSize = 20 }, "Power", _power);
+        _sources = new SettingsSources(store, error =>
+        {
+            Diagnostics.Capture(DiagnosticArea.Settings, error, "SaveSourcePreference");
+            ShowError("ErrorSettingsSave");
+            Refresh();
+        }, async id => { await retrySource(id); Refresh(); });
         _muteDuringGames = Switch("MuteDuringGames", "MuteDuringGamesToggle", settings => settings.MuteDuringGames,
             (settings, value) => settings with { MuteDuringGames = value });
         _gameModeRow = new SettingsRow(Symbol.Mute, "MuteDuringGames", _muteDuringGames, "GameModeStatus");
         _muteDuringFullScreen = Switch("MuteDuringFullScreen", "MuteDuringFullScreenToggle", settings => settings.MuteDuringFullScreen,
             (settings, value) => settings with { MuteDuringFullScreen = value });
         _fullScreenRow = new SettingsRow(Symbol.FullScreen, "MuteDuringFullScreen", _muteDuringFullScreen, "FullScreenStatus");
-        AddSection("sources", "Sources", _systemRow, _weChatRow, _telegramRow, _powerRow, _gameModeRow, _fullScreenRow,
-            new SettingsSection("NotificationDisplay", _bannerSettings));
+        AddSection("sources", "Sources", new SettingsSection("Sources", _sources),
+            new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),
+            new SettingsSection("NotificationDisplay", _doNotDisturbSettings));
         _updates = new SettingsUpdates(store, exit);
         AddSection("updates", "Updates", _updates);
+        _diagnostics = new SettingsDiagnostics(store, pickDiagnosticFile ?? (() => Task.FromResult<string?>(null)),
+            async () => { await retrySource(BuiltInPluginDefinitions.WeChat.Id); Refresh(); });
+        AddSection("diagnostics", "DiagnosticsTitle", _diagnostics);
         Grid.SetRow(_content, 2);
         layout.Children.Add(_content);
         _navigation.Content = layout;
         _navigation.SectionSelected += SelectSection;
         Children.Add(_navigation);
-        _actions.AddRange([_initialize, _permission, refresh, _complete, previewButton, _installSettings]);
+        _actions.AddRange([_initialize, _permission, _refreshButton, _complete, _previewButton, _installSettings]);
         _initialize.Click += async (_, _) => await RunAsync(initialize, "ErrorInitialize", showInstallSettings: true);
         _permission.Click += async (_, _) => await RunAsync(requestAccess, "ErrorAccess");
         _installSettings.Click += async (_, _) => await RunAsync(async () =>
@@ -170,6 +178,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         _selectedSection = section;
         var selected = _sections[section];
         _header.Title = Localization.Get(selected.Title);
+        _previewButton.Visibility = PreviewSections.Contains(section) ? Visibility.Visible : Visibility.Collapsed;
+        _refreshButton.Visibility = RefreshSections.Contains(section) ? Visibility.Visible : Visibility.Collapsed;
         _content.Content = selected.Content;
         _content.ChangeView(null, 0, null, disableAnimation: true);
     }
@@ -188,7 +198,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         {
             if (_syncing || _disposed) return;
             try { _store.Save(update(_store.Current, toggle.IsOn)); _failed = false; Refresh(); }
-            catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
+            catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
         };
         _actions.Add(toggle);
         return toggle;
@@ -212,7 +222,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         catch (OperationCanceledException) { if (!_disposed) _cancelled = true; }
         catch (Exception error)
         {
-            Trace.WriteLine(error);
+            Diagnostics.Capture(DiagnosticArea.Settings, error, message); Trace.WriteLine(error);
             if (!_disposed) ShowError(message, showInstallSettings);
         }
         finally
@@ -236,7 +246,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             return;
         }
         try { _store.Save(_store.Current with { SetupCompleted = true }); _close(); }
-        catch (Exception error) { Trace.WriteLine(error); ShowError("ErrorSetupSave"); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorSetupSave"); }
     }
 
     private void ShowError(string message, bool showInstallSettings = false)
@@ -262,15 +272,13 @@ internal sealed class SettingsPage : Grid, IDisposable
     public void Refresh()
     {
         if (_disposed) return;
+        _diagnostics.Refresh();
         var state = _snapshot();
         var settings = _store.Current;
         _syncing = true;
         try
         {
-            _system.IsOn = settings.SystemNotifications;
-            _weChat.IsOn = settings.WeChat;
-            _telegram.IsOn = settings.Telegram;
-            _power.IsOn = settings.Power;
+            _sources.Refresh(state.Sources, _busy);
             _animations.IsOn = settings.Animations;
             _muteDuringGames.IsOn = settings.MuteDuringGames;
             _muteDuringFullScreen.IsOn = settings.MuteDuringFullScreen;
@@ -281,7 +289,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         finally { _syncing = false; }
         foreach (var action in _actions) action.IsEnabled = !_busy;
         _startup.IsEnabled = !_busy && _windowsAvailable;
-        _bannerSettings.SetEnabled(!_busy);
+        _doNotDisturbSettings.SetEnabled(!_busy);
         _startupRow.Status = Localization.Get(!_windowsAvailable ? "Unavailable" : _startupState switch
         {
             StartupState.Enabled => "On",
@@ -301,6 +309,12 @@ internal sealed class SettingsPage : Grid, IDisposable
             NotificationAccess.Unavailable => "Unavailable",
             _ => "AwaitingPermission"
         });
+        _permissionRow.Tone = state.Access switch
+        {
+            NotificationAccess.Allowed => StatusTone.Success,
+            NotificationAccess.Denied or NotificationAccess.Unavailable => StatusTone.Critical,
+            _ => StatusTone.Neutral
+        };
         _initialize.IsEnabled = !_busy && !state.Initialized && settings.SystemNotifications;
         _permission.IsEnabled = !_busy && state.Initialized && settings.SystemNotifications;
         _permission.SetAction(state.Access == NotificationAccess.Allowed ? Symbol.Setting : Symbol.Permissions,
@@ -308,19 +322,19 @@ internal sealed class SettingsPage : Grid, IDisposable
         var ready = !settings.SystemNotifications || state.Initialized && state.Access == NotificationAccess.Allowed;
         if (_ready != ready) _setup.IsExpanded = !ready;
         _ready = ready;
-        _setup.Status = Localization.Get(ready ? "Ready" : "Pending");
+        _setup.Status = Localization.Get(ready ? "Complete" : "Pending");
+        _setup.Tone = ready ? StatusTone.Success : StatusTone.Neutral;
         _complete.IsEnabled = !_busy && ready;
         _complete.Visibility = settings.SetupCompleted ? Visibility.Collapsed : Visibility.Visible;
         _complete.SetAction(Symbol.Accept, settings.SetupCompleted ? "ActionCloseSettings" : "ActionCompleteSetup");
-        _systemRow.Status = Localization.Get(!settings.SystemNotifications ? "Off" : state.Access == NotificationAccess.Allowed ? "On" : "AwaitingPermission");
-        _weChatRow.Status = settings.WeChat ? state.WeChatStatus : Localization.Get("Off");
-        _telegramRow.Status = ClientStatus(settings.Telegram, state.ConnectedApps.Contains("telegram"));
-        _powerRow.Status = Localization.Get(settings.Power ? "On" : "Off");
         _animationsRow.Status = Localization.Get(settings.Animations ? "On" : "Off");
         _gameModeRow.Status = Localization.Get(!settings.MuteDuringGames ? "Off"
-            : state.MuteReason.HasFlag(NotificationMuteReason.Game) ? "GameModeMuted" : "GameModeMonitoring");
+            : state.MuteReason.HasFlag(NotificationMuteReason.Game) ? "GameModeMuted" : "On");
         _fullScreenRow.Status = Localization.Get(!settings.MuteDuringFullScreen ? "Off"
-            : state.MuteReason.HasFlag(NotificationMuteReason.FullScreen) ? "FullScreenMuted" : "GameModeMonitoring");
+            : state.MuteReason.HasFlag(NotificationMuteReason.FullScreen) ? "FullScreenMuted" : "On");
+        // One global summary with information instead of repeating "ready" on every page.
+        var running = state.Sources.Count(source => SourceStatus.IsRunning(source.StatusKey));
+        var summary = !ready ? Localization.Get("IncompleteSetup") : Localization.Format("SourcesRunning", running);
         if (_busy)
         {
             _header.Status = _notice.Title = Localization.Get("Busy");
@@ -329,7 +343,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         }
         if (_cancelled)
         {
-            _header.Status = Localization.Get(ready ? "Ready" : "IncompleteSetup");
+            _header.Status = summary;
             _notice.Visibility = Visibility.Visible;
             _notice.Title = Localization.Get("Cancelled");
             _notice.Message = Localization.Get("StartupPermissionCancelled");
@@ -343,15 +357,13 @@ internal sealed class SettingsPage : Grid, IDisposable
             _notice.Message = Localization.Get(_errorKey);
             return;
         }
-        _header.Status = Localization.Get(ready ? "Ready" : "IncompleteSetup");
+        _header.Status = summary;
         _notice.Visibility = ready ? Visibility.Collapsed : Visibility.Visible;
         _notice.ActionButton = null;
         _notice.Title = Localization.Get(ready ? "Ready" : "IncompleteSetup");
         _notice.Message = Localization.Get(ready ? "SettingsSaved" : state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess");
         _notice.Severity = ready ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
     }
-
-    private static string ClientStatus(bool enabled, bool connected) => Localization.Get(!enabled ? "Off" : connected ? "Connected" : "NotRunning");
 
     private async Task RefreshWindowsAsync()
     {
@@ -375,10 +387,11 @@ internal sealed class SettingsPage : Grid, IDisposable
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
+            Diagnostics.Capture(DiagnosticArea.WindowsSettings, error, "ReadStartup");
             if (!_disposed && !_busy) { _windowsAvailable = false; _startup.IsEnabled = false; _startupRow.Status = Localization.Get("ErrorReadWindowsSettings"); }
         }
         finally { _syncing = false; _windowsReading = false; }
-        await _bannerSettings.RefreshAsync();
+        await _doNotDisturbSettings.RefreshAsync();
     }
 
     public void Dispose()
@@ -386,7 +399,9 @@ internal sealed class SettingsPage : Grid, IDisposable
         _disposed = true;
         _store.Changed -= OnSettingsChanged;
         _updates.Dispose();
-        _bannerSettings.Dispose();
+        _diagnostics.Dispose();
+        _sources.Dispose();
+        _doNotDisturbSettings.Dispose();
         _navigation.Dispose();
     }
 }

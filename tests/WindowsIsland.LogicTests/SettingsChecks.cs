@@ -84,6 +84,14 @@ internal static class SettingsChecks
         check(invalidPosition.Position == NotificationPosition.TopCenter && invalidPosition.SetupCompleted && !invalidPosition.WeChat,
             "An unknown position falls back to top center without resetting other preferences");
         PositionChecks.Run(check);
+        foreach (var field in new[] { "SetupCompleted", "SystemNotifications", "WeChat", "Telegram", "Power", "Animations", "Position" })
+        foreach (var invalid in new[] { "null", "\"invalid\"", "[]", "{}", "1.5" })
+        {
+            File.WriteAllText(path, "{\"Language\":\"en-US\",\"IncludePrereleaseUpdates\":true,\"" + field + "\":" + invalid + "}");
+            var recovered = new SettingsStore(path).Current;
+            check(recovered.Language == "en-US" && recovered.IncludePrereleaseUpdates,
+                "A malformed preference preserves unrelated choices: " + field + "=" + invalid);
+        }
         File.WriteAllText(path, "{invalid json");
         check(new SettingsStore(path).Current == new AppSettings(), "Damaged preferences return to an actionable first-run setup");
         var blocker = Path.Combine(output, "file");
@@ -100,6 +108,20 @@ internal static class SettingsChecks
         check(!saved.Allows(telegram) && !(new AppSettings(WeChat: false)).Allows(system), "Source switches also filter matching system deliveries");
         check(!(new AppSettings(Power: false)).Allows(power) && (new AppSettings()).Allows(power), "Power notifications follow their saved switch");
         check(!saved.AllowsClient("telegram") && saved.AllowsClient("wechat") && !saved.AllowsClient("unknown"), "Disabled clients are excluded from hook discovery");
+        var routing = new MessageRouter();
+        var pendingWeChat = weChat with { EventId = "preferences/wechat" };
+        var pendingTelegram = telegram with { EventId = "preferences/telegram" };
+        routing.Receive(pendingWeChat);
+        routing.ApplySettings(new AppSettings(Animations: false, IncludePrereleaseUpdates: true));
+        check(routing.HasPending, "Appearance and update choices preserve pending notifications");
+        routing.Receive(pendingTelegram);
+        routing.ApplySettings(new AppSettings(WeChat: false));
+        check(routing.HasPending, "Disabling one source retains another source's pending message");
+        routing.ApplySettings(new AppSettings(Telegram: false));
+        check(!routing.HasPending, "Disabling a source discards its pending messages");
+        routing.ApplySettings(new AppSettings());
+        check(routing.Receive(pendingWeChat) is null && routing.Receive(pendingTelegram) is null && !routing.HasPending,
+            "Preference changes preserve duplicate history instead of replaying discarded messages");
 
         var template = XDocument.Load(Path.Combine(Environment.CurrentDirectory, "packaging", "AppxManifest.xml"));
         var runtime = XDocument.Parse("""

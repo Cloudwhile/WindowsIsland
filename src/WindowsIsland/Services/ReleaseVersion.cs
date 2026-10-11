@@ -8,6 +8,7 @@ internal sealed partial record ReleaseVersion(int Major, int Minor, int Patch, s
 {
     public bool IsPrerelease => Prerelease.Length != 0;
     public string Display => Text.Split('+')[0];
+    public string Tag => "v" + Display;
     public static ReleaseVersion Current { get; } = FromInformationalVersion(
         typeof(ReleaseVersion).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
 

@@ -37,8 +37,8 @@ internal sealed class TelegramNativeService(DispatcherQueue dispatcher, bool fix
     {
         var unsupported = false;
         try { await session.AttachAsync(Path.Combine(AppContext.BaseDirectory, "WindowsIsland.TelegramHook.dll"), fixture); }
-        catch (NotSupportedException) { unsupported = true; session.Dispose(); }
-        catch (Exception) { session.Dispose(); }
+        catch (NotSupportedException error) { Diagnostics.Capture(DiagnosticArea.Telegram, error); unsupported = true; session.Dispose(); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Telegram, error); session.Dispose(); }
         finally
         {
             dispatcher.TryEnqueue(() =>

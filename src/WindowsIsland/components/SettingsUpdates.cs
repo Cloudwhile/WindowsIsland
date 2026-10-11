@@ -23,7 +23,10 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     private readonly TextBlock _releaseName = IslandTheme.Text("", 18);
     private readonly TextBlock _notes = IslandTheme.Text("");
     private readonly StackPanel _release = new() { Spacing = 12, Margin = new Thickness(12, 20, 12, 0), Visibility = Visibility.Collapsed };
-    private readonly SettingsRow _versionRow;
+    private readonly SettingsRow _versionRow, _availableRow;
+    private readonly TextBlock _size = IslandTheme.Text("", 12, secondary: true);
+    private bool _checked;
+    private long? _packageSize;
     private CancellationTokenSource? _operation;
     private GitHubRelease? _candidate;
     private bool _disposed, _syncing, _busy;
@@ -37,15 +40,18 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         _store = store;
         _restart = restart;
         _versionRow = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE946), FontSize = 20 },
-            "UpdateCurrentVersion", _check) { Status = "v" + ReleaseVersion.Current.Display };
+            "UpdateCurrentVersion", _check) { Status = ReleaseVersion.Current.Tag };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         actions.Children.Add(_releasePage);
         actions.Children.Add(_cancel);
+        actions.Children.Add(_size);
         actions.Children.Add(_install);
         Children.Add(_versionRow);
         var channel = new SettingsRow(Symbol.Flag, "UpdateIncludePrereleases", _prereleases);
         Children.Add(channel);
-        Children.Add(new SettingsRow(Symbol.Download, "UpdateAvailable", actions));
+        _availableRow = new SettingsRow(Symbol.Download, "UpdateAvailable", actions, "UpdateAvailableStatus");
+        Children.Add(_availableRow);
+        AutomationProperties.SetAutomationId(_size, "UpdatePackageSize");
         _status.Margin = new Thickness(0, 12, 0, 0);
         Children.Add(_status);
         Children.Add(_progress);
@@ -64,13 +70,13 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         {
             if (_candidate is not { } candidate) return;
             try { await Windows.System.Launcher.LaunchUriAsync(candidate.Page); }
-            catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show("UpdateLinkError", InfoBarSeverity.Error); }
+            catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Updates, error); Trace.WriteLine(error); if (!_disposed) Show("UpdateLinkError", InfoBarSeverity.Error); }
         };
         _prereleases.Toggled += (_, _) =>
         {
             if (_syncing || _disposed) return;
             try { _store.Save(_store.Current with { IncludePrereleaseUpdates = _prereleases.IsOn }); }
-            catch (Exception error) { Trace.WriteLine(error); Show("UpdatePreferenceError", InfoBarSeverity.Error); Refresh(); }
+            catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Updates, error); Trace.WriteLine(error); Show("UpdatePreferenceError", InfoBarSeverity.Error); Refresh(); }
         };
         LocalizedUI.Label(_prereleases, "UpdateIncludePrereleases");
         AutomationProperties.SetAutomationId(_prereleases, "PrereleaseUpdatesToggle");
@@ -91,6 +97,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         if (_busy || _disposed) return;
         Begin(TimeSpan.FromSeconds(45));
         _candidate = null;
+        _checked = false;
         _release.Visibility = _releasePage.Visibility = Visibility.Collapsed;
         Show("UpdateChecking", InfoBarSeverity.Informational);
         try
@@ -98,6 +105,11 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             var candidate = await _client.FindUpdateAsync(ReleaseVersion.Current, _includePrereleases, _operation!.Token);
             if (_disposed) return;
             _candidate = candidate;
+            _checked = true;
+            // Size of the single package this installation type downloads.
+            _packageSize = candidate is null ? null : await Task.Run(() => UpdateInstaller.IsMsiInstallation()) && candidate.Installer is { } msi
+                ? msi.Size : candidate.Archive.Size;
+            if (_disposed) return;
             if (candidate is null) Show("UpdateNone", InfoBarSeverity.Success);
             else
             {
@@ -108,7 +120,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             }
         }
         catch (OperationCanceledException) { if (!_disposed) Show("UpdateCheckCanceled", InfoBarSeverity.Informational); }
-        catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show(Localization.ErrorKey(error, "UpdateFetchError"), InfoBarSeverity.Error); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Updates, error); Trace.WriteLine(error); if (!_disposed) Show(Localization.ErrorKey(error, "UpdateFetchError"), InfoBarSeverity.Error); }
         finally { End(); }
     }
 
@@ -137,7 +149,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             _restart();
         }
         catch (OperationCanceledException) { if (!_disposed) Show("UpdateCanceled", InfoBarSeverity.Informational); }
-        catch (Exception error) { Trace.WriteLine(error); if (!_disposed) Show(Localization.ErrorKey(error, "UpdateFailed"), InfoBarSeverity.Error); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Updates, error); Trace.WriteLine(error); if (!_disposed) Show(Localization.ErrorKey(error, "UpdateFailed"), InfoBarSeverity.Error); }
         finally { End(); }
     }
 
@@ -181,7 +193,21 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             _status.Message = _percent is { } percent ? Localization.Format("UpdateProgressPercent", message, percent) : message;
         }
         if (_candidate is { Notes.Length: 0 }) _notes.Text = Localization.Get("UpdateNotesEmpty");
+        RefreshAvailable();
     }
+
+    private void RefreshAvailable()
+    {
+        _availableRow.Status = _candidate is { } candidate ? candidate.Tag
+            : _checked ? Localization.Get("UpdateUpToDate") : Localization.Get("UpdateNotChecked");
+        _availableRow.Tone = _candidate is null ? StatusTone.Neutral : StatusTone.Success;
+        _size.Text = _candidate is not null && _packageSize is { } size ? FormatSize(size) : "";
+        _size.Visibility = _size.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    internal static string FormatSize(long bytes) => bytes >= 1024 * 1024
+        ? Localization.Format("SizeMegabytes", Math.Round(bytes / 1024d / 1024d, 1))
+        : Localization.Format("SizeKilobytes", Math.Max(1, (long)Math.Round(bytes / 1024d)));
 
     private void OnSettingsChanged(AppSettings _) => Refresh();
 
@@ -193,8 +219,10 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         {
             _operation?.Cancel();
             _candidate = null;
+            _checked = false;
             _release.Visibility = _releasePage.Visibility = _status.Visibility = Visibility.Collapsed;
         }
+        RefreshAvailable();
         _includePrereleases = include;
         _syncing = true;
         try { _prereleases.IsOn = include; }

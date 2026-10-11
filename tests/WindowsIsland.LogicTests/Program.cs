@@ -1,5 +1,18 @@
 using WindowsIsland.Services;
 
+if (args.FirstOrDefault() == "--read-system-dnd" && OperatingSystem.IsWindows())
+{
+    Console.WriteLine(new DoNotDisturbPreferences(new WindowsQuietHoursStore()).Read());
+    return;
+}
+
+if (args.FirstOrDefault() == "--restart-parent-fixture")
+{
+    await File.WriteAllTextAsync(args[1], "ready");
+    await Task.Delay(TimeSpan.FromSeconds(60));
+    return;
+}
+
 if (args.FirstOrDefault() == "--update-fixture")
 {
     var directory = args[1];
@@ -90,6 +103,21 @@ using (var restarted = SingleInstance.TryAcquire(instanceName))
     using var afterDispose = SingleInstance.TryAcquire(instanceName);
     Check(afterDispose is not null, "Instance cleanup is idempotent and releases the listener");
 }
+using (var observer = new Mutex(false, instanceName))
+{
+    using var reopened = SingleInstance.TryAcquire(instanceName);
+    Check(reopened is not null, "An observer handle cannot prevent acquisition of an unowned instance mutex");
+    using var duplicate = SingleInstance.TryAcquire(instanceName);
+    Check(duplicate is null, "An existing mutex cannot be recursively acquired as a second instance");
+}
+using (var abandoned = new Mutex(false, instanceName))
+{
+    var owner = new Thread(() => abandoned.WaitOne());
+    owner.Start();
+    owner.Join();
+    using var recovered = SingleInstance.TryAcquire(instanceName);
+    Check(recovered is not null, "An abandoned instance mutex allows recovery after a crashed owner");
+}
 var mergeTime = new ManualTime();
 var router = new MessageRouter(mergeTime);
 var hook = new IslandNotification(10, created, "微信", "小明", "稍后见。", Source: NotificationSource.ClientHook,
@@ -116,6 +144,11 @@ Check(!MessageRouter.Matches(hook, system with { CreatedAt = created.AddSeconds(
 Check(MessageRouter.Matches(hook, system with { Body = "稍后\n见。" }), "Formatting differences do not create a duplicate");
 Check(MessageRouter.Matches(hook with { Body = "这是一段较长的通知正文内容" }, system with { Body = "这是一段较长的通知…" }),
     "Truncated previews can merge with full system content");
+var malformedText = "通知" + (char)0xD800 + "正文";
+Check(MessageRouter.Matches(hook with { Body = malformedText }, system with { Body = malformedText }),
+    "Malformed UTF-16 notification text cannot crash duplicate matching");
+Check(!MessageRouter.Matches(hook with { Body = malformedText }, system with { Body = "另一条通知" }),
+    "Repairing malformed scalars does not merge unrelated messages");
 
 router.Clear();
 router.Receive(hook);
@@ -198,12 +231,17 @@ Check(!MessengerPopupRules.IsMessagePopup("#32768", 0x80000000, 0x88, 320, 160, 
 Check(!MessengerPopupRules.IsMessagePopup("QtNotification", 0x80000000, 0x88, 1100, 750, false), "Main client windows are excluded");
 LocalizationChecks.Run(Check);
 GameModeChecks.Run(Check);
+DoNotDisturbChecks.Run(Check);
 WindowsPreferencesChecks.Run(Check);
 SettingsChecks.Run(Check);
 WeChatChecks.Run(Check);
 WeChatRoutingChecks.Run(Check);
+StatusChecks.Run(Check);
 ToastImageChecks.Run(Check);
 NotificationImageStoreChecks.Run(Check);
+await DiagnosticChecks.RunAsync(Check);
+await PluginChecks.RunAsync(Check);
+await RegisteredRestartChecks.RunAsync(Check);
 await UpdateChecks.RunAsync(Check);
 await UpdateScriptChecks.RunAsync(Check);
 Console.WriteLine($"{checks} checks passed.");

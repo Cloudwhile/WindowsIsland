@@ -61,37 +61,3 @@ internal sealed class StartupRegistration(IWindowsPreferenceStore store, string 
         }
     }
 }
-
-internal sealed record BannerPreference(string Identity, bool Hidden, bool Available);
-internal sealed class NotificationBannerPreferences(IWindowsPreferenceStore store)
-{
-    public const string SettingsKey = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
-
-    public IReadOnlyList<BannerPreference> Read() => store.SubKeys(SettingsKey)
-        .Where(IsApplicationIdentity).Select(ReadApplication).OrderBy(item => item.Identity, StringComparer.OrdinalIgnoreCase).ToArray();
-
-    public BannerPreference ReadApplication(string identity)
-    {
-        var value = store.Read(ApplicationKey(identity), "ShowBanner");
-        return new(identity, value is { Kind: PreferenceValueKind.DWord, Number: 0 },
-            value is null || value is { Kind: PreferenceValueKind.DWord, Number: 0 or 1 });
-    }
-
-    public void SetHidden(string identity, bool hidden)
-    {
-        var path = ApplicationKey(identity);
-        if (!store.SubKeys(SettingsKey).Contains(identity, StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException("The notification sender is no longer registered.");
-        if (!ReadApplication(identity).Available) throw new InvalidOperationException("Unsupported banner preference.");
-        store.Write(path, "ShowBanner", new(PreferenceValueKind.DWord, Number: hidden ? 0 : 1));
-        if (ReadApplication(identity).Hidden != hidden) throw new IOException("The banner preference was not saved.");
-    }
-
-    internal static bool IsApplicationIdentity(string identity) => !string.IsNullOrWhiteSpace(identity)
-        && identity.Length <= 256 && identity.IndexOfAny(['\\', '/', '\0', '\r', '\n']) < 0
-        && !identity.StartsWith("Windows.SystemToast.", StringComparison.OrdinalIgnoreCase)
-        && !identity.StartsWith("Windows.ActionCenter.", StringComparison.OrdinalIgnoreCase);
-
-    private static string ApplicationKey(string identity) => IsApplicationIdentity(identity)
-        ? SettingsKey + "\\" + identity : throw new ArgumentException("Invalid notification sender.", nameof(identity));
-}

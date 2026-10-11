@@ -27,16 +27,19 @@ internal sealed class SettingsNavigation : Grid, IDisposable
         Children.Add(_view);
         Add("setup", "Setup", Symbol.Permissions);
         Add("sources", "Sources", Symbol.Message);
-        Add("appearance", "Appearance", Symbol.Map);
+        Add("appearance", "Appearance", new FontIcon { Glyph = char.ConvertFromUtf32(0xE790) }); // Color palette
         Add("updates", "Updates", Symbol.Download);
+        Add("diagnostics", "DiagnosticsTitle", Symbol.Document);
         _view.SelectionChanged += OnSelectionChanged;
         AutomationProperties.SetAutomationId(this, "SettingsNavigation");
         LocalizedUI.Label(this, "SettingsNavigation");
     }
 
-    private void Add(string section, string label, Symbol icon)
+    private void Add(string section, string label, Symbol icon) => Add(section, label, new SymbolIcon(icon));
+
+    private void Add(string section, string label, IconElement icon)
     {
-        var item = new NavigationViewItem { Icon = new SymbolIcon(icon), Tag = section };
+        var item = new NavigationViewItem { Icon = icon, Tag = section };
         AutomationProperties.SetAutomationId(item, "SettingsNav" + section);
         LocalizedUI.Bind(item, () => item.Content = Localization.Get(label));
         LocalizedUI.Label(item, label);

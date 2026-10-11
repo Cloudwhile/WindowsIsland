@@ -5,8 +5,6 @@ using Windows.UI.Notifications.Management;
 
 namespace WindowsIsland.Services;
 
-internal enum NotificationAccess { NeedsRegistration, Waiting, Allowed, Denied, Unavailable }
-
 internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposable
 {
     private readonly NotificationTracker _tracker = new();
@@ -55,12 +53,13 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
                 _listener.NotificationChanged += OnNotificationChanged;
                 _subscribed = true;
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                Diagnostics.Capture(DiagnosticArea.Notifications, error, "Subscribe");
                 // Some desktop hosts do not deliver foreground events. The 1s poll remains active.
             }
         }
-        catch (Exception) { if (!_disposed) SetAccess(NotificationAccess.Unavailable); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Notifications, error); if (!_disposed) SetAccess(NotificationAccess.Unavailable); }
         finally { _busy = false; }
     }
 
@@ -73,7 +72,7 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
             SetAccess(Map(_listener.GetAccessStatus()));
             if (Access == NotificationAccess.Allowed) await ReadAsync();
         }
-        catch (Exception) { if (!_disposed) SetAccess(NotificationAccess.Unavailable); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Notifications, error); if (!_disposed) SetAccess(NotificationAccess.Unavailable); }
         finally { _busy = false; }
     }
 
@@ -100,8 +99,9 @@ internal sealed class NotificationService(DispatcherQueue dispatcher) : IDisposa
                     AppId: notification.AppInfo?.AppUserModelId));
                 sources[(notification.Id, notification.CreationTime)] = notification.AppInfo;
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                Diagnostics.Capture(DiagnosticArea.Notifications, error, "ReadNotification");
                 // A removed or malformed notification must not block the other notifications.
             }
         }

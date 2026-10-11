@@ -56,7 +56,7 @@
     <value>Refresh status</value>
   </data>
   <data name="ActionPreview" xml:space="preserve">
-    <value>Show a test notification</value>
+    <value>Preview notification</value>
   </data>
   <data name="Initialization" xml:space="preserve">
     <value>App initialization</value>
@@ -191,28 +191,7 @@
     <value>Disabled in Windows</value>
   </data>
   <data name="StartupOtherInstallation" xml:space="preserve">
-    <value>Another installation starts at sign-in</value>
-  </data>
-  <data name="HideSystemBanners" xml:space="preserve">
-    <value>Hide Windows banners</value>
-  </data>
-  <data name="ActionHideAppBanners" xml:space="preserve">
-    <value>Hide Windows banners for {0}</value>
-  </data>
-  <data name="BannersHidden" xml:space="preserve">
-    <value>Hidden</value>
-  </data>
-  <data name="BannersShown" xml:space="preserve">
-    <value>Shown</value>
-  </data>
-  <data name="NoNotificationApps" xml:space="preserve">
-    <value>No notification apps</value>
-  </data>
-  <data name="BannerApplications" xml:space="preserve">
-    <value>{0} apps</value>
-  </data>
-  <data name="ErrorBannerSettings" xml:space="preserve">
-    <value>Could not change banners. Try again or open Windows notification settings.</value>
+    <value>Another version already starts at sign-in, so this one won't add it again</value>
   </data>
   <data name="ErrorReadWindowsSettings" xml:space="preserve">
     <value>Cannot read Windows settings</value>
@@ -394,20 +373,26 @@
   <data name="UpdateErrorHelperTimeout" xml:space="preserve">
     <value>The updater took too long to start. Your current version is unchanged. Try again later.</value>
   </data>
-  <data name="WeChatConnecting" xml:space="preserve">
-    <value>Connecting</value>
+  <data name="NotConnected" xml:space="preserve">
+    <value>Not connected</value>
   </data>
-  <data name="WeChatListening" xml:space="preserve">
-    <value>Listening</value>
+  <data name="WeChatUnsupported" xml:space="preserve">
+    <value>Connection failed · Version not supported</value>
   </data>
-  <data name="WeChatWaitingChats" xml:space="preserve">
-    <value>Waiting for chats</value>
+  <data name="WeChatConnectFailed" xml:space="preserve">
+    <value>Connection failed</value>
   </data>
-  <data name="WeChatWaitingClient" xml:space="preserve">
-    <value>Waiting for WeChat</value>
+  <data name="WeChatUnsupportedDetail" xml:space="preserve">
+    <value>This WeChat version can't be connected directly yet. Using system notifications instead.</value>
   </data>
-  <data name="WeChatReconnecting" xml:space="preserve">
-    <value>Reconnecting</value>
+  <data name="WeChatConnectFailedDetail" xml:space="preserve">
+    <value>WeChat windows can't be read. Using system notifications instead.</value>
+  </data>
+  <data name="TelegramNotDetected" xml:space="preserve">
+    <value>Client not detected</value>
+  </data>
+  <data name="TelegramNotDetectedDetail" xml:space="preserve">
+    <value>Sign in to Telegram Desktop first</value>
   </data>
   <data name="PowerCharging" xml:space="preserve">
     <value>Charging started</value>
@@ -451,9 +436,6 @@
   <data name="MuteDuringGames" xml:space="preserve">
     <value>Mute during games</value>
   </data>
-  <data name="GameModeMonitoring" xml:space="preserve">
-    <value>Monitoring</value>
-  </data>
   <data name="GameModeMuted" xml:space="preserve">
     <value>Game: notifications muted</value>
   </data>
@@ -466,4 +448,73 @@
   <data name="GameAndFullScreenMuted" xml:space="preserve">
     <value>Game and full screen: notifications muted</value>
   </data>
+  <data name="DiagnosticsTitle" xml:space="preserve"><value>Diagnostics &amp; feedback</value></data>
+  <data name="DiagnosticsRecord" xml:space="preserve"><value>Record diagnostics locally</value></data>
+  <data name="DiagnosticsRecent" xml:space="preserve"><value>Recent diagnostics</value></data>
+  <data name="DiagnosticsView" xml:space="preserve"><value>View diagnostic report</value></data>
+  <data name="DiagnosticsExport" xml:space="preserve"><value>Export diagnostic report</value></data>
+  <data name="DiagnosticsClear" xml:space="preserve"><value>Clear local diagnostic records</value></data>
+  <data name="DiagnosticsFeedback" xml:space="preserve"><value>Open GitHub issue form</value></data>
+  <data name="DiagnosticsFeedbackTitle" xml:space="preserve"><value>Report a problem</value></data>
+  <data name="DiagnosticsFeedbackHint" xml:space="preserve"><value>Copy or export the report, then describe the steps and attach it on the page that opens. GitHub issues are public.</value></data>
+  <data name="DiagnosticsPrivacy" xml:space="preserve"><value>Diagnostics stay on this device for up to 7 days and are never uploaded automatically. Reports include app and OS versions, error IDs and code locations, without message content, avatars, accounts or raw exception text. Review the report before submitting it.</value></data>
+  <data name="DiagnosticsLocalOnly" xml:space="preserve"><value>On · Stored only on this device</value></data>
+  <data name="DiagnosticsStopped" xml:space="preserve"><value>Off · Existing records can still be exported or cleared</value></data>
+  <data name="DiagnosticsUnavailable" xml:space="preserve"><value>Diagnostic records cannot currently be saved</value></data>
+  <data name="DiagnosticsEmpty" xml:space="preserve"><value>No diagnostic records yet</value></data>
+  <data name="DiagnosticsExported" xml:space="preserve"><value>Report exported. Review it, then attach it to your issue.</value></data>
+  <data name="DiagnosticsCleared" xml:space="preserve"><value>Local diagnostic records cleared. Previously exported files remain where you saved them.</value></data>
+  <data name="DiagnosticsActionFailed" xml:space="preserve"><value>The action could not be completed. Retry or choose another save location.</value></data>
+  <data name="DiagnosticsFileType" xml:space="preserve"><value>Diagnostic report</value></data>
+  <data name="DiagnosticsAreaApplication" xml:space="preserve"><value>App startup &amp; runtime</value></data>
+  <data name="DiagnosticsAreaSettings" xml:space="preserve"><value>Settings</value></data>
+  <data name="DiagnosticsAreaNotifications" xml:space="preserve"><value>System notifications</value></data>
+  <data name="DiagnosticsAreaWeChat" xml:space="preserve"><value>WeChat</value></data>
+  <data name="DiagnosticsAreaTelegram" xml:space="preserve"><value>Telegram</value></data>
+  <data name="DiagnosticsAreaUpdates" xml:space="preserve"><value>Updates</value></data>
+  <data name="DiagnosticsAreaWindowsSettings" xml:space="preserve"><value>Windows settings</value></data>
+  <data name="DiagnosticsAreaDiagnostics" xml:space="preserve"><value>Diagnostics &amp; feedback</value></data>
+  <data name="ActionRetrySource" xml:space="preserve"><value>Retry connection</value></data>
+  <data name="ActionExpand" xml:space="preserve"><value>Expand</value></data>
+  <data name="ActionCollapse" xml:space="preserve"><value>Collapse</value></data>
+  <data name="General" xml:space="preserve"><value>General</value></data>
+  <data name="NotificationBehavior" xml:space="preserve"><value>Notification behavior</value></data>
+  <data name="SourcesRunning" xml:space="preserve"><value>Sources running: {0}</value></data>
+  <data name="UpdateNotChecked" xml:space="preserve"><value>Not checked yet</value></data>
+  <data name="UpdateUpToDate" xml:space="preserve"><value>Up to date</value></data>
+  <data name="SizeMegabytes" xml:space="preserve"><value>{0} MB</value></data>
+  <data name="SizeKilobytes" xml:space="preserve"><value>{0} KB</value></data>
+  <data name="DiagnosticsCopy" xml:space="preserve"><value>Copy diagnostic report</value></data>
+  <data name="DiagnosticsCopied" xml:space="preserve"><value>Report copied. Paste it into the issue form after reviewing it.</value></data>
+  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>Retrying the connection. The result appears on the Sources page.</value></data>
+  <data name="DiagnosticsRecordCount" xml:space="preserve"><value>{0} records · {1} failed</value></data>
+  <data name="DiagnosticFailedCount" xml:space="preserve"><value>Failed · {0} times</value></data>
+  <data name="DiagnosticSucceededCount" xml:space="preserve"><value>Succeeded · {0} times</value></data>
+  <data name="DiagnosticTitleAccessibilityEnabled" xml:space="preserve"><value>WeChat accessibility enabled</value></data>
+  <data name="DiagnosticTitleAccessibilityRestored" xml:space="preserve"><value>WeChat accessibility restored</value></data>
+  <data name="DiagnosticTitleAccessibilityFailed" xml:space="preserve"><value>Accessibility patch failed</value></data>
+  <data name="DiagnosticTitleAccessibilityLost" xml:space="preserve"><value>WeChat accessibility lost</value></data>
+  <data name="DiagnosticTitleUpdateFailed" xml:space="preserve"><value>Update installation failed</value></data>
+  <data name="DiagnosticTitleStartup" xml:space="preserve"><value>App startup failed</value></data>
+  <data name="DiagnosticTitleUnhandled" xml:space="preserve"><value>Unhandled error</value></data>
+  <data name="DiagnosticTitleReadPreferences" xml:space="preserve"><value>Couldn't read preferences</value></data>
+  <data name="DiagnosticTitleReadWindowsSettings" xml:space="preserve"><value>Couldn't read Windows settings</value></data>
+  <data name="DiagnosticTitleFallback" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="DiagnosticTime" xml:space="preserve"><value>First {0} · Last {1}</value></data>
+  <data name="DiagnosticVersion" xml:space="preserve"><value>Windows Island {0}</value></data>
+  <data name="DiagnosticVersionsWithClient" xml:space="preserve"><value>Windows Island {0} · {1} {2}</value></data>
+  <data name="DiagnosticReason" xml:space="preserve"><value>Reason: {0}</value></data>
+  <data name="DiagnosticSuggestion" xml:space="preserve"><value>Suggestion: {0}</value></data>
+  <data name="DiagnosticShortId" xml:space="preserve"><value>ID …{0}</value></data>
+  <data name="DiagnosticReasonUnsupported" xml:space="preserve"><value>This WeChat version can't be connected directly yet</value></data>
+  <data name="DiagnosticReasonProcessAccess" xml:space="preserve"><value>The WeChat process can't be accessed</value></data>
+  <data name="DiagnosticReasonNoAutomation" xml:space="preserve"><value>The WeChat window doesn't expose a readable chat list</value></data>
+  <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>WeChat reset its accessibility switch</value></data>
+  <data name="DiagnosticReasonError" xml:space="preserve"><value>{0} ({1})</value></data>
+  <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>No specific error was recorded</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>Retry. If it still fails, copy the report and submit an issue.</value></data>
+  <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>If this keeps happening, copy the report and submit an issue.</value></data>
+  <data name="SystemDoNotDisturb" xml:space="preserve"><value>Windows do not disturb</value></data>
+  <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>Could not change do not disturb. Try again or open Windows notification settings.</value></data>
+  <data name="DoNotDisturbOpenSettings" xml:space="preserve"><value>Change this in Windows notification settings.</value></data>
 </root>

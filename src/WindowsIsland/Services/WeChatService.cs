@@ -13,7 +13,9 @@ internal sealed class WeChatService : IDisposable
         public readonly int Id = id;
         public readonly string Executable = executable;
         public readonly long StartedAt = startedAt;
-        public bool TriedAccessibility;
+        public readonly string? Version = ClientVersion(executable);
+        public long NextAccessibilityAttempt;
+        public long NextAccessibilityCheck;
         public readonly Dictionary<nint, Watch> Windows = [];
     }
     private sealed class Watch(AutomationElement root, nint window, WeChatAvatarCache avatars,
@@ -22,6 +24,7 @@ internal sealed class WeChatService : IDisposable
         public readonly AutomationElement Root = root;
         public readonly WeChatReader Reader = new(root, window, avatars);
         public readonly WeChatTracker Tracker = new();
+        public readonly WeChatAvatarEnrichment AvatarEnrichment = new();
         public readonly StructureChangedEventHandler Callback = callback;
         public readonly AutomationPropertyChangedEventHandler PropertyCallback = propertyCallback;
     }
@@ -35,12 +38,15 @@ internal sealed class WeChatService : IDisposable
     private readonly object _accessibilityLock = new();
     private readonly Dictionary<int, WeChatAccessibilitySession> _accessibility = [];
     private readonly Thread _thread;
+    private readonly WeChatConnectionHealth _health = new();
     private int[] _connected = [];
-    private string _status = "WeChatConnecting";
+    private string _status = "NotConnected";
+    private int _retry;
     private volatile bool _disposed;
     private bool _started;
     public event Action<IslandNotification>? Received;
-    public string Status => Localization.Get(Volatile.Read(ref _status));
+    public string StatusKey => Volatile.Read(ref _status);
+    public string Status => Localization.Get(StatusKey);
     public bool IsConnected(int id) => Volatile.Read(ref _connected).Contains(id);
     public bool AllowsConversation(string conversation, int? processId = null) => !_disposed && _enabled()
         && _conversations.IsMuted(conversation, processId) is false;
@@ -62,6 +68,13 @@ internal sealed class WeChatService : IDisposable
     }
 
     public void Refresh() => Signal();
+
+    // Allows a degraded client one immediate accessibility attempt from settings.
+    public void Retry()
+    {
+        Interlocked.Exchange(ref _retry, 1);
+        Signal();
+    }
 
     private void Signal()
     {
@@ -100,9 +113,19 @@ internal sealed class WeChatService : IDisposable
                         scanned = clock.ElapsedMilliseconds;
                     }
                     readAt = clock.ElapsedMilliseconds;
+                    if (Interlocked.Exchange(ref _retry, 0) != 0)
+                    {
+                        _health.Retry();
+                        foreach (var client in _clients.Values) client.NextAccessibilityAttempt = 0;
+                    }
                     var connected = new List<int>();
                     foreach (var client in _clients.Values)
                     {
+                        if (clock.ElapsedMilliseconds >= client.NextAccessibilityCheck)
+                        {
+                            client.NextAccessibilityCheck = clock.ElapsedMilliseconds + 5000;
+                            MaintainAccessibility(client);
+                        }
                         foreach (var window in Windows(client.Id))
                         {
                             if (_disposed || !_enabled()) break;
@@ -118,43 +141,53 @@ internal sealed class WeChatService : IDisposable
                                     watch = new(root, window, avatars, (_, _) => Signal(), (_, _) => Signal());
                                     client.Windows[window] = watch;
                                     try { Automation.AddStructureChangedEventHandler(root, TreeScope.Subtree, watch.Callback); }
-                                    catch (Exception error) { Trace.WriteLine(error.GetType().Name); }
+                                    catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
                                     try
                                     {
                                         Automation.AddAutomationPropertyChangedEventHandler(root, TreeScope.Subtree, watch.PropertyCallback,
                                         AutomationElement.NameProperty, AutomationElement.ItemStatusProperty);
                                     }
-                                    catch (Exception error) { Trace.WriteLine(error.GetType().Name); }
+                                    catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
                                 }
                                 var snapshot = watch.Reader.Read();
                                 _conversations.Update(client.Id, snapshot.Previews);
                                 if (snapshot.ConversationMuted is null)
                                     snapshot = snapshot with { ConversationMuted = _conversations.IsMuted(snapshot.Conversation, client.Id) };
-                                if (!snapshot.HasSessions && !snapshot.HasMessages && !client.TriedAccessibility)
+                                if (!snapshot.HasSessions && !snapshot.HasMessages && clock.ElapsedMilliseconds >= client.NextAccessibilityAttempt)
                                 {
-                                    client.TriedAccessibility = true;
+                                    client.NextAccessibilityAttempt = clock.ElapsedMilliseconds + 10000;
                                     RemoveWatch(watch);
                                     client.Windows.Remove(window);
-                                    if (EnableAccessibility(client.Id))
+                                    if (EnableAccessibility(client, out var failure))
                                     {
+                                        Diagnostics.State(DiagnosticArea.WeChat, "AccessibilityEnabled", client.Version);
                                         Signal();
-                                        continue;
                                     }
+                                    else
+                                    {
+                                        _health.Failed(client.Id, WeChatConnectionHealth.IsUnsupported(failure));
+                                        Diagnostics.State(DiagnosticArea.WeChat, "AccessibilityUnavailable", client.Version);
+                                    }
+                                    continue;
                                 }
                                 if (!snapshot.HasSessions && !snapshot.HasMessages) continue;
                                 connected.Add(client.Id);
+                                _health.Succeeded(client.Id);
                                 foreach (var arrival in watch.Tracker.Update(snapshot, DateTimeOffset.Now))
                                 {
                                     var notification = new IslandNotification(++sequence, DateTimeOffset.Now, "微信", arrival.Conversation,
                                         arrival.Body, icons.ReadIcon(client.Executable), NotificationSource.ClientAutomation, "wechat",
                                         $"uia/{client.Id}/{window}/{sequence}", SenderAvatar: arrival.Avatar, OriginProcessId: client.Id);
+                                    watch.AvatarEnrichment.Remember(notification, snapshot.Previews, DateTimeOffset.UtcNow);
                                     _dispatch(() => { if (!_disposed && _enabled()) Received?.Invoke(notification); });
                                 }
+                                foreach (var update in watch.AvatarEnrichment.Update(snapshot.Previews, DateTimeOffset.UtcNow))
+                                    _dispatch(() => { if (!_disposed && _enabled()) Received?.Invoke(update); });
                             }
                             catch (Exception error) when (error is ElementNotAvailableException or InvalidOperationException or COMException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
                             {
                                 if (client.Windows.Remove(window, out var stale)) RemoveWatch(stale);
-                                Trace.WriteLine($"WeChat UIAutomation: {error.GetType().Name}");
+                                Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat UIAutomation: {error.GetType().Name}");
                             }
                         }
                         foreach (var stale in client.Windows.Keys.Where(window => !IsWindow(window)).ToArray())
@@ -164,21 +197,21 @@ internal sealed class WeChatService : IDisposable
                         }
                     }
                     Volatile.Write(ref _connected, connected.Distinct().ToArray());
-                    Volatile.Write(ref _status, connected.Count > 0 ? "WeChatListening" : _clients.Count > 0 ? "WeChatWaitingChats" : "WeChatWaitingClient");
+                    Volatile.Write(ref _status, _health.StatusKey(connected.Count > 0, _clients.Count));
                     _wake.WaitOne(connected.Count > 0 ? 500 : 1000);
                 }
                 catch (Exception error)
                 {
-                    Trace.WriteLine($"WeChat listener: {error.GetType().Name}");
+                    Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat listener: {error.GetType().Name}");
                     ClearClients();
                     Volatile.Write(ref _connected, []);
-                    Volatile.Write(ref _status, "WeChatReconnecting");
+                    Volatile.Write(ref _status, "NotConnected");
                     scanned = -5000;
                     if (!_disposed) _wake.WaitOne(1000);
                 }
             }
         }
-        catch (Exception error) { Trace.WriteLine($"WeChat listener: {error.GetType().Name}"); Volatile.Write(ref _status, "Unavailable"); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat listener: {error.GetType().Name}"); Volatile.Write(ref _status, "WeChatConnectFailed"); }
         finally { ClearClients(); Volatile.Write(ref _connected, []); _wake.Dispose(); }
     }
 
@@ -198,7 +231,7 @@ internal sealed class WeChatService : IDisposable
                         alive.Add(process.Id);
                         _clients.TryAdd(process.Id, new(process.Id, executable, process.StartTime.ToUniversalTime().Ticks));
                     }
-                    catch (Exception error) { Trace.WriteLine($"WeChat discovery: {error.GetType().Name}"); }
+                    catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat discovery: {error.GetType().Name}"); }
                 }
             }
         }
@@ -209,17 +242,52 @@ internal sealed class WeChatService : IDisposable
         }
     }
 
-    private bool EnableAccessibility(int id)
+    private bool EnableAccessibility(Client client, out string failure)
     {
-        using var process = Process.GetProcessById(id);
-        var session = WeChatAccessibilitySession.TryOpen(process);
-        if (session is null) return false;
+        failure = nameof(WeChatAccessibilityFailure.None);
+        lock (_accessibilityLock)
+            if (_accessibility.TryGetValue(client.Id, out var active)) return active.EnsureEnabled(out _);
+        using var process = Process.GetProcessById(client.Id);
+        var session = WeChatAccessibilitySession.TryOpen(process, out var reason);
+        if (session is null)
+        {
+            failure = reason.ToString();
+            Diagnostics.State(DiagnosticArea.WeChat, "Accessibility." + failure, client.Version);
+            return false;
+        }
         lock (_accessibilityLock)
         {
             if (_disposed || !_enabled()) { session.Dispose(); return false; }
-            _accessibility[id] = session;
+            _accessibility[client.Id] = session;
         }
         return true;
+    }
+
+    private void MaintainAccessibility(Client client)
+    {
+        var reset = false;
+        lock (_accessibilityLock)
+        {
+            if (!_accessibility.TryGetValue(client.Id, out var session)) return;
+            if (!session.EnsureEnabled(out var restored))
+            {
+                _accessibility.Remove(client.Id);
+                session.Dispose();
+                reset = true;
+                _health.Failed(client.Id, unsupported: false);
+                Diagnostics.State(DiagnosticArea.WeChat, "AccessibilityLost", client.Version);
+            }
+            else if (restored)
+            {
+                reset = true;
+                Diagnostics.State(DiagnosticArea.WeChat, "AccessibilityRestored", client.Version);
+            }
+        }
+        if (!reset) return;
+        // A gap in accessibility is a reconnect: establish a new silent baseline.
+        foreach (var watch in client.Windows.Values) RemoveWatch(watch);
+        client.Windows.Clear();
+        _conversations.Remove(client.Id);
     }
 
     private List<nint> Windows(int processId)
@@ -244,14 +312,15 @@ internal sealed class WeChatService : IDisposable
     {
         watch.Reader.Dispose();
         try { Automation.RemoveStructureChangedEventHandler(watch.Root, watch.Callback); }
-        catch (Exception error) { Trace.WriteLine(error.GetType().Name); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
         try { Automation.RemoveAutomationPropertyChangedEventHandler(watch.Root, watch.PropertyCallback); }
-        catch (Exception error) { Trace.WriteLine(error.GetType().Name); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
     }
 
     private void RemoveClient(Client client)
     {
         _conversations.Remove(client.Id);
+        _health.Remove(client.Id);
         lock (_accessibilityLock)
             if (_accessibility.Remove(client.Id, out var session)) session.Dispose();
         foreach (var watch in client.Windows.Values) RemoveWatch(watch);
@@ -259,6 +328,13 @@ internal sealed class WeChatService : IDisposable
     }
 
     private void ClearClients() { foreach (var client in _clients.Values) RemoveClient(client); _clients.Clear(); }
+
+    // Only the numeric file version is kept for diagnostics, never the install path.
+    private static string? ClientVersion(string executable)
+    {
+        try { return DiagnosticReports.ClientVersion(FileVersionInfo.GetVersionInfo(executable).FileVersion); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException) { return null; }
+    }
 
     public void Dispose()
     {

@@ -47,5 +47,10 @@ internal static class ToastImageChecks
             && (image with { Avatar = "\\\\server\\share\\photo.png" }).LocalPath() is null
             && (image with { Avatar = "https://example.com/photo.png" }).LocalPath() is null,
             "Image lookup does not open network shares or download unrelated remote images");
+        if (OperatingSystem.IsWindows())
+            foreach (var path in new[] { "//server/share/photo.png", @"/\server\share\photo.png",
+                @"\\?\UNC\server\share\photo.png", @"\\.\pipe\avatar", photo + ":stream" })
+                check((image with { Avatar = path }).LocalPath() is null,
+                    "Network, device and alternate-stream avatar paths are rejected: " + path);
     }
 }

@@ -207,7 +207,7 @@ $temporaryResult = Join-Path $jobDirectory 'result.json'
 [IO.File]::WriteAllText($temporaryResult, ($result | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath $temporaryResult -Destination $resultPath -Force
 if ($canRestart) {
-    $arguments = if ($success) { '--settings --after-update' } else { '--settings --show-update-result' }
+    $arguments = if ($success -or $job.InstallerPath) { '--settings --after-update' } else { '--settings --show-update-result' }
     Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $install -WindowStyle Hidden
 }
 if ($success) {

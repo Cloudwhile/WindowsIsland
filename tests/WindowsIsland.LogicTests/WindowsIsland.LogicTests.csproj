@@ -7,6 +7,14 @@
     <NeutralLanguage>zh-CN</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/WindowsIsland/Services/RegisteredRestart.cs" Link="RegisteredRestart.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InitializationResources.cs" Link="InitializationResources.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/NotificationPluginHost.cs" Link="Plugins/NotificationPluginHost.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginDefinitions.cs" Link="Plugins/BuiltInPluginDefinitions.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/Diagnostics.cs" Link="Diagnostics.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/DiagnosticStore.cs" Link="DiagnosticStore.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/DiagnosticReport.cs" Link="DiagnosticReport.cs" />
     <Compile Include="../../src/WindowsIsland/Services/Localization.cs" Link="Localization.cs" />
     <EmbeddedResource Include="../../src/WindowsIsland/Strings/*.resx" Link="Strings/%(Filename)%(Extension)" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationState.cs" Link="NotificationState.cs" />
@@ -16,6 +24,8 @@
     <Compile Include="../../src/WindowsIsland/Services/MessageRouter.cs" Link="MessageRouter.cs" />
     <Compile Include="../../src/WindowsIsland/Services/GameMode.cs" Link="GameMode.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WindowsPreferences.cs" Link="WindowsPreferences.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/DoNotDisturb.cs" Link="DoNotDisturb.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/WindowsQuietHoursStore.cs" Link="WindowsQuietHoursStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WindowsPreferenceStore.cs" Link="WindowsPreferenceStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/StartupElevation.cs" Link="StartupElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Services/PowerState.cs" Link="PowerState.cs" />
@@ -23,6 +33,9 @@
     <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationPlacement.cs" Link="NotificationPlacement.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatState.cs" Link="WeChatState.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/WeChatConnectionHealth.cs" Link="WeChatConnectionHealth.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/StatusPresentation.cs" Link="StatusPresentation.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/WeChatAvatarEnrichment.cs" Link="WeChatAvatarEnrichment.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationManifest.cs" Link="InitializationManifest.cs" />
     <Compile Include="../../src/WindowsIsland/Services/ReleaseVersion.cs" Link="ReleaseVersion.cs" />
     <Compile Include="../../src/WindowsIsland/Services/GitHubReleaseClient.cs" Link="GitHubReleaseClient.cs" />

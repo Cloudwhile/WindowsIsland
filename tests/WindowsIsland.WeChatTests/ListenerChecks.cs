@@ -29,8 +29,23 @@ internal static class ListenerChecks
         fixture.Send("incoming:第一条实时消息");
         Check(Wait(() => notifications.Count == 1), "A second message with identical text still arrives");
         notifications.Clear();
+        fixture.Send("remote-outgoing:手机端本人回复，保留旧未读数");
+        Quiet("A remote-device reply with an unchanged unread badge does not use the cached contact portrait to impersonate incoming mail");
+        fixture.Send("incoming:对方在本人回复后发来的消息");
+        Check(Wait(() => notifications.Count == 1), "Incoming messages after a remote reply continue to arrive");
+        notifications.Clear();
         fixture.Send("outgoing:这是发出的消息");
         Quiet("Outgoing rows are filtered");
+        fixture.Send("newchat:未打开聊天时的第一条消息");
+        Check(Wait(() => notifications.Count == 1) && notifications.TryDequeue(out var unopened)
+            && unopened.Title == "首次出现的会话" && unopened.Body == "未打开聊天时的第一条消息",
+            "The first unseen conversation below pinned rows arrives without selecting that chat");
+        Quiet("An unopened chat arrival is not replayed on subsequent polls");
+        fixture.Send("newchat-avatar");
+        Check(Wait(() => notifications.Count == 1) && notifications.TryDequeue(out var avatarUpdate)
+            && avatarUpdate.IsMetadataUpdate && IsPortrait(avatarUpdate.SenderAvatar, System.Drawing.Color.CornflowerBlue),
+            "A portrait that becomes available after the first arrival is sent as metadata only");
+        Quiet("The delayed portrait is sent once without repeating the message");
         fixture.Send("group:小林: 群聊的新消息");
         Check(Wait(() => notifications.Count == 1), "A conversation that is not open is read from its unread preview");
         Check(notifications.TryDequeue(out var group) && group.Title == "示例群" && group.Body == "小林: 群聊的新消息", "Group previews retain their conversation and sender");
@@ -107,15 +122,16 @@ internal static class ListenerChecks
             && Math.Abs(pixel.G - expected.G) <= 5 && Math.Abs(pixel.B - expected.B) <= 5;
     }
 
-    private sealed class FixtureClient(Process process, NamedPipeClientStream pipe, StreamWriter writer, string ready) : IDisposable
+    internal sealed class FixtureClient(Process process, NamedPipeClientStream pipe, StreamWriter writer, string ready) : IDisposable
     {
         public Process Process { get; } = process;
-        public static FixtureClient Start(string executable)
+        public static FixtureClient Start(string executable, string? accessibilityModule = null)
         {
             var token = Guid.NewGuid().ToString("N");
             var ready = Path.Combine(AppContext.BaseDirectory, token + ".ready");
             var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true };
             start.ArgumentList.Add("--fixture"); start.ArgumentList.Add(token); start.ArgumentList.Add(ready);
+            if (accessibilityModule is not null) start.ArgumentList.Add(accessibilityModule);
             var process = Process.Start(start)!;
             var pipe = new NamedPipeClientStream(".", token, PipeDirection.Out);
             try

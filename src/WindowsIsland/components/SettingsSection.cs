@@ -11,7 +11,7 @@ internal sealed class SettingsSection : StackPanel
         Spacing = 0;
         var heading = LocalizedUI.Text(title, 14, secondary: true);
         heading.FontWeight = FontWeights.SemiBold;
-        heading.Margin = new Thickness(12, 20, 0, 8);
+        heading.Margin = new Thickness(12, 16, 0, 4);
         Children.Add(heading);
         foreach (var row in rows) Children.Add(row);
     }

@@ -39,35 +39,10 @@ internal static class WindowsPreferencesChecks
             "Malformed privileged commands are handled without starting the normal application");
         check(!StartupElevation.TryHandle(["--settings"], out _), "Normal launch arguments retain the regular application startup");
 
-        CheckBanners(store, check);
+
         CheckFilePersistence(executable, check);
         if (OperatingSystem.IsWindows() && Environment.GetEnvironmentVariable("WINDOWSISLAND_TEST_REGISTRY") == "1")
             CheckRegistry(executable, check);
-    }
-
-    private static void CheckBanners(MemoryPreferences store, Action<bool, string> check)
-    {
-        var path = NotificationBannerPreferences.SettingsKey + "\\WeChat";
-        var otherPath = NotificationBannerPreferences.SettingsKey + "\\Telegram";
-        store.Write(path, "Enabled", new(PreferenceValueKind.DWord, Number: 1));
-        store.Write(path, "ShowInActionCenter", new(PreferenceValueKind.DWord, Number: 1));
-        store.Write(path, "Sound", new(PreferenceValueKind.DWord, Number: 0));
-        store.Write(otherPath, "ShowBanner", new(PreferenceValueKind.DWord, Number: 1));
-        var banners = new NotificationBannerPreferences(store);
-        check(!banners.ReadApplication("WeChat").Hidden, "A missing banner setting retains the Windows default");
-        banners.SetHidden("WeChat", true);
-        check(banners.ReadApplication("WeChat").Hidden && !banners.ReadApplication("Telegram").Hidden,
-            "Hiding a selected application's banners leaves other senders unchanged");
-        check(store.Read(path, "Enabled")?.Number == 1 && store.Read(path, "ShowInActionCenter")?.Number == 1
-            && store.Read(path, "Sound")?.Number == 0, "Banner changes preserve notifications, notification center and sound preferences");
-        banners.SetHidden("WeChat", false);
-        check(!banners.ReadApplication("WeChat").Hidden, "The banner switch can restore Windows banners");
-        store.Write(path, "ShowBanner", new(PreferenceValueKind.String, Text: "invalid"));
-        check(!banners.ReadApplication("WeChat").Available, "Unsupported banner values remain visible but cannot be overwritten");
-        ExpectFailure(() => banners.SetHidden("WeChat", true), check, "Unsupported banner values fail without resetting other preferences");
-        foreach (var identity in new[] { "", "..\\Other", "Other/path", "Windows.SystemToast.SecurityAndMaintenance", "Windows.ActionCenter.SmartOptOut" })
-            ExpectFailure(() => banners.SetHidden(identity, true), check, "Invalid or internal notification senders are excluded: " + identity);
-        ExpectFailure(() => banners.SetHidden("MissingApplication", true), check, "Changing banners cannot create a stale sender entry");
     }
 
     private static void CheckFilePersistence(string executable, Action<bool, string> check)
@@ -77,11 +52,11 @@ internal static class WindowsPreferencesChecks
         {
             var store = new FileWindowsPreferenceStore(path);
             new StartupRegistration(store, executable).Set(true);
-            new NotificationBannerPreferences(store).SetHidden("WeChat", true);
+            new DoNotDisturbPreferences(new FileQuietHoursStore(store)).SetEnabled(true);
             var restored = new FileWindowsPreferenceStore(path);
             check(new StartupRegistration(restored, executable).Read() == StartupState.Enabled
-                && new NotificationBannerPreferences(restored).ReadApplication("WeChat").Hidden,
-                "Desktop verification keeps startup and banner persistence in an isolated file");
+                && new DoNotDisturbPreferences(new FileQuietHoursStore(restored)).Read() == DoNotDisturbState.On,
+                "Desktop verification keeps startup and do not disturb persistence in an isolated file");
         }
         finally { File.Delete(path); File.Delete(path + ".tmp"); }
     }
@@ -99,12 +74,7 @@ internal static class WindowsPreferencesChecks
             check(startup.Read() == StartupState.Enabled, "The native registry adapter persists startup in an isolated test hive");
             startup.Set(false);
             check(startup.Read() == StartupState.Disabled, "The native registry adapter removes only its startup value");
-            var bannerKey = NotificationBannerPreferences.SettingsKey + "\\Fixture";
-            store.Write(bannerKey, "Enabled", new(PreferenceValueKind.DWord, Number: 1));
-            var banners = new NotificationBannerPreferences(store);
-            banners.SetHidden("Fixture", true);
-            check(banners.ReadApplication("Fixture").Hidden && store.Read(bannerKey, "Enabled")?.Number == 1,
-                "The native registry adapter changes only the isolated fixture's ShowBanner value");
+
         }
         finally { Registry.CurrentUser.DeleteSubKeyTree(path, throwOnMissingSubKey: false); }
     }

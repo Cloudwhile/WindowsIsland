@@ -93,7 +93,7 @@ internal static class UpdateInstaller
             while ((read = await reader.ReadAsync(buffer).ConfigureAwait(false)) > 0)
                 text.Append(buffer, 0, Math.Min(read, Math.Max(0, 8192 - text.Length)));
         }
-        catch (Exception error) when (error is IOException or ObjectDisposedException) { Trace.WriteLine(error); }
+        catch (Exception error) when (error is IOException or ObjectDisposedException) { Diagnostics.Capture(DiagnosticArea.Updates, error); Trace.WriteLine(error); }
         return text.ToString();
     }
 

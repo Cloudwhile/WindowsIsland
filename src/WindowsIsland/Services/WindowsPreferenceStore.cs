@@ -56,16 +56,7 @@ internal sealed class FileWindowsPreferenceStore : IWindowsPreferenceStore
         _path = path;
         _values = File.Exists(path)
             ? JsonSerializer.Deserialize<Dictionary<string, Dictionary<string, PreferenceValue>>>(File.ReadAllText(path)) ?? [] : [];
-        if (_values.Count == 0)
-        {
-            _values[NotificationBannerPreferences.SettingsKey + "\\WeChat"] = new()
-            {
-                ["ShowBanner"] = new(PreferenceValueKind.DWord, Number: 1),
-                ["Enabled"] = new(PreferenceValueKind.DWord, Number: 1),
-                ["ShowInActionCenter"] = new(PreferenceValueKind.DWord, Number: 1)
-            };
-            Save();
-        }
+        if (!File.Exists(path)) Save();
     }
 
     public string[] SubKeys(string path)

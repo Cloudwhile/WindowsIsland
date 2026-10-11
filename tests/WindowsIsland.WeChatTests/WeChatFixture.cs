@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Automation.Peers;
@@ -11,22 +12,35 @@ internal sealed class WeChatFixture : Window
 {
     private readonly ListBox _sessions = new SessionList(), _messages = new();
     private readonly ListBoxItem _friend = new(), _group = new SessionRow(), _service = new SessionRow("mmui::BrandSessionCell");
+    private readonly ListBoxItem _newChat = new SessionRow();
     private readonly TextBox _input = new();
     private readonly Portrait _groupPortrait;
+    private readonly Portrait _unavailablePortrait;
+    private string _newChatBody = "";
     private int _unread = 7, _groupUnread = 4;
+    private readonly string? _accessibilityModule;
+    private readonly DockPanel _content;
+    private nint _module;
 
-    private WeChatFixture(string pipe, string ready)
+    private WeChatFixture(string pipe, string ready, string? accessibilityModule)
     {
+        _accessibilityModule = accessibilityModule;
         Title = "Windows Island WeChat fixture";
         Width = 740; Height = 520; ShowActivated = false;
         Left = 20; Top = 200;
-        var content = new DockPanel();
+        var content = _content = new DockPanel();
         _sessions.Width = 260;
         DockPanel.SetDock(_sessions, Dock.Left);
         DockPanel.SetDock(_input, Dock.Bottom);
         _input.Height = 60;
         content.Children.Add(_sessions); content.Children.Add(_input); content.Children.Add(_messages);
-        Content = content;
+        Content = accessibilityModule is null ? content : null;
+        var accessibilityTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        accessibilityTimer.Tick += (_, _) =>
+        {
+            if (_accessibilityModule is not null) Content = _module != 0 && Marshal.ReadByte(_module + 0x2021) == 1 ? _content : null;
+        };
+        if (accessibilityModule is not null) accessibilityTimer.Start();
         AutomationProperties.SetAutomationId(_sessions, "session_list");
         AutomationProperties.SetName(_sessions, "会话");
         AutomationProperties.SetAutomationId(_messages, "chat_message_list");
@@ -38,11 +52,16 @@ internal sealed class WeChatFixture : Window
         AutomationProperties.SetAutomationId(_service, "session_item_服务号");
         _friend.Tag = CreateAvatar(false); _group.Tag = _groupPortrait = CreateAvatar(true);
         _service.Tag = CreateAvatar(true, true);
+        _newChat.Tag = _unavailablePortrait = CreateAvatar(true, blank: true);
+        AutomationProperties.SetAutomationId(_newChat, "session_item_首次出现的会话");
         Closed += (_, _) =>
         {
+            accessibilityTimer.Stop();
+            if (_module != 0) FreeLibrary(_module);
             foreach (var row in new[] { _friend, _group, _service })
                 if (row.Tag is Portrait portrait) File.Delete(portrait.Path);
             File.Delete(_groupPortrait.Path);
+            File.Delete(_unavailablePortrait.Path);
         };
         _sessions.Items.Add(_friend); _sessions.Items.Add(_group); _sessions.Items.Add(_service);
         Preview(_friend, "示例会话", "历史消息", 7);
@@ -56,9 +75,9 @@ internal sealed class WeChatFixture : Window
         };
     }
 
-    public static int Run(string pipe, string ready)
+    public static int Run(string pipe, string ready, string? accessibilityModule = null)
     {
-        var thread = new Thread(() => new Application().Run(new WeChatFixture(pipe, ready)));
+        var thread = new Thread(() => new Application().Run(new WeChatFixture(pipe, ready, accessibilityModule)));
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start(); thread.Join();
         return 0;
@@ -84,11 +103,27 @@ internal sealed class WeChatFixture : Window
         var body = separator < 0 ? "" : command[(separator + 1)..];
         switch (action)
         {
+            case "accessibility-load": _module = LoadLibraryEx(_accessibilityModule!, 0, 1); break;
+            case "accessibility-reset":
+                if (_module != 0) Marshal.WriteByte(_module + 0x2021, 0);
+                Content = null;
+                break;
             case "incoming":
                 AddMessage(body, "Incoming"); Preview(_friend, "示例会话", body, ++_unread); break;
             case "outgoing":
                 AddMessage(body, "Outgoing"); Preview(_friend, "示例会话", body, _unread = 0); break;
+            case "remote-outgoing":
+                AddMessage(body, ""); Preview(_friend, "示例会话", body, _unread); break;
             case "group": Preview(_group, "示例群", body, ++_groupUnread); break;
+            case "newchat":
+                _newChatBody = body;
+                Preview(_newChat, "首次出现的会话", body, 1, pinned: false);
+                if (!_sessions.Items.Contains(_newChat)) _sessions.Items.Add(_newChat);
+                break;
+            case "newchat-avatar":
+                _newChat.Tag = _friend.Tag;
+                Preview(_newChat, "首次出现的会话", _newChatBody, 1, pinned: false);
+                break;
             case "draft": Preview(_friend, "示例会话", "[草稿] " + body, _unread); break;
             case "history":
                 _messages.Items.Clear(); AddMessage("更早的消息", "Incoming"); break;
@@ -111,6 +146,9 @@ internal sealed class WeChatFixture : Window
         }
     }
 
+    [DllImport("kernel32.dll", EntryPoint = "LoadLibraryExW", CharSet = CharSet.Unicode)] private static extern nint LoadLibraryEx(string path, nint file, uint flags);
+    [DllImport("kernel32.dll")] private static extern bool FreeLibrary(nint module);
+
     private void AddMessage(string body, string status)
     {
         var row = new ListBoxItem { Content = body };
@@ -119,10 +157,10 @@ internal sealed class WeChatFixture : Window
         _messages.Items.Add(row);
     }
 
-    private static void Preview(ListBoxItem row, string conversation, string body, int unread, bool muted = false)
+    private static void Preview(ListBoxItem row, string conversation, string body, int unread, bool muted = false, bool pinned = true)
     {
         var badge = unread > 0 ? $"[{unread}条]\n" : "";
-        var name = $"{conversation}\n已置顶\n{badge}{body}\n{DateTime.Now:HH:mm}" + (muted ? "\n消息免打扰" : "");
+        var name = conversation + (pinned ? "\n已置顶" : "") + $"\n{badge}{body}\n{DateTime.Now:HH:mm}" + (muted ? "\n消息免打扰" : "");
         AutomationProperties.SetName(row, name);
         var portrait = (Portrait)row.Tag;
         row.Height = 68; row.Padding = new Thickness(0); row.BorderThickness = new Thickness(0);
@@ -137,7 +175,7 @@ internal sealed class WeChatFixture : Window
 
     private sealed record Portrait(string Path, ImageSource Image, bool ExposeReference);
 
-    private static Portrait CreateAvatar(bool group, bool service = false)
+    private static Portrait CreateAvatar(bool group, bool service = false, bool blank = false)
     {
         var path = System.IO.Path.Combine(AppContext.BaseDirectory, Guid.NewGuid().ToString("N") + ".avatar.png");
         using (var bitmap = new System.Drawing.Bitmap(64, 64))
@@ -147,7 +185,7 @@ internal sealed class WeChatFixture : Window
             using var first = new System.Drawing.SolidBrush(System.Drawing.Color.Gold);
             using var second = new System.Drawing.SolidBrush(System.Drawing.Color.HotPink);
             if (service) graphics.FillRectangle(System.Drawing.Brushes.White, 16, 16, 32, 32);
-            else
+            else if (!blank)
             {
                 graphics.FillRectangle(first, 18, 18, 14, 28);
                 graphics.FillRectangle(second, group ? 34 : 24, group ? 24 : 34, 14, 14);

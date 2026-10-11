@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace WindowsIsland.Services;
 
 internal enum WeChatDirection { Unknown, Incoming, Outgoing }
-internal sealed record WeChatPreview(string Key, string Conversation, string Body, int Unread, string Stamp, bool Muted = false, byte[]? Avatar = null);
+internal sealed record WeChatPreview(string Key, string Conversation, string Body, int Unread, string Stamp, bool Muted = false, byte[]? Avatar = null, bool Pinned = false);
 internal sealed record WeChatMessage(string Key, string Sender, string Body, WeChatDirection Direction);
 internal sealed record WeChatSnapshot(string Conversation, IReadOnlyList<WeChatPreview> Previews,
     IReadOnlyList<WeChatMessage> Messages, bool HasSessions, bool HasMessages, bool? ConversationMuted = null);
@@ -44,7 +44,7 @@ internal static partial class WeChatText
             if (stamp.Length > 0) body = body.Replace(stamp, "", StringComparison.Ordinal).Trim();
         }
         if (body.Length > 2048) body = body[..2048];
-        return new(id.Length == 0 ? conversation : id, conversation, body, unread, stamp, metadata.Any(IsMuteLabel));
+        return new(id.Length == 0 ? conversation : id, conversation, body, unread, stamp, metadata.Any(IsMuteLabel), Pinned: metadata.Any(IsPinLabel));
     }
 
     public static bool IsDraft(string text) => text.StartsWith("[草稿]", StringComparison.Ordinal)
@@ -69,8 +69,9 @@ internal static partial class WeChatText
     }
 
     private static bool IsMuteLabel(string text) => text is "消息免打扰" or "已免打扰" or "訊息免打擾" or "Muted" or "Mute notifications";
+    private static bool IsPinLabel(string text) => text is "置顶" or "已置顶" or "Pinned";
     private static bool IsMeta(string text) => UnreadPattern().IsMatch(text) || TimePattern().IsMatch(text) || IsMuteLabel(text)
-        || text is "置顶" or "已置顶" or "未读" or "有未读消息" or "Unread";
+        || IsPinLabel(text) || text is "未读" or "有未读消息" or "Unread";
 
     [GeneratedRegex(@"^(?:(?<count>\d+)\+?\s*(?:条(?:新|未读)?消息|条?未读(?:消息)?|(?:new|unread)\s+messages?)|\[(?<count>\d+)\+?\s*(?:条(?:新|未读)?消息|条?未读(?:消息)?|(?:new|unread)\s+messages?|条)?\])$", RegexOptions.IgnoreCase)]
     private static partial Regex UnreadPattern();
@@ -114,10 +115,16 @@ internal sealed class WeChatTracker
         foreach (var preview in snapshot.Previews)
         {
             var changed = _previews.TryGetValue(preview.Key, out var previous)
-                ? preview.Unread > previous.Unread || preview.Body != previous.Body && preview.Unread > 0
-                : _initialized && snapshot.Previews[0] == preview && WeChatText.Recent(preview.Stamp, now);
+                // Another device can send a reply while old unread messages remain.
+                // A changed preview alone is not evidence of a newly received message.
+                ? preview.Unread > previous.Unread
+                : _initialized && WeChatText.Recent(preview.Stamp, now)
+                    && (snapshot.Previews[0] == preview || !preview.Pinned
+                        && snapshot.Previews.TakeWhile(item => item != preview).All(item => item.Pinned));
             _previews[preview.Key] = preview;
             if (!_initialized || !changed || preview.Muted || preview.Unread <= 0 || preview.Body.Length == 0 || WeChatText.IsDraft(preview.Body)) continue;
+            if (snapshot.Conversation == preview.Conversation
+                && fresh.LastOrDefault(item => WeChatText.MatchesPreview(preview.Body, item.Body))?.Direction == WeChatDirection.Outgoing) continue;
             if (arrivals.Any(arrival => arrival.Conversation == preview.Conversation && WeChatText.MatchesPreview(preview.Body, arrival.Body))) continue;
             var message = snapshot.Conversation == preview.Conversation
                 ? fresh.LastOrDefault(item => item.Direction != WeChatDirection.Outgoing && WeChatText.MatchesPreview(preview.Body, item.Body)) : null;

@@ -56,7 +56,7 @@
     <value>刷新状态</value>
   </data>
   <data name="ActionPreview" xml:space="preserve">
-    <value>显示测试通知</value>
+    <value>通知预览</value>
   </data>
   <data name="Initialization" xml:space="preserve">
     <value>应用初始化</value>
@@ -191,28 +191,7 @@
     <value>已被 Windows 禁用</value>
   </data>
   <data name="StartupOtherInstallation" xml:space="preserve">
-    <value>另一安装版本已设置自启</value>
-  </data>
-  <data name="HideSystemBanners" xml:space="preserve">
-    <value>隐藏系统横幅</value>
-  </data>
-  <data name="ActionHideAppBanners" xml:space="preserve">
-    <value>隐藏 {0} 的系统横幅</value>
-  </data>
-  <data name="BannersHidden" xml:space="preserve">
-    <value>已隐藏</value>
-  </data>
-  <data name="BannersShown" xml:space="preserve">
-    <value>显示</value>
-  </data>
-  <data name="NoNotificationApps" xml:space="preserve">
-    <value>暂无通知应用</value>
-  </data>
-  <data name="BannerApplications" xml:space="preserve">
-    <value>{0} 个应用</value>
-  </data>
-  <data name="ErrorBannerSettings" xml:space="preserve">
-    <value>未能更改系统横幅，请重试或打开 Windows 通知设置。</value>
+    <value>已由另一版本接管自启，当前版本不再重复设置</value>
   </data>
   <data name="ErrorReadWindowsSettings" xml:space="preserve">
     <value>无法读取 Windows 设置</value>
@@ -394,20 +373,26 @@
   <data name="UpdateErrorHelperTimeout" xml:space="preserve">
     <value>启动更新程序超时，原版本未更改。请稍后重试。</value>
   </data>
-  <data name="WeChatConnecting" xml:space="preserve">
-    <value>正在连接</value>
+  <data name="NotConnected" xml:space="preserve">
+    <value>未连接</value>
   </data>
-  <data name="WeChatListening" xml:space="preserve">
-    <value>监听中</value>
+  <data name="WeChatUnsupported" xml:space="preserve">
+    <value>连接失败 · 版本不支持</value>
   </data>
-  <data name="WeChatWaitingChats" xml:space="preserve">
-    <value>等待会话列表</value>
+  <data name="WeChatConnectFailed" xml:space="preserve">
+    <value>连接失败</value>
   </data>
-  <data name="WeChatWaitingClient" xml:space="preserve">
-    <value>等待客户端</value>
+  <data name="WeChatUnsupportedDetail" xml:space="preserve">
+    <value>当前微信版本暂不支持直连，已回退到系统通知</value>
   </data>
-  <data name="WeChatReconnecting" xml:space="preserve">
-    <value>正在重新连接</value>
+  <data name="WeChatConnectFailedDetail" xml:space="preserve">
+    <value>无法读取微信窗口，已回退到系统通知</value>
+  </data>
+  <data name="TelegramNotDetected" xml:space="preserve">
+    <value>未检测到客户端</value>
+  </data>
+  <data name="TelegramNotDetectedDetail" xml:space="preserve">
+    <value>请先登录 Telegram 桌面版</value>
   </data>
   <data name="PowerCharging" xml:space="preserve">
     <value>开始充电</value>
@@ -451,9 +436,6 @@
   <data name="MuteDuringGames" xml:space="preserve">
     <value>游戏时静音</value>
   </data>
-  <data name="GameModeMonitoring" xml:space="preserve">
-    <value>自动检测</value>
-  </data>
   <data name="GameModeMuted" xml:space="preserve">
     <value>游戏中：通知已静音</value>
   </data>
@@ -466,4 +448,73 @@
   <data name="GameAndFullScreenMuted" xml:space="preserve">
     <value>游戏和全屏中：通知已静音</value>
   </data>
+  <data name="DiagnosticsTitle" xml:space="preserve"><value>诊断与反馈</value></data>
+  <data name="DiagnosticsRecord" xml:space="preserve"><value>在本机记录诊断</value></data>
+  <data name="DiagnosticsRecent" xml:space="preserve"><value>最近诊断</value></data>
+  <data name="DiagnosticsView" xml:space="preserve"><value>查看诊断报告</value></data>
+  <data name="DiagnosticsExport" xml:space="preserve"><value>导出诊断报告</value></data>
+  <data name="DiagnosticsClear" xml:space="preserve"><value>清除本机诊断记录</value></data>
+  <data name="DiagnosticsFeedback" xml:space="preserve"><value>打开 GitHub 问题反馈</value></data>
+  <data name="DiagnosticsFeedbackTitle" xml:space="preserve"><value>反馈问题</value></data>
+  <data name="DiagnosticsFeedbackHint" xml:space="preserve"><value>先复制或导出报告，再在打开的页面填写复现步骤并附上。GitHub Issue 为公开内容。</value></data>
+  <data name="DiagnosticsPrivacy" xml:space="preserve"><value>仅保留最近 7 天的本机诊断，不自动上传。报告包含应用版本、系统版本、错误编号和调用位置，不记录消息正文、头像、账号或原始异常文本。提交前可先查看报告。</value></data>
+  <data name="DiagnosticsLocalOnly" xml:space="preserve"><value>已开启 · 仅保存在本机</value></data>
+  <data name="DiagnosticsStopped" xml:space="preserve"><value>已关闭 · 已有记录仍可导出或清除</value></data>
+  <data name="DiagnosticsUnavailable" xml:space="preserve"><value>诊断记录暂时无法保存</value></data>
+  <data name="DiagnosticsEmpty" xml:space="preserve"><value>暂无诊断记录</value></data>
+  <data name="DiagnosticsExported" xml:space="preserve"><value>报告已导出，请查看后手动附到问题反馈中。</value></data>
+  <data name="DiagnosticsCleared" xml:space="preserve"><value>本机诊断记录已清除。此前导出的文件仍保留在你选择的位置。</value></data>
+  <data name="DiagnosticsActionFailed" xml:space="preserve"><value>操作未完成，请重试或选择其他保存位置。</value></data>
+  <data name="DiagnosticsFileType" xml:space="preserve"><value>诊断报告</value></data>
+  <data name="DiagnosticsAreaApplication" xml:space="preserve"><value>应用启动与运行</value></data>
+  <data name="DiagnosticsAreaSettings" xml:space="preserve"><value>设置</value></data>
+  <data name="DiagnosticsAreaNotifications" xml:space="preserve"><value>系统通知</value></data>
+  <data name="DiagnosticsAreaWeChat" xml:space="preserve"><value>微信</value></data>
+  <data name="DiagnosticsAreaTelegram" xml:space="preserve"><value>Telegram</value></data>
+  <data name="DiagnosticsAreaUpdates" xml:space="preserve"><value>应用更新</value></data>
+  <data name="DiagnosticsAreaWindowsSettings" xml:space="preserve"><value>Windows 设置</value></data>
+  <data name="DiagnosticsAreaDiagnostics" xml:space="preserve"><value>诊断与反馈</value></data>
+  <data name="ActionRetrySource" xml:space="preserve"><value>重试连接</value></data>
+  <data name="ActionExpand" xml:space="preserve"><value>展开</value></data>
+  <data name="ActionCollapse" xml:space="preserve"><value>收起</value></data>
+  <data name="General" xml:space="preserve"><value>通用</value></data>
+  <data name="NotificationBehavior" xml:space="preserve"><value>通知行为</value></data>
+  <data name="SourcesRunning" xml:space="preserve"><value>{0} 个来源运行中</value></data>
+  <data name="UpdateNotChecked" xml:space="preserve"><value>尚未检查</value></data>
+  <data name="UpdateUpToDate" xml:space="preserve"><value>已是最新版本</value></data>
+  <data name="SizeMegabytes" xml:space="preserve"><value>{0} MB</value></data>
+  <data name="SizeKilobytes" xml:space="preserve"><value>{0} KB</value></data>
+  <data name="DiagnosticsCopy" xml:space="preserve"><value>复制诊断报告</value></data>
+  <data name="DiagnosticsCopied" xml:space="preserve"><value>报告已复制。打开问题反馈后粘贴到对应位置，提交前请检查内容。</value></data>
+  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>已重新尝试连接，结果会显示在消息来源页。</value></data>
+  <data name="DiagnosticsRecordCount" xml:space="preserve"><value>{0} 条记录 · {1} 条失败</value></data>
+  <data name="DiagnosticFailedCount" xml:space="preserve"><value>失败 · {0} 次</value></data>
+  <data name="DiagnosticSucceededCount" xml:space="preserve"><value>成功 · {0} 次</value></data>
+  <data name="DiagnosticTitleAccessibilityEnabled" xml:space="preserve"><value>微信辅助访问已开启</value></data>
+  <data name="DiagnosticTitleAccessibilityRestored" xml:space="preserve"><value>微信辅助访问已恢复</value></data>
+  <data name="DiagnosticTitleAccessibilityFailed" xml:space="preserve"><value>无障碍补丁启用失败</value></data>
+  <data name="DiagnosticTitleAccessibilityLost" xml:space="preserve"><value>微信辅助访问已失效</value></data>
+  <data name="DiagnosticTitleUpdateFailed" xml:space="preserve"><value>更新安装失败</value></data>
+  <data name="DiagnosticTitleStartup" xml:space="preserve"><value>应用启动失败</value></data>
+  <data name="DiagnosticTitleUnhandled" xml:space="preserve"><value>未处理的错误</value></data>
+  <data name="DiagnosticTitleReadPreferences" xml:space="preserve"><value>读取偏好设置失败</value></data>
+  <data name="DiagnosticTitleReadWindowsSettings" xml:space="preserve"><value>读取 Windows 设置失败</value></data>
+  <data name="DiagnosticTitleFallback" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="DiagnosticTime" xml:space="preserve"><value>首次 {0} · 最近 {1}</value></data>
+  <data name="DiagnosticVersion" xml:space="preserve"><value>消息岛 {0}</value></data>
+  <data name="DiagnosticVersionsWithClient" xml:space="preserve"><value>消息岛 {0} · {1} {2}</value></data>
+  <data name="DiagnosticReason" xml:space="preserve"><value>原因：{0}</value></data>
+  <data name="DiagnosticSuggestion" xml:space="preserve"><value>建议：{0}</value></data>
+  <data name="DiagnosticShortId" xml:space="preserve"><value>编号 …{0}</value></data>
+  <data name="DiagnosticReasonUnsupported" xml:space="preserve"><value>当前微信版本暂不支持直连</value></data>
+  <data name="DiagnosticReasonProcessAccess" xml:space="preserve"><value>无法访问微信进程</value></data>
+  <data name="DiagnosticReasonNoAutomation" xml:space="preserve"><value>微信窗口未提供可读取的会话列表</value></data>
+  <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>微信重置了辅助访问开关</value></data>
+  <data name="DiagnosticReasonError" xml:space="preserve"><value>{0}（{1}）</value></data>
+  <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>未记录具体错误</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>点击重试；仍失败时，复制报告并提交问题反馈。</value></data>
+  <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>问题反复出现时，复制报告并提交问题反馈。</value></data>
+  <data name="SystemDoNotDisturb" xml:space="preserve"><value>系统免打扰</value></data>
+  <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>未能更改系统免打扰，请重试或打开 Windows 通知设置。</value></data>
+  <data name="DoNotDisturbOpenSettings" xml:space="preserve"><value>请在 Windows 通知设置中调整。</value></data>
 </root>
