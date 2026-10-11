@@ -63,7 +63,12 @@ jobs:
         run: |
           set -euo pipefail
           name="WindowsIsland-${RELEASE_TAG#v}-win-x64"
-          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > "$RUNNER_TEMP/release-draft"; then
+            if [[ "$(cat "$RUNNER_TEMP/release-draft")" != true ]]; then
+              echo 'This release is already public. Published assets and notes must not be replaced.' >&2
+              exit 1
+            fi
+          else
             options=(--verify-tag --notes-file release.md --draft --title "Windows Island $RELEASE_TAG")
             if [[ "$RELEASE_TAG" == *-* ]]; then
               options+=(--prerelease)

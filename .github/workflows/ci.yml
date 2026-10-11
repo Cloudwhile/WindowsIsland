@@ -76,6 +76,9 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.value }}
         run: dotnet publish src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64 "-p:Version=$env:APP_VERSION" --no-build --no-restore
 
+      - name: Check published runtime files
+        run: ./packaging/Test-PublishRuntime.ps1
+
       - name: Package Windows application
         env:
           APP_VERSION: ${{ steps.version.outputs.value }}
@@ -99,6 +102,7 @@ jobs:
           }
           Copy-Item -LiteralPath LICENSE -Destination (Join-Path $publish 'LICENSE')
           Copy-Item -LiteralPath README.md -Destination (Join-Path $publish 'README.md')
+          Copy-Item -LiteralPath README.zh-CN.md -Destination (Join-Path $publish 'README.zh-CN.md')
           $distribution = Join-Path $env:GITHUB_WORKSPACE 'artifacts/distribution'
           New-Item -ItemType Directory -Path $distribution -Force | Out-Null
           $name = "WindowsIsland-$env:APP_VERSION-win-x64.zip"
@@ -120,6 +124,10 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.value }}
         run: ./packaging/Test-Msi.ps1 -InstallerPath "artifacts/distribution/WindowsIsland-$env:APP_VERSION-win-x64.msi"
+
+      - name: Check isolated MSI upgrades and rollback
+        timeout-minutes: 10
+        run: ./packaging/Test-MsiUpgrade.ps1
 
       - name: Upload Windows package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

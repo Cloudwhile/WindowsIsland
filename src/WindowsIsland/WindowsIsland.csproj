@@ -19,7 +19,11 @@
     <NeutralLanguage>zh-CN</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
-    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" />
+    <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.12" />
+    <KnownAppHostPack Update="Microsoft.NETCore.App" AppHostPackVersion="10.0.12" />
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="10.0.12" />
+    <KnownFrameworkReference Update="Microsoft.WindowsDesktop.App;Microsoft.WindowsDesktop.App.WPF;Microsoft.WindowsDesktop.App.WindowsForms"
+      LatestRuntimeFrameworkVersion="10.0.12" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
     <Content Include="Icons\LOGO.ico" Link="Assets\Island.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Icons\LOGO.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />

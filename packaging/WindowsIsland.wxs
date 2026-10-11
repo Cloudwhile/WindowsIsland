@@ -1,8 +1,8 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Windows Island $(ReleaseVersion)" Manufacturer="Cloudwhile"
+  <Package Name="Windows Island v$(ReleaseVersion)" Manufacturer="Cloudwhile"
            Version="$(MsiVersion)" UpgradeCode="8B397E71-1AA3-4F3B-911B-C08E0FAB484E"
            Language="1033" Scope="perUser" InstallerVersion="500">
-    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of Windows Island is already installed." />
+    <MajorUpgrade AllowSameVersionUpgrades="yes" Schedule="afterInstallFinalize" DowngradeErrorMessage="A newer version of Windows Island is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <Icon Id="AppIcon" SourceFile="$(PublishDirectory)\Assets\Island.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
@@ -38,10 +38,17 @@
         </Component>
       </Directory>
     </StandardDirectory>
+    <Binary Id="InstallerActions" SourceFile="$(InstallerActions)" />
+    <CustomAction Id="CaptureStartup" BinaryRef="InstallerActions" DllEntry="CaptureStartup" Return="check" />
+    <CustomAction Id="RestoreStartup" BinaryRef="InstallerActions" DllEntry="RestoreStartup"
+                  Return="check" />
+    <Property Id="RestoreStartup" Hidden="yes" />
     <CustomAction Id="UnregisterApplication" Directory="System64Folder"
                   ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Uninstall.ps1&quot; -InstallDirectory &quot;[INSTALLFOLDER].&quot;"
                   Execute="deferred" Impersonate="yes" Return="check" />
     <InstallExecuteSequence>
+      <Custom Action="CaptureStartup" Before="InstallInitialize" Condition="WIX_UPGRADE_DETECTED AND NOT Installed" />
+      <Custom Action="RestoreStartup" After="RemoveExistingProducts" Condition="RestoreStartup" />
       <Custom Action="UnregisterApplication" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot;" />
     </InstallExecuteSequence>
     <Feature Id="Application" Title="Windows Island">
