@@ -2,6 +2,34 @@
   "schema_version": 1,
   "releases": [
     {
+      "tag_name": "v0.1.0",
+      "name": "Windows Island v0.1.0",
+      "body": "# Windows Island v0.1.0\n\n> [!IMPORTANT]\n>\n> 消息岛首个正式版本。将 Windows 桌面消息汇集到轻巧的通知岛，让提醒随时可见，也能安静退场。\n\n## Highlights\n\n- 在通知岛中查看应用图标、会话头像、发送者与消息内容，显示时保持当前窗口的输入焦点。\n- Windows 通知、微信、Telegram 与电源提醒作为内置消息来源，可独立启停。\n- 八种显示方位、平滑动画、游戏与全屏静音，让提醒方式由你选择。\n\n## Features\n\n- **通知交互**：左键打开消息来源，右键关闭当前提醒；长消息自动换行，相同消息合并显示。\n- **微信与 Telegram**：接收已登录桌面客户端的新消息；微信遵循会话免打扰设置，头像可用时随消息显示。\n- **电源提醒**：查看电源连接、充电、断开与充满状态。\n- **外观与语言**：跟随系统浅色或深色主题，选择弹窗方位和动画，支持简体中文、English 与跟随系统语言。\n- **通知偏好**：游戏静音和全屏静音可分别设置；可切换 Windows 免打扰并继续接收消息。\n- **桌面常驻**：通过托盘打开设置或退出，按需开启登录自启。\n- **应用更新**：在设置中查看可用版本和下载信息，选择是否接收预发布版本。\n- **诊断与反馈**：手动生成、预览、复制、导出或清除本机诊断报告，由用户自行选择是否分享。\n\n## Getting Started\n\n1. 下载 MSI 安装包并安装，或完整解压 ZIP 后运行 `WindowsIsland.exe`。\n2. 在设置的“初始化”页完成应用初始化和通知授权。\n3. 选择消息来源，通过通知预览调整方位和动画。\n4. 点击完成图标，消息岛便会在后台接收提醒；点击托盘图标可随时返回设置。\n\n## Downloads\n\n适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。\n\n- [MSI 安装包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.msi)\n- [ZIP 压缩包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip)\n- 对应的 SHA-256 校验文件见下方附件。\n\n## Source\n\n[查看 v0.1.0 的源代码](https://github.com/Cloudwhile/WindowsIsland/tree/v0.1.0)。\n",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "WindowsIsland-0.1.0-win-x64.zip",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip",
+          "size": 121280246
+        },
+        {
+          "name": "WindowsIsland-0.1.0-win-x64.zip.sha256",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip.sha256",
+          "size": 98
+        },
+        {
+          "name": "WindowsIsland-0.1.0-win-x64.msi",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.msi",
+          "size": 93876535
+        },
+        {
+          "name": "WindowsIsland-0.1.0-win-x64.msi.sha256",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.msi.sha256",
+          "size": 98
+        }
+      ]
+    },
+    {
       "tag_name": "v0.1.0-rc.1",
       "name": "Windows Island v0.1.0-rc.1",
       "body": "# Windows Island v0.1.0-rc.1\n\n> [!IMPORTANT]\n>\n> Windows 消息岛的首个候选版本，面向希望提前体验并反馈问题的用户。此版本为预发布版本，微信接入仍处于实验阶段。\n\n## Highlights\n\n- 将桌面消息集中呈现为轻巧的通知药丸，显示应用图标、会话头像、发送者与消息内容。\n- 支持八个弹窗位置，从对应边缘的细线展开，收起时缩回贴边细线后消失。\n- 提供设置页与首次使用引导，可选择消息来源，并按引导关闭重复出现的系统通知横幅。\n\n## Added\n\n- 接入 Windows 通知、Telegram 消息和电源状态提示，提供已登录微信客户端的实验性会话监听。\n- 显示应用图标与圆形会话头像，支持微信联系人、群组和服务号等会话的头像读取。\n- 支持左上、左中、左下、中下、右下、右中、右上、中上八个位置，自动保存选择。\n- 支持左键打开通知对应的程序、右键关闭弹窗，以及约 5 秒后自动收起。\n- 添加通知预览、动画开关、消息来源开关和托盘入口。\n- 弹窗跟随系统浅色或深色主题，长消息自动换行，超出显示范围的内容以省略号呈现。\n- 展开、收起和连续来消息时平滑过渡，保持当前应用的输入焦点。\n- 同一消息来自多个来源时合并展示，启动时从新消息开始监听。\n- 提供 Windows x64 的 MSI 安装包、ZIP 压缩包及各自的 SHA-256 校验文件。\n\n## How to use\n\n1. 下载 `WindowsIsland-0.1.0-rc.1-win-x64.msi`，双击安装后从开始菜单打开 Windows Island。也可下载同名 ZIP 压缩包，完整解压后运行 `WindowsIsland.exe`。\n2. 首次启动进入设置页。\n3. 按设置页提示完成初始化和通知授权，使用“通知预览”检查效果。\n4. 如希望仅显示消息岛，展开“仅使用消息岛通知”，按引导关闭对应应用的系统通知横幅，保留通知中心和消息岛的系统通知来源。\n\n## Known Issues\n\n- 微信接入仍为实验性功能，不同客户端版本和窗口状态下，消息与头像读取可能存在差异；仅提醒未开启消息免打扰的会话。\n- 原通知未提供可用会话头像时，将显示应用图标或名称首字。\n- 超长消息仅显示部分预览，可左键打开对应程序查看完整内容。\n\n## Compatibility\n\n- Windows 10 2004 及以上版本、Windows 11，x64 设备。\n- Telegram 和微信消息接入需要对应桌面客户端已登录。\n\n## Contributors\n\n- [Cloudwhile](https://github.com/Cloudwhile)\n\n## Full Changelog\n\n首次发布：[查看本版本的提交记录](https://github.com/Cloudwhile/WindowsIsland/commits/v0.1.0-rc.1)。\n",
