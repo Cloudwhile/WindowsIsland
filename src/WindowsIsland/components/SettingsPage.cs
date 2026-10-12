@@ -59,7 +59,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private bool _windowsReading, _windowsAvailable;
     private int _windowsRevision;
 
-    public SettingsPage(SettingsStore store, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
+    public SettingsPage(SettingsStore store, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false,
         Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null)
     {
@@ -138,7 +138,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         AddSection("sources", "Sources", new SettingsSection("Sources", _sources),
             new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),
             new SettingsSection("NotificationDisplay", _doNotDisturbSettings));
-        _updates = new SettingsUpdates(store, exit);
+        _updates = new SettingsUpdates(store, updates, exit);
         AddSection("updates", "Updates", _updates);
         _diagnostics = new SettingsDiagnostics(store, pickDiagnosticFile ?? (() => Task.FromResult<string?>(null)),
             async () => { await retrySource(BuiltInPluginDefinitions.WeChat.Id); Refresh(); });

@@ -21,6 +21,7 @@ public sealed class MainWindow : Window
     private readonly Grid _surfaceLayer;
     private readonly NotificationPluginHost _plugins;
     private readonly SettingsStore _settings;
+    private readonly UpdateCheckService _updates;
     private SettingsWindow? _settingsWindow;
     private readonly MessageRouter _router = new();
     private readonly GameModePolicy _gameMode = new();
@@ -50,6 +51,7 @@ public sealed class MainWindow : Window
     internal MainWindow(SettingsStore settings, bool verification = false, bool showUpdateResult = false)
     {
         _settings = settings;
+        _updates = new UpdateCheckService(settings);
         _appliedSettings = settings.Current;
         _position = settings.Current.Position;
         _verification = verification;
@@ -139,6 +141,7 @@ public sealed class MainWindow : Window
             _closed = true;
             _settingsWindow?.Close();
             _settings.Changed -= OnSettingsChanged;
+            _updates.Dispose();
             _pulse.Stop();
             _motion.Dispose();
             _input.Dispose();
@@ -157,6 +160,7 @@ public sealed class MainWindow : Window
     {
         if (_started || _closed) return;
         _started = true;
+        if (!_verification) _ = _updates.StartOnce();
         await PollGameModeAsync();
         if (_closed) return;
         _pulse.Start();
@@ -168,7 +172,7 @@ public sealed class MainWindow : Window
         if (_closed) return;
         if (_settingsWindow is null)
         {
-            _settingsWindow = new SettingsWindow(_settings,
+            _settingsWindow = new SettingsWindow(_settings, _updates,
                 () => new SettingsSnapshot(_plugins.Access, AppInitialization.HasIdentity, _plugins.Snapshot(), _gameMode.Reason),
                 InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult, _verification,
                 _plugins.RetryAsync);

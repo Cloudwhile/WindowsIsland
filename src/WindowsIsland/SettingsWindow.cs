@@ -13,13 +13,13 @@ internal sealed class SettingsWindow : Window
 {
     private readonly DispatcherQueueTimer _refresh;
 
-    public SettingsWindow(SettingsStore settings, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
+    public SettingsWindow(SettingsStore settings, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false,
         Func<string, Task>? retrySource = null)
     {
         Title = Localization.Get("WindowSettingsTitle");
         SystemBackdrop = new MicaBackdrop();
-        var page = new SettingsPage(settings, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification,
+        var page = new SettingsPage(settings, updates, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification,
             PickDiagnosticFileAsync, retrySource);
         var titleBar = new TitleBar
         {

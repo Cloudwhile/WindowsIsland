@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net.Http;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -12,6 +11,9 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
 {
     private readonly SettingsStore _store;
     private readonly Action _restart;
+    private readonly UpdateCheckService _updates;
+    private UpdateCheckState? _shownState;
+    private bool _preserveResult;
     private readonly GitHubReleaseClient _client = new();
     private readonly ToggleSwitch _prereleases = new() { OnContent = null, OffContent = null, MinWidth = 0 };
     private readonly IconActionButton _check = new(Symbol.Refresh, "ActionCheckUpdates", "CheckForUpdates");
@@ -35,9 +37,10 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     private object[] _messageArguments = [];
     private double? _percent;
 
-    public SettingsUpdates(SettingsStore store, Action restart)
+    public SettingsUpdates(SettingsStore store, UpdateCheckService updates, Action restart)
     {
         _store = store;
+        _updates = updates;
         _restart = restart;
         _versionRow = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE946), FontSize = 20 },
             "UpdateCurrentVersion", _check) { Status = ReleaseVersion.Current.Tag };
@@ -65,7 +68,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         Children.Add(_release);
         _check.Click += async (_, _) => await CheckAsync();
         _install.Click += async (_, _) => await InstallAsync();
-        _cancel.Click += (_, _) => _operation?.Cancel();
+        _cancel.Click += (_, _) => { if (_busy) _operation?.Cancel(); else _updates.Cancel(); };
         _releasePage.Click += async (_, _) =>
         {
             if (_candidate is not { } candidate) return;
@@ -86,47 +89,70 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         _store.Changed += OnSettingsChanged;
         LocalizedUI.Bind(this, RefreshLanguage);
         Refresh();
+        _updates.Changed += OnCheckChanged;
         if (UpdateInstaller.ReadResult() is { } result)
+        {
+            _preserveResult = true;
             Show(result.Success ? "UpdateComplete" : result.MessageKey is "UpdateRestored" or "UpdateBackupRetained" ? result.MessageKey : "UpdateFailed",
                 result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error,
                 result.Success ? [result.Version] : []);
+        }
+        _ = RefreshCheckAsync();
     }
 
     private async Task CheckAsync()
     {
         if (_busy || _disposed) return;
-        Begin(TimeSpan.FromSeconds(45));
-        _candidate = null;
-        _checked = false;
-        _release.Visibility = _releasePage.Visibility = Visibility.Collapsed;
-        Show("UpdateChecking", InfoBarSeverity.Informational);
+        _preserveResult = false;
+        await _updates.CheckAsync();
+    }
+
+    private void OnCheckChanged() => DispatcherQueue.TryEnqueue(() => _ = RefreshCheckAsync());
+
+    private async Task RefreshCheckAsync()
+    {
+        if (_disposed || _busy) return;
+        var state = _updates.State;
+        if (ReferenceEquals(state, _shownState)) return;
+        _shownState = state;
+        _candidate = state.Candidate;
+        _checked = state.Checked;
+        _packageSize = null;
+        _release.Visibility = _releasePage.Visibility = _candidate is null ? Visibility.Collapsed : Visibility.Visible;
+        _cancel.Visibility = _progress.Visibility = state.Busy ? Visibility.Visible : Visibility.Collapsed;
+        _cancel.IsEnabled = true;
+        _progress.IsIndeterminate = state.Busy;
+        if (_candidate is { } candidate)
+        {
+            _releaseName.Text = candidate.Name;
+            _notes.Text = candidate.Notes.Length == 0 ? Localization.Get("UpdateNotesEmpty") : candidate.Notes;
+        }
+        if (!_preserveResult)
+        {
+            if (state.Busy) Show("UpdateChecking", InfoBarSeverity.Informational);
+            else if (state.ErrorKey is { } error) Show(error, InfoBarSeverity.Error);
+            else if (state.Canceled) Show("UpdateCheckCanceled", InfoBarSeverity.Informational);
+            else if (state.Candidate is { } found)
+                Show(found.IsPrerelease ? "UpdateFoundPrerelease" : "UpdateFound", InfoBarSeverity.Informational, found.Tag);
+            else if (state.Checked) Show("UpdateNone", InfoBarSeverity.Success);
+            else { _messageKey = null; _status.Visibility = Visibility.Collapsed; }
+        }
+        Refresh();
+        if (state.Candidate is not { } release) return;
         try
         {
-            var candidate = await _client.FindUpdateAsync(ReleaseVersion.Current, _includePrereleases, _operation!.Token);
-            if (_disposed) return;
-            _candidate = candidate;
-            _checked = true;
-            // Size of the single package this installation type downloads.
-            _packageSize = candidate is null ? null : await Task.Run(() => UpdateInstaller.IsMsiInstallation()) && candidate.Installer is { } msi
-                ? msi.Size : candidate.Archive.Size;
-            if (_disposed) return;
-            if (candidate is null) Show("UpdateNone", InfoBarSeverity.Success);
-            else
-            {
-                Show(candidate.IsPrerelease ? "UpdateFoundPrerelease" : "UpdateFound", InfoBarSeverity.Informational, candidate.Version.Display);
-                _releaseName.Text = candidate.Name;
-                _notes.Text = candidate.Notes.Length == 0 ? Localization.Get("UpdateNotesEmpty") : candidate.Notes;
-                _release.Visibility = _releasePage.Visibility = Visibility.Visible;
-            }
+            var msi = await Task.Run(() => UpdateInstaller.IsMsiInstallation());
+            if (_disposed || !ReferenceEquals(state, _updates.State)) return;
+            _packageSize = msi && release.Installer is { } installer ? installer.Size : release.Archive.Size;
+            RefreshAvailable();
         }
-        catch (OperationCanceledException) { if (!_disposed) Show("UpdateCheckCanceled", InfoBarSeverity.Informational); }
-        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Updates, error); Trace.WriteLine(error); if (!_disposed) Show(Localization.ErrorKey(error, "UpdateFetchError"), InfoBarSeverity.Error); }
-        finally { End(); }
+        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Updates, error); }
     }
 
     private async Task InstallAsync()
     {
-        if (_busy || _disposed || _candidate is not { } candidate) return;
+        if (_busy || _disposed || _updates.State.Busy || _candidate is not { } candidate
+            || !ReferenceEquals(candidate, _updates.State.Candidate)) return;
         Begin(TimeSpan.FromMinutes(15));
         Show("UpdatePreparing", InfoBarSeverity.Informational);
         try
@@ -171,6 +197,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         if (_disposed) return;
         _progress.Visibility = _cancel.Visibility = Visibility.Collapsed;
         Refresh();
+        if (!ReferenceEquals(_shownState, _updates.State)) _ = RefreshCheckAsync();
     }
 
     private void Show(string messageKey, InfoBarSeverity severity, params object[] arguments)
@@ -220,6 +247,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             _operation?.Cancel();
             _candidate = null;
             _checked = false;
+            _preserveResult = false;
             _release.Visibility = _releasePage.Visibility = _status.Visibility = Visibility.Collapsed;
         }
         RefreshAvailable();
@@ -227,8 +255,10 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         _syncing = true;
         try { _prereleases.IsOn = include; }
         finally { _syncing = false; }
-        _prereleases.IsEnabled = _check.IsEnabled = !_busy;
-        _install.IsEnabled = !_busy && _candidate is not null;
+        _prereleases.IsEnabled = !_busy;
+        _check.IsEnabled = !_busy && !_updates.State.Busy;
+        _install.IsEnabled = !_busy && !_updates.State.Busy && _candidate is not null
+            && ReferenceEquals(_candidate, _updates.State.Candidate);
     }
 
     public void Dispose()
@@ -236,6 +266,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         if (_disposed) return;
         _disposed = true;
         _store.Changed -= OnSettingsChanged;
+        _updates.Changed -= OnCheckChanged;
         _operation?.Cancel();
         _client.Dispose();
     }
