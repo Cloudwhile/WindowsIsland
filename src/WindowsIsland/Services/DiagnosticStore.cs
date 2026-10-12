@@ -18,12 +18,14 @@ internal sealed class DiagnosticStore : IDisposable
     private bool _enabled, _disposed, _dirty;
     public bool PersistenceFailed { get; private set; }
     public bool Enabled { get { lock (_gate) return _enabled; } }
+    public DiagnosticReportCache Reports { get; }
 
     public DiagnosticStore(string directory, bool enabled, Func<DateTimeOffset>? clock = null)
     {
         _path = Path.Combine(directory, "diagnostics.json");
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
         _enabled = enabled;
+        Reports = new(ReportJson);
         _writer = new Timer(_ => Flush(), null, Timeout.Infinite, Timeout.Infinite);
         Load();
     }
@@ -69,6 +71,7 @@ internal sealed class DiagnosticStore : IDisposable
         lock (_gate)
         {
             _entries.Clear();
+            Reports.Invalidate();
             _dirty = true;
             FlushCore(); // Serialized with pending writes so cleared entries cannot reappear.
         }
@@ -94,7 +97,9 @@ internal sealed class DiagnosticStore : IDisposable
         var temporary = fullPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            await File.WriteAllTextAsync(temporary, ReportJson(), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            var report = await Reports.GetAsync().WaitAsync(cancellationToken);
+            await File.WriteAllTextAsync(temporary, report, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             File.Move(temporary, fullPath, true);
         }
@@ -166,6 +171,6 @@ internal sealed class DiagnosticStore : IDisposable
 
     public void Dispose()
     {
-        lock (_gate) { if (_disposed) return; _disposed = true; _writer.Dispose(); Flush(); }
+        lock (_gate) { if (_disposed) return; _disposed = true; Reports.Dispose(); _writer.Dispose(); Flush(); }
     }
 }

@@ -450,7 +450,9 @@
   </data>
   <data name="DiagnosticsTitle" xml:space="preserve"><value>诊断与反馈</value></data>
   <data name="DiagnosticsRecord" xml:space="preserve"><value>在本机记录诊断</value></data>
-  <data name="DiagnosticsRecent" xml:space="preserve"><value>最近诊断</value></data>
+  <data name="DiagnosticsGenerate" xml:space="preserve"><value>手动生成诊断报告</value></data>
+  <data name="DiagnosticsGenerated" xml:space="preserve"><value>诊断报告已生成。</value></data>
+  <data name="DiagnosticsRecent" xml:space="preserve"><value>诊断报告</value></data>
   <data name="DiagnosticsView" xml:space="preserve"><value>查看诊断报告</value></data>
   <data name="DiagnosticsExport" xml:space="preserve"><value>导出诊断报告</value></data>
   <data name="DiagnosticsClear" xml:space="preserve"><value>清除本机诊断记录</value></data>

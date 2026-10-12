@@ -140,8 +140,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             new SettingsSection("NotificationDisplay", _doNotDisturbSettings));
         _updates = new SettingsUpdates(store, updates, exit);
         AddSection("updates", "Updates", _updates);
-        _diagnostics = new SettingsDiagnostics(store, pickDiagnosticFile ?? (() => Task.FromResult<string?>(null)),
-            async () => { await retrySource(BuiltInPluginDefinitions.WeChat.Id); Refresh(); });
+        _diagnostics = new SettingsDiagnostics(store, pickDiagnosticFile ?? (() => Task.FromResult<string?>(null)));
         AddSection("diagnostics", "DiagnosticsTitle", _diagnostics);
         Grid.SetRow(_content, 2);
         layout.Children.Add(_content);

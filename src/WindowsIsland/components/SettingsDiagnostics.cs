@@ -7,11 +7,10 @@ namespace WindowsIsland.Components;
 
 internal sealed class SettingsDiagnostics : StackPanel, IDisposable
 {
-    private const int VisibleEntries = 20;
     private readonly SettingsStore _settings;
     private readonly Func<Task<string?>> _pickFile;
-    private readonly Func<Task> _retry;
     private readonly ToggleSwitch _record = new() { OnContent = null, OffContent = null, MinWidth = 0 };
+    private readonly IconActionButton _generate = new(Symbol.Refresh, "DiagnosticsGenerate", "GenerateDiagnostics");
     private readonly IconActionButton _view = new(Symbol.View, "DiagnosticsView", "ViewDiagnostics");
     private readonly IconActionButton _export = new(Symbol.Save, "DiagnosticsExport", "ExportDiagnostics");
     private readonly IconActionButton _clear = new(Symbol.Delete, "DiagnosticsClear", "ClearDiagnostics");
@@ -22,25 +21,21 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
         MaxHeight = 360, Margin = new Thickness(12), Visibility = Visibility.Collapsed
     };
-    private readonly StackPanel _entries = new();
-    private readonly HashSet<string> _expanded = [];
     private readonly InfoBar _status = new() { IsClosable = false, IsOpen = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly SettingsRow _recordRow, _recentRow, _feedbackRow;
     private bool _syncing, _busy, _disposed;
-    private string? _statusKey, _signature;
+    private string? _statusKey;
 
-    public SettingsDiagnostics(SettingsStore settings, Func<Task<string?>> pickFile, Func<Task> retry)
+    public SettingsDiagnostics(SettingsStore settings, Func<Task<string?>> pickFile)
     {
         _settings = settings;
         _pickFile = pickFile;
-        _retry = retry;
         _recordRow = new SettingsRow(Symbol.Document, "DiagnosticsRecord", _record);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        actions.Children.Add(_view); actions.Children.Add(_export); actions.Children.Add(_clear);
+        actions.Children.Add(_generate); actions.Children.Add(_view); actions.Children.Add(_export); actions.Children.Add(_clear);
         _recentRow = new SettingsRow(Symbol.Important, "DiagnosticsRecent", actions, "DiagnosticsSummary");
         Children.Add(_recordRow);
         Children.Add(_recentRow);
-        Children.Add(_entries);
         Children.Add(_details);
         var feedback = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         feedback.Children.Add(_copy); feedback.Children.Add(_feedback);
@@ -53,7 +48,6 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         Children.Add(_status);
         AutomationProperties.SetAutomationId(_record, "LocalDiagnosticsToggle");
         AutomationProperties.SetAutomationId(_details, "DiagnosticDetails");
-        AutomationProperties.SetAutomationId(_entries, "DiagnosticEntries");
         AutomationProperties.SetAutomationId(_status, "DiagnosticStatus");
         LocalizedUI.Label(_record, "DiagnosticsRecord");
         LocalizedUI.Label(_details, "DiagnosticsView");
@@ -68,10 +62,17 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
             catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Show("ErrorSettingsSave", true); }
             Refresh();
         };
+        _generate.Click += async (_, _) => await RunAsync(async () =>
+        {
+            var report = await ReportAsync();
+            if (_disposed) return;
+            if (_details.Visibility == Visibility.Visible) _details.Text = report;
+            Show("DiagnosticsGenerated");
+        });
         _view.Click += async (_, _) => await RunAsync(async () =>
         {
             if (_details.Visibility == Visibility.Visible) { _details.Visibility = Visibility.Collapsed; return; }
-            var report = await Task.Run(() => Diagnostics.Store?.ReportJson() ?? "{}");
+            var report = await ReportAsync();
             if (_disposed) return;
             _details.Text = report;
             _details.Visibility = Visibility.Visible;
@@ -86,7 +87,7 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         });
         _copy.Click += async (_, _) => await RunAsync(async () =>
         {
-            var report = await Task.Run(() => Diagnostics.Store?.ReportJson()) ?? throw new InvalidOperationException("Diagnostics unavailable.");
+            var report = await ReportAsync();
             if (_disposed) return;
             var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(report);
@@ -99,7 +100,6 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
             if (_disposed) return;
             _details.Text = "";
             _details.Visibility = Visibility.Collapsed;
-            _expanded.Clear();
             Show("DiagnosticsCleared");
         });
         _feedback.Click += async (_, _) => await RunAsync(async () =>
@@ -126,64 +126,13 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         var failures = entries.Count(entry => DiagnosticPresentation.Outcome(entry) == DiagnosticOutcome.Failure);
         _recentRow.Status = entries.Length == 0 ? Localization.Get("DiagnosticsEmpty") : Localization.Format("DiagnosticsRecordCount", entries.Length, failures);
         _recentRow.Tone = failures > 0 ? StatusTone.Critical : StatusTone.Neutral;
-        RefreshEntries(entries);
         _record.IsEnabled = !_busy;
-        _view.IsEnabled = _export.IsEnabled = _copy.IsEnabled = !_busy && store is not null;
+        _generate.IsEnabled = _view.IsEnabled = _export.IsEnabled = _copy.IsEnabled = !_busy && store is not null;
         _clear.IsEnabled = !_busy && entries.Length > 0;
         _feedback.IsEnabled = !_busy;
         if (_statusKey is not null) _status.Message = Localization.Get(_statusKey);
         _feedbackRow.Status = Localization.Get("DiagnosticsFeedbackHint");
     }
-
-    // Rebuilt only when records or the language change, so the 1 s refresh keeps expansion and focus.
-    private void RefreshEntries(DiagnosticEntry[] entries)
-    {
-        var latest = Enumerable.Reverse(entries).Take(VisibleEntries).ToArray();
-        var signature = Localization.Language + "|" + string.Join(';', latest.Select(entry => entry.Id + ":" + entry.Count + ":" + entry.LastSeen.Ticks));
-        if (signature == _signature) return;
-        _signature = signature;
-        _expanded.IntersectWith(latest.Select(entry => entry.Id));
-        _entries.Children.Clear();
-        foreach (var entry in latest) _entries.Children.Add(Entry(entry));
-    }
-
-    private SettingsExpander Entry(DiagnosticEntry entry)
-    {
-        var success = DiagnosticPresentation.Outcome(entry) == DiagnosticOutcome.Success;
-        var icon = new FontIcon { Glyph = char.ConvertFromUtf32(success ? 0xE73E : 0xE783), FontSize = 16 };
-        var row = new SettingsExpander(icon, DiagnosticPresentation.Title(entry), "DiagnosticEntry." + entry.Id,
-            "DiagnosticEntryStatus." + entry.Id, localizeTitle: false);
-        row.Header.Status = DiagnosticPresentation.Summary(entry);
-        row.Header.Tone = success ? StatusTone.Success : StatusTone.Critical;
-        var lines = new StackPanel { Spacing = 4, Padding = new Thickness(12, 4, 12, 10) };
-        void Line(string text)
-        {
-            var block = IslandTheme.Text(text, 12, secondary: true);
-            block.TextWrapping = TextWrapping.Wrap;
-            block.IsTextSelectionEnabled = true;
-            lines.Children.Add(block);
-        }
-        Line(Localization.Format("DiagnosticTime", Time(entry.FirstSeen), Time(entry.LastSeen)));
-        Line(entry.ClientVersion is { } client
-            ? Localization.Format("DiagnosticVersionsWithClient", entry.AppVersion, Localization.Get("DiagnosticsArea" + entry.Area), client)
-            : Localization.Format("DiagnosticVersion", entry.AppVersion));
-        if (DiagnosticPresentation.Reason(entry) is { } reason) Line(Localization.Format("DiagnosticReason", reason));
-        if (DiagnosticPresentation.Suggestion(entry) is { } suggestion) Line(Localization.Format("DiagnosticSuggestion", suggestion));
-        Line(Localization.Format("DiagnosticShortId", DiagnosticPresentation.ShortId(entry)));
-        if (DiagnosticPresentation.CanRetrySource(entry))
-        {
-            var retry = new IconActionButton(Symbol.Refresh, "ActionRetrySource", "DiagnosticRetry." + entry.Id)
-            { HorizontalAlignment = HorizontalAlignment.Left };
-            retry.Click += async (_, _) => await RunAsync(async () => { await _retry(); if (!_disposed) Show("DiagnosticsRetryStarted"); });
-            lines.Children.Add(retry);
-        }
-        row.Rows.Add(lines);
-        row.IsExpanded = _expanded.Contains(entry.Id);
-        row.ExpandedChanged += expanded => { if (expanded) _expanded.Add(entry.Id); else _expanded.Remove(entry.Id); };
-        return row;
-    }
-
-    private static string Time(DateTimeOffset value) => value.ToLocalTime().ToString("g", Localization.Culture);
 
     private async Task RunAsync(Func<Task> action)
     {
@@ -199,6 +148,9 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         }
         finally { _busy = false; Refresh(); }
     }
+
+    private static Task<string> ReportAsync() => Diagnostics.Store?.Reports.GetAsync()
+        ?? throw new InvalidOperationException("Diagnostics unavailable.");
 
     private void Show(string key, bool error = false)
     {

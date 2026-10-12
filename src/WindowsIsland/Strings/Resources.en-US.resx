@@ -450,7 +450,9 @@
   </data>
   <data name="DiagnosticsTitle" xml:space="preserve"><value>Diagnostics &amp; feedback</value></data>
   <data name="DiagnosticsRecord" xml:space="preserve"><value>Record diagnostics locally</value></data>
-  <data name="DiagnosticsRecent" xml:space="preserve"><value>Recent diagnostics</value></data>
+  <data name="DiagnosticsGenerate" xml:space="preserve"><value>Generate diagnostic report</value></data>
+  <data name="DiagnosticsGenerated" xml:space="preserve"><value>Diagnostic report is ready.</value></data>
+  <data name="DiagnosticsRecent" xml:space="preserve"><value>Diagnostic report</value></data>
   <data name="DiagnosticsView" xml:space="preserve"><value>View diagnostic report</value></data>
   <data name="DiagnosticsExport" xml:space="preserve"><value>Export diagnostic report</value></data>
   <data name="DiagnosticsClear" xml:space="preserve"><value>Clear local diagnostic records</value></data>

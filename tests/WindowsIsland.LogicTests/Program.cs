@@ -241,6 +241,7 @@ StatusChecks.Run(Check);
 ToastImageChecks.Run(Check);
 NotificationImageStoreChecks.Run(Check);
 await DiagnosticChecks.RunAsync(Check);
+await DiagnosticReportCacheChecks.RunAsync(Check);
 await PluginChecks.RunAsync(Check);
 await RegisteredRestartChecks.RunAsync(Check);
 await UpdateChecks.RunAsync(Check);
