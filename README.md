@@ -86,11 +86,9 @@ Open **Updates** and click the check icon to see available releases and their no
 
 **Include prerelease updates** is off by default. Enable it to receive release candidates. Updates verify downloaded files and preserve your preferences. MSI installations upgrade through the installer; ZIP installations restore the previous files if replacement fails.
 
-`v0.1.0-rc.1` does not include in-app updates. Download a newer version from [Releases](https://github.com/Cloudwhile/WindowsIsland/releases). Use the same manual download option if an older version cannot check for or install an update.
-
 ## Diagnostics and feedback
 
-Use **Diagnostics & feedback** to view recent records, expand causes and suggestions, or retry a connection. You can preview, copy, export and clear local diagnostic reports. Reports are never uploaded automatically. The feedback button opens a GitHub Issue form, where you choose whether to attach a report.
+Use **Diagnostics & feedback** to manually generate, preview, copy, export and clear local diagnostic reports. Reports are never uploaded automatically. The feedback button opens a GitHub Issue form, where you choose whether to attach a report.
 
 Reports exclude message text, avatars and account information. GitHub Issues are public, so review any text and attachments before submitting them.
 
