@@ -18,79 +18,81 @@
 <p>
   <a href="#getting-started">Getting started</a> ·
   <a href="#notification-sources">Notification sources</a> ·
-  <a href="#building-from-source">Building from source</a>
+  <a href="#settings">Settings</a>
 </p>
 
 </div>
 
-New notifications appear in a compact island at the top of your screen, or at any of eight positions you choose. The island shows the app icon, conversation avatar and message, then folds away. A system tray icon keeps settings within reach while the island is idle.
+Windows Island brings desktop notifications into a compact island with app icons, conversation avatars and messages. Choose one of eight screen positions, keep your keyboard focus, and let the island fold away after each notification.
 
 ## Getting started
 
-Download the MSI installer from [Releases](https://github.com/Cloudwhile/WindowsIsland/releases), install it and open Windows Island from the Start menu. Alternatively, extract the entire ZIP archive and run `WindowsIsland.exe`.
+Download Windows Island from [Releases](https://github.com/Cloudwhile/WindowsIsland/releases). Supports Windows 10 version 2004 or later and Windows 11, on x64 PCs.
 
-1. Open **Setup** and click the icon beside **App initialization**.
+| Package | How to open |
+| --- | --- |
+| MSI installer | Install, then open Windows Island from the Start menu |
+| ZIP archive | Extract the entire archive, then run `WindowsIsland.exe` |
+
+1. In **Setup**, click the icon beside **App initialization**.
 2. Click the icon beside **Notification access** and allow access in the Windows prompt.
-3. Use the notification preview to check the appearance, then choose your notification sources.
-4. Click the completion icon in the upper right.
+3. Choose your sources in **Sources**. Use the preview to check the island, then select its position and animation in **Appearance**.
+4. Click the completion icon in the upper right. The app remains available in the system tray.
 
-Settings are saved automatically. Launching the app again opens the existing instance's settings. If notification access is unavailable, use the Windows settings shortcut to manage permission, then refresh or retry.
-
-To reduce Windows banner interruptions, turn on **Sources → Windows do not disturb**. Windows Island continues receiving messages, while Windows retains your priority notification exceptions.
+Settings save automatically. Click the tray icon to reopen settings, or right-click it to check status and exit. If notification access needs attention, use the Windows settings shortcut in Setup, then refresh or retry.
 
 ## Notification experience
 
 | Feature | Behavior |
 | --- | --- |
-| Icons and avatars | Shows a conversation avatar when available, with the app icon beside its name; otherwise uses the app icon |
-| Native appearance | Follows the Windows light or dark theme, with separate app, sender, message and time fields |
-| Always on top | Displays above other windows without taking keyboard focus |
-| Mouse actions | Left-click opens the source app when available; right-click dismisses the notification |
-| Eight positions | Top left, middle left, bottom left, bottom center, bottom right, middle right, top right and top center |
-| Smooth animation | Expands from a thin line at the chosen screen edge and folds back when dismissed; animations can be disabled |
+| Icons and avatars | Displays conversation avatars when available, with an app icon as the fallback |
+| Native appearance | Follows the Windows light or dark theme |
+| Focus stays yours | Notifications remain on top without taking keyboard focus |
+| Mouse actions | Left-click opens the source app when available; right-click dismisses the island |
+| Eight positions | Choose any corner or the center of any screen edge |
+| Animation | Expands from the chosen edge and folds away; animations can be turned off |
 | Long messages | Wraps text and truncates overflow while keeping icons visible |
-| Automatic dismissal | Shows each notification for about five seconds; a new message updates the island and restarts the timer |
-| Message merging | Combines copies of the same message from multiple sources and keeps available icons and avatars |
-
-Startup and renewed authorization begin with new messages. Existing notifications remain in Windows Notification Center.
+| Automatic dismissal | Each notification stays for about five seconds; new messages refresh the island |
+| Message merging | Combines copies of the same message from multiple sources |
 
 ## Notification sources
 
-Sources are provided as built-in plugins. Enable or disable them independently and check their connection status in settings.
+Sources are built-in plugins with independent switches and connection status.
 
 | Source | Notifications |
 | --- | --- |
-| Windows notifications | New Windows notifications, including those from apps such as QQ |
+| Windows notifications | New system notifications, including those from apps such as QQ |
+| WeChat | New messages and unread previews from a signed-in desktop client, with conversation avatars when available and support for muted conversations |
 | Telegram | New messages from a signed-in desktop client |
-| WeChat | New messages and unread previews from a signed-in desktop client, respecting muted conversations and adding avatars when available |
 | Power | Power connection, charging, disconnection and full-charge events |
 
-Disabling Windows notifications leaves other enabled sources running. WeChat starts from the current conversation state on first connection, re-enabling or client restart, so previous messages are not replayed. Available message and avatar information depends on the desktop client; an app icon is used when an avatar is unavailable.
+The island starts with new messages when a source connects or is re-enabled. Muted WeChat conversations stay quiet, and previous messages are not replayed. Turning off one source leaves the others running.
 
-**Mute during games** and **Mute during full screen** are independent switches, both enabled by default. When either enabled condition applies, the island dismisses its current notification and pauses popups. It resumes with new messages afterward, without replaying the backlog. Game detection uses the full-screen game state reported by Windows; windowed games and some borderless games fall outside this detection scope.
+## Settings
 
-## Tray and settings
+The sidebar contains **Setup**, **Sources**, **Appearance**, **Updates**, and **Diagnostics & feedback**.
 
-The sidebar contains **Setup**, **Sources**, **Appearance**, **Updates**, and **Diagnostics & feedback**. Narrow windows use icon navigation, and longer pages scroll.
+| Setting | What you can choose |
+| --- | --- |
+| Launch at startup | Enable in Setup and approve the Windows administrator prompt to launch in the background when you sign in |
+| Game and full-screen mute | Control the two switches independently in Sources; both are enabled by default |
+| Windows do not disturb | Toggle in Sources to quiet Windows banners while Windows Island continues receiving messages; Windows priority exceptions still apply |
+| Position and animation | Choose a screen position, toggle animation and preview a notification in Appearance |
+| Language | Choose Simplified Chinese, English or the system language in Appearance; the app defaults to Simplified Chinese |
 
-- **Startup:** turn on **Launch at startup** in Setup and approve the Windows administrator prompt. Canceling the prompt keeps the previous setting. Login launches the app in the background.
-- **Do not disturb:** toggle Windows do not disturb from Sources, or use the adjacent icon to open Windows notification settings. This is independent of the island's game and full-screen mute settings.
-- **Language:** select Simplified Chinese, English or the system language in Appearance. Changes apply immediately and are saved. The app defaults to Simplified Chinese, which is also the fallback for unsupported system languages.
-- **Open settings:** click the tray icon.
-- **Check status or exit:** right-click the tray icon.
-- **Dismiss a notification:** right-click the island; message listening continues.
+When a selected game or full-screen mute condition is detected, the island pauses popups. New messages appear again when it ends, without replaying the backlog. Windows do not disturb is a separate setting.
 
 ## Updates
 
-Open **Updates** and click the check icon to see available releases and their notes. When an update is available, click download to prepare it; Windows Island restarts to finish updating. Downloads can be canceled or retried.
+Open **Updates** and click the check icon to view available releases and their notes. Click download to prepare an update; the app restarts to complete installation and keeps your preferences. Downloads can be canceled or retried.
 
-**Include prerelease updates** is off by default. Enable it to receive release candidates. Updates verify downloaded files and preserve your preferences. MSI installations upgrade through the installer; ZIP installations restore the previous files if replacement fails.
+**Include prerelease updates** is off by default. Enable it if you also want to receive prereleases.
 
 ## Diagnostics and feedback
 
-Use **Diagnostics & feedback** to manually generate, preview, copy, export and clear local diagnostic reports. Reports are never uploaded automatically. The feedback button opens a GitHub Issue form, where you choose whether to attach a report.
+In **Diagnostics & feedback**, use the generate icon to create a local diagnostic report. You can preview, copy or export it, control local diagnostic collection, and clear stored records.
 
-Reports exclude message text, avatars and account information. GitHub Issues are public, so review any text and attachments before submitting them.
+Reports are never uploaded automatically and exclude message text, avatars and account information. The feedback icon opens a [GitHub Issue form](https://github.com/Cloudwhile/WindowsIsland/issues/new/choose); you decide whether to attach a report. Issues are public, so review your text and attachments before submitting.
 
 ## Building from source
 
@@ -101,7 +103,7 @@ dotnet build src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64
 dotnet publish src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64
 ```
 
-Published files are placed in `artifacts/publish/`. Copy the entire directory, run `WindowsIsland.exe` and follow the setup steps.
+Published files are placed in `artifacts/publish/`. Copy the entire directory and open `WindowsIsland.exe`.
 
 ## License
 
