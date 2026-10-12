@@ -57,31 +57,47 @@ function Assert-InstalledVersion {
     }
 }
 
-$jobDirectory = Full-Path ([IO.Path]::GetDirectoryName((Full-Path $JobPath)))
-$workRoot = [IO.Path]::GetDirectoryName($jobDirectory)
-$jobId = [Guid]::Empty
-if (!(Full-Path $PSScriptRoot).Equals($jobDirectory, [StringComparison]::OrdinalIgnoreCase) -or
-    ![Guid]::TryParseExact([IO.Path]::GetFileName($jobDirectory), 'N', [ref]$jobId)) {
-    throw '更新任务目录无效。'
+function Write-UpdateError([object]$failure) {
+    $detail = $stage + [Environment]::NewLine + ($failure | Out-String)
+    if ($detail.Length -gt 8192) { $detail = $detail.Substring(0, 8192) }
+    try { [IO.File]::WriteAllText((Join-Path $jobDirectory 'error.log'), $detail, [Text.UTF8Encoding]::new($true)) }
+    catch { }
 }
-Assert-NoLinks $jobDirectory
-$job = Get-Content -LiteralPath $JobPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$install = Full-Path $job.InstallDirectory
-$payload = Full-Path $job.PayloadDirectory
-$backup = Join-Path $jobDirectory 'backup'
-$executable = Join-Path $install 'WindowsIsland.exe'
-if ($install -eq [IO.Path]::GetPathRoot($install).TrimEnd('\') -or
-    $install.StartsWith($workRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
-    !$payload.Equals((Join-Path $jobDirectory 'payload'), [StringComparison]::OrdinalIgnoreCase)) {
-    throw '更新目标目录无效。'
-}
-Assert-NoLinks $install
-Assert-NoLinks $payload
-if (!(Test-Path -LiteralPath $executable -PathType Leaf)) { throw '消息岛程序不存在。' }
-$parent = [Diagnostics.Process]::GetProcessById([int]$job.ProcessId)
-if ($parent.StartTime.ToUniversalTime().Ticks -ne [long]$job.ProcessStartedUtcTicks -or
-    !(Full-Path $parent.MainModule.FileName).Equals($executable, [StringComparison]::OrdinalIgnoreCase)) {
-    throw '更新进程与安装目录不匹配。'
+
+$stage = 'Task'
+$jobDirectory = $null
+try {
+    $jobDirectory = Full-Path ([IO.Path]::GetDirectoryName((Full-Path $JobPath)))
+    $workRoot = [IO.Path]::GetDirectoryName($jobDirectory)
+    $jobId = [Guid]::Empty
+    if (!(Full-Path $PSScriptRoot).Equals($jobDirectory, [StringComparison]::OrdinalIgnoreCase) -or
+        ![Guid]::TryParseExact([IO.Path]::GetFileName($jobDirectory), 'N', [ref]$jobId)) {
+        throw '更新任务目录无效。'
+    }
+    Assert-NoLinks $jobDirectory
+    $stage = 'Paths'
+    $job = Get-Content -LiteralPath $JobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $install = Full-Path $job.InstallDirectory
+    $payload = Full-Path $job.PayloadDirectory
+    $backup = Join-Path $jobDirectory 'backup'
+    $executable = Join-Path $install 'WindowsIsland.exe'
+    if ($install -eq [IO.Path]::GetPathRoot($install).TrimEnd('\') -or
+        $install.StartsWith($workRoot + '\', [StringComparison]::OrdinalIgnoreCase) -or
+        !$payload.Equals((Join-Path $jobDirectory 'payload'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw '更新目标目录无效。'
+    }
+    Assert-NoLinks $install
+    Assert-NoLinks $payload
+    if (!(Test-Path -LiteralPath $executable -PathType Leaf)) { throw '消息岛程序不存在。' }
+    $stage = 'Parent'
+    $parent = [Diagnostics.Process]::GetProcessById([int]$job.ProcessId)
+    if ($parent.StartTime.ToUniversalTime().Ticks -ne [long]$job.ProcessStartedUtcTicks -or
+        !(Full-Path $parent.MainModule.FileName).Equals($executable, [StringComparison]::OrdinalIgnoreCase)) {
+        throw '更新进程与安装目录不匹配。'
+    }
+} catch {
+    if ($stage -ne 'Task') { Write-UpdateError $_ }
+    throw
 }
 $plan = [Collections.Generic.List[object]]::new()
 $modified = $false
@@ -93,6 +109,7 @@ $message = '更新未完成，请重试。'
 $messageKey = 'UpdateFailed'
 try {
     if ($job.InstallerPath) {
+        $stage = 'Installer'
         $installer = Full-Path $job.InstallerPath
         if (!$installer.Equals((Join-Path $jobDirectory 'update.msi'), [StringComparison]::OrdinalIgnoreCase) -or
             !(Test-Path -LiteralPath $installer -PathType Leaf)) { throw '更新安装包路径无效。' }
@@ -102,6 +119,7 @@ try {
             throw '安装记录与更新目录不匹配。'
         }
     } else {
+        $stage = 'Payload'
         $probe = Join-Path $install ('.island-update-' + $jobId.ToString('N'))
         [IO.File]::WriteAllText($probe, '')
         Remove-Item -LiteralPath $probe -Force
@@ -137,19 +155,23 @@ try {
         $plan.Add([pscustomobject]@{ Relative = '.update-files.json'; Target = (Child-Path $install '.update-files.json');
             Source = $null; Existed = [IO.File]::Exists($inventory) })
     }
+    $stage = 'Commit'
     [IO.File]::WriteAllText((Join-Path $jobDirectory 'ready'), '')
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
     while (!(Test-Path -LiteralPath (Join-Path $jobDirectory 'commit'))) {
         if ([DateTime]::UtcNow -gt $deadline) { throw '更新交接超时。' }
         Start-Sleep -Milliseconds 100
     }
+    $stage = 'Exit'
     if (!$parent.WaitForExit(30000)) { throw '消息岛未退出，更新已取消。' }
     $canRestart = $true
+    $stage = 'Mutex'
     $mutex = [Threading.Mutex]::new($false, [string]$job.MutexName)
     try { $acquired = $mutex.WaitOne(0) }
     catch [Threading.AbandonedMutexException] { $acquired = $true }
     if (!$acquired) { $canRestart = $false; throw '消息岛已经重新运行，更新已取消。' }
 
+    $stage = 'Install'
     if ($job.InstallerPath) {
         $start = [Diagnostics.ProcessStartInfo]::new()
         $start.FileName = Join-Path ([Environment]::GetFolderPath('System')) 'msiexec.exe'
@@ -176,12 +198,13 @@ try {
         $json = ConvertTo-Json -InputObject @($owned) -Compress
         [IO.File]::WriteAllText($inventory, $json, [Text.UTF8Encoding]::new($false))
     }
+    $stage = 'Version'
     Assert-InstalledVersion
     $success = $true
     $message = '更新完成。'
     $messageKey = 'UpdateComplete'
 } catch {
-    $_ | Out-String | Set-Content -LiteralPath (Join-Path $jobDirectory 'error.log') -Encoding UTF8
+    Write-UpdateError $_
     if ($modified) {
         try {
             for ($index = $plan.Count - 1; $index -ge 0; $index--) {

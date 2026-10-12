@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using WindowsIsland.Services;
 
@@ -24,6 +25,44 @@ internal static class UpdateScriptChecks
                 "Successful updates restart the application with registration refresh and settings enabled");
             await WaitAsync(() => !Directory.Exists(fixture.Payload), "Successful update cleanup");
             check(!Directory.Exists(Path.Combine(fixture.Job, "backup")), "Successful updates clean up only their payload and backup directories");
+        }
+        using (var fixture = new Fixture(Path.Combine(root, "gui-success"), gui: true))
+        {
+            await fixture.StartAsync();
+            var result = await fixture.ResultAsync();
+            check(result.Success && File.ReadAllText(fixture.Installed("a-library.dll")) == "new library",
+                "A GUI application without redirected console streams hands ZIP updates to the real helper");
+            check((await fixture.RestartArgumentsAsync()).Contains("--after-update", StringComparison.Ordinal),
+                "Updates started by a GUI application restart it after replacement");
+        }
+        using (var fixture = new Fixture(Path.Combine(root, "gui-msi-success"), 0, gui: true))
+        {
+            await fixture.StartAsync();
+            var result = await fixture.ResultAsync();
+            check(result.Success && !Directory.Exists(fixture.Payload)
+                && File.ReadAllText(fixture.Installed("a-library.dll")) == "new MSI library",
+                "A GUI application without redirected console streams hands MSI updates to the real helper");
+            await fixture.RestartArgumentsAsync();
+        }
+        foreach (var msi in new[] { false, true })
+        using (var fixture = new Fixture(Path.Combine(root, msi ? "junction-msi" : "junction-zip"),
+            msi ? 0 : null, gui: true, junctionWork: true))
+        {
+            check(UpdateWorkDirectory.Resolve(fixture.Work) == fixture.PhysicalWork
+                && !Directory.EnumerateFiles(fixture.PhysicalWork, ".path-*").Any(),
+                "Resolving a junction work root returns its physical directory and removes its probe");
+            await fixture.StartAsync();
+            var result = await fixture.ResultAsync();
+            var job = JsonSerializer.Deserialize<UpdateJob>(await File.ReadAllTextAsync(Path.Combine(fixture.PhysicalJob, "job.json")))!;
+            check(result.Success && job.PayloadDirectory == Path.Combine(fixture.PhysicalJob, "payload")
+                && job.InstallerPath == (msi ? Path.Combine(fixture.PhysicalJob, "update.msi") : null)
+                && File.Exists(Path.Combine(fixture.PhysicalJob, "ready"))
+                && File.Exists(Path.Combine(fixture.PhysicalJob, "commit")),
+                "A GUI application hands physically resolved junction job paths to the real helper: " + (msi ? "MSI" : "ZIP"));
+            await fixture.RestartArgumentsAsync();
+            if (!msi) await WaitAsync(() => !Directory.Exists(fixture.Payload), "Junction update cleanup");
+            check(!Directory.EnumerateFiles(fixture.PhysicalJob, ".path-*").Any(),
+                "Resolving a junction job leaves no temporary probe after update handoff");
         }
         using (var fixture = new Fixture(Path.Combine(root, "rollback")))
         {
@@ -121,15 +160,28 @@ internal static class UpdateScriptChecks
     {
         private readonly string _install;
         private readonly string _work;
+        private readonly bool _junctionWork;
+        private readonly bool _gui;
         private Process? _application;
         public string Job { get; }
         public string Payload { get; }
+        public string Work => _work;
+        public string PhysicalWork { get; }
+        public string PhysicalJob => Path.Combine(PhysicalWork, Path.GetFileName(Job));
         public string FailureLog => Path.Combine(_work, "last-helper-error.log");
 
-        public Fixture(string directory, int? installerExitCode = null)
+        public Fixture(string directory, int? installerExitCode = null, bool gui = false, bool junctionWork = false)
         {
+            _gui = gui;
+            _junctionWork = junctionWork;
             _install = Path.Combine(directory, "installed with spaces");
             _work = Path.Combine(directory, "work");
+            PhysicalWork = junctionWork ? Path.Combine(directory, "physical work") : _work;
+            if (junctionWork)
+            {
+                Directory.CreateDirectory(PhysicalWork);
+                CreateJunction(_work, PhysicalWork);
+            }
             Job = Path.Combine(_work, Guid.NewGuid().ToString("N"));
             Payload = Path.Combine(Job, "payload");
             Directory.CreateDirectory(_install);
@@ -140,6 +192,7 @@ internal static class UpdateScriptChecks
                 File.Copy(source, destination);
             }
             File.Copy(Path.Combine(AppContext.BaseDirectory, "WindowsIsland.LogicTests.exe"), Installed("WindowsIsland.exe"));
+            if (gui) MakeGuiApplication(Installed("WindowsIsland.exe"));
             File.Copy(Path.Combine(AppContext.BaseDirectory, "WindowsIsland.LogicTests.dll"), Installed("WindowsIsland.dll"));
             var updater = Installed("Updater/Apply-Update.ps1");
             Directory.CreateDirectory(Path.GetDirectoryName(updater)!);
@@ -179,21 +232,57 @@ internal static class UpdateScriptChecks
 
         public string Installed(string path) => Path.Combine(_install, path);
 
+        private static void CreateJunction(string link, string target)
+        {
+            var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe"))
+            {
+                UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden,
+                RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            foreach (var argument in new[] { "/d", "/c", "mklink", "/J", link, target }) start.ArgumentList.Add(argument);
+            using var process = Process.Start(start)!;
+            var output = process.StandardOutput.ReadToEndAsync();
+            var errors = process.StandardError.ReadToEndAsync();
+            process.WaitForExit();
+            if (process.ExitCode != 0 || (File.GetAttributes(link) & FileAttributes.ReparsePoint) == 0)
+                throw new InvalidOperationException("Creating the isolated update junction failed: "
+                    + output.GetAwaiter().GetResult() + errors.GetAwaiter().GetResult());
+        }
+
+        private static void MakeGuiApplication(string path)
+        {
+            var image = File.ReadAllBytes(path);
+            if (image.Length < 64 || BitConverter.ToUInt16(image, 0) != 0x5a4d)
+                throw new InvalidDataException("The GUI update fixture requires a PE apphost.");
+            var pe = BitConverter.ToInt32(image, 0x3c);
+            if (pe < 0 || pe > image.Length - 94 || BitConverter.ToUInt32(image, pe) != 0x4550
+                || BitConverter.ToUInt16(image, pe + 20) < 70
+                || BitConverter.ToUInt16(image, pe + 24) is not (0x10b or 0x20b))
+                throw new InvalidDataException("The GUI update fixture has an invalid PE header.");
+            // The Subsystem field has the same offset in PE32 and PE32+ headers.
+            image[pe + 24 + 68] = 2;
+            image[pe + 24 + 69] = 0;
+            File.WriteAllBytes(path, image);
+        }
+
         public async Task<int> StartAsync(bool expectReady = true)
         {
             var start = new ProcessStartInfo(Installed("WindowsIsland.exe"))
             {
                 UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden,
-                WorkingDirectory = _install, RedirectStandardError = true, RedirectStandardOutput = true
+                WorkingDirectory = _install, RedirectStandardError = !_gui, RedirectStandardOutput = !_gui
             };
             start.ArgumentList.Add("--update-fixture");
             start.ArgumentList.Add(Job);
+            if (_gui) start.ArgumentList.Add("--no-console");
             _application = Process.Start(start)!;
-            var errors = _application.StandardError.ReadToEndAsync();
-            var output = _application.StandardOutput.ReadToEndAsync();
+            var errors = _gui ? Task.FromResult("") : _application.StandardError.ReadToEndAsync();
+            var output = _gui ? Task.FromResult("") : _application.StandardOutput.ReadToEndAsync();
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
             await _application.WaitForExitAsync(timeout.Token);
             var detail = await errors + await output;
+            if (_gui && _application.ExitCode != 0 && File.Exists(FailureLog))
+                detail = await File.ReadAllTextAsync(FailureLog);
             if (expectReady && _application.ExitCode != 0) throw new InvalidOperationException("Update handoff failed: " + detail);
             return _application.ExitCode;
         }
@@ -214,9 +303,35 @@ internal static class UpdateScriptChecks
 
         public void Dispose()
         {
-            if (_application is null) return;
-            if (!_application.HasExited) _application.Kill();
-            _application.Dispose();
+            if (_application is not null)
+            {
+                if (!_application.HasExited) _application.Kill();
+                _application.Dispose();
+            }
+            if (_junctionWork && Directory.Exists(_work)) Directory.Delete(_work);
         }
     }
+}
+
+internal static class UpdateFixtureConsole
+{
+    public static void Detach()
+    {
+        // GUI apphosts can still inherit console handles from the test runner.
+        // Remove both console attachment and all inherited standard handles.
+        _ = FreeConsole();
+        foreach (var handle in new[] { -10, -11, -12 })
+        {
+            if (!SetStdHandle(handle, IntPtr.Zero))
+                throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FreeConsole();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetStdHandle(int handle, IntPtr value);
 }

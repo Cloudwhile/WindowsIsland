@@ -43,5 +43,6 @@
     <Compile Include="../../src/WindowsIsland/Services/UpdateCheckService.cs" Link="UpdateCheckService.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdatePackage.cs" Link="UpdatePackage.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateInstaller.cs" Link="UpdateInstaller.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/UpdateWorkDirectory.cs" Link="UpdateWorkDirectory.cs" />
   </ItemGroup>
 </Project>

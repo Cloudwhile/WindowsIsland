@@ -43,11 +43,14 @@ internal static class UpdateInstaller
     {
         using var application = Process.GetCurrentProcess();
         var directory = Path.GetFullPath(AppContext.BaseDirectory);
-        var job = new UpdateJob(directory, update.StagingDirectory, update.InstallerPath,
+        var workDirectory = UpdateWorkDirectory.Resolve(update.Directory);
+        var payload = UpdateWorkDirectory.Rebase(update.StagingDirectory, update.Directory, workDirectory);
+        var installer = update.InstallerPath is { } path ? UpdateWorkDirectory.Rebase(path, update.Directory, workDirectory) : null;
+        var job = new UpdateJob(directory, payload, installer,
             application.Id, application.StartTime.ToUniversalTime().Ticks, update.Version, mutexName);
-        var jobPath = Path.Combine(update.Directory, "job.json");
+        var jobPath = Path.Combine(workDirectory, "job.json");
         await File.WriteAllTextAsync(jobPath, JsonSerializer.Serialize(job), cancellationToken).ConfigureAwait(false);
-        var scriptPath = Path.Combine(update.Directory, "Apply-Update.ps1");
+        var scriptPath = Path.Combine(workDirectory, "Apply-Update.ps1");
         // Windows PowerShell 5.1 needs a BOM to read Chinese strings in script files.
         var script = await File.ReadAllTextAsync(Path.Combine(directory, "Updater", "Apply-Update.ps1"), cancellationToken).ConfigureAwait(false);
         await File.WriteAllTextAsync(scriptPath, script, new UTF8Encoding(true), cancellationToken).ConfigureAwait(false);
@@ -55,13 +58,14 @@ internal static class UpdateInstaller
         {
             FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"),
             UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden,
-            WorkingDirectory = update.Directory, RedirectStandardError = true, StandardErrorEncoding = Encoding.UTF8
+            WorkingDirectory = workDirectory, RedirectStandardError = true, StandardErrorEncoding = Encoding.UTF8
         };
         foreach (var argument in new[] { "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-JobPath", jobPath })
             start.ArgumentList.Add(argument);
-        using var helper = Process.Start(start) ?? throw Localization.IoError("UpdateErrorHelperStart");
+        var helper = Process.Start(start) ?? throw Localization.IoError("UpdateErrorHelperStart");
+        // The read task owns the process streams until EOF, including after handoff.
         var errors = ReadErrorsAsync(helper.StandardError);
-        var ready = Path.Combine(update.Directory, "ready");
+        var ready = Path.Combine(workDirectory, "ready");
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(60));
         try
@@ -72,7 +76,7 @@ internal static class UpdateInstaller
                 await Task.Delay(100, timeout.Token).ConfigureAwait(false);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            await File.WriteAllTextAsync(Path.Combine(update.Directory, "commit"), "", cancellationToken).ConfigureAwait(false);
+            await File.WriteAllTextAsync(Path.Combine(workDirectory, "commit"), "", cancellationToken).ConfigureAwait(false);
             update.HandOff();
         }
         catch (Exception error)
@@ -89,6 +93,14 @@ internal static class UpdateInstaller
                 throw Localization.IoError("UpdateErrorHelperTimeout");
             throw;
         }
+        finally { _ = ReleaseHelperAsync(helper, errors); }
+    }
+
+    private static async Task ReleaseHelperAsync(Process helper, Task<string> errors)
+    {
+        using var process = helper;
+        try { await errors.ConfigureAwait(false); }
+        catch (Exception error) { Trace.WriteLine(error); }
     }
 
     private static async Task<string> ReadErrorsAsync(StreamReader reader)
@@ -121,7 +133,7 @@ internal static class UpdateInstaller
                 var read = await reader.ReadAsync(buffer).ConfigureAwait(false);
                 detail += Environment.NewLine + new string(buffer, 0, read);
             }
-            var log = $"{DateTimeOffset.UtcNow:O} · v{update.Version} · {Path.GetFileName(update.Directory)}{Environment.NewLine}{error.Message}{Environment.NewLine}{detail}";
+            var log = $"{DateTimeOffset.UtcNow:O} · {ReleaseVersion.FromInformationalVersion(update.Version).Tag} · {Path.GetFileName(update.Directory)}{Environment.NewLine}{error.Message}{Environment.NewLine}{detail}";
             await File.WriteAllTextAsync(Path.Combine(Path.GetDirectoryName(update.Directory)!, "last-helper-error.log"), log, Encoding.UTF8).ConfigureAwait(false);
         }
         catch (Exception logError) when (logError is IOException or UnauthorizedAccessException or TimeoutException or System.Security.SecurityException) { Trace.WriteLine(logError); }

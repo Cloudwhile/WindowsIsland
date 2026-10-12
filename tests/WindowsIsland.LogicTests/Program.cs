@@ -15,13 +15,19 @@ if (args.FirstOrDefault() == "--restart-parent-fixture")
 
 if (args.FirstOrDefault() == "--update-fixture")
 {
+    var noConsole = args.Contains("--no-console", StringComparer.Ordinal);
+    if (noConsole) UpdateFixtureConsole.Detach();
     var directory = args[1];
     var installer = Path.Combine(directory, "update.msi");
     using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), File.Exists(installer) ? installer : null,
         File.Exists(Path.Combine(directory, "expected-version.txt")) ? File.ReadAllText(Path.Combine(directory, "expected-version.txt"))
             : ReleaseVersion.Current.Display, Path.GetDirectoryName(directory)!);
     try { await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory)); }
-    catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
+    catch (Exception error)
+    {
+        if (!noConsole) Console.Error.WriteLine(error.Message);
+        Environment.ExitCode = 1;
+    }
     return;
 }
 if (args.FirstOrDefault() == "/i" && File.Exists(Path.Combine(AppContext.BaseDirectory, "msi-fixture-exit.txt")))

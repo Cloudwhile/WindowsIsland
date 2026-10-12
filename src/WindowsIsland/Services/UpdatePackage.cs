@@ -45,6 +45,8 @@ internal static class UpdatePackage
         if (useInstaller && (release.Installer is null || release.InstallerChecksum is null))
             throw Localization.DataError("UpdateErrorInstallerMissing");
         var root = Path.GetFullPath(workRoot ?? WorkRoot);
+        Directory.CreateDirectory(root);
+        root = UpdateWorkDirectory.Resolve(root);
         var directory = Path.Combine(root, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         try
