@@ -24,9 +24,18 @@ internal static class UpdateInstaller
         try
         {
             var result = JsonSerializer.Deserialize<UpdateResult>(File.ReadAllText(Path.Combine(UpdatePackage.WorkRoot, "result.json")));
-            return result is not null && SameDirectory(result.InstallDirectory, directory ?? AppContext.BaseDirectory) ? result : null;
+            return ValidateResult(result, directory ?? AppContext.BaseDirectory, ReleaseVersion.Current);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or ArgumentException) { return null; }
+    }
+
+    internal static UpdateResult? ValidateResult(UpdateResult? result, string directory, ReleaseVersion current)
+    {
+        if (result is null || !SameDirectory(result.InstallDirectory, directory)
+            || !ReleaseVersion.TryParse(result.Version, out var target) || target!.CompareTo(current) < 0) return null;
+        if (result.Success && target.CompareTo(current) != 0)
+            return result with { Success = false, Message = "", MessageKey = "UpdateFailed" };
+        return result with { Version = target.Display };
     }
 
     public static async Task StartAsync(PreparedUpdate update, CancellationToken cancellationToken,

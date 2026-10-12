@@ -9,6 +9,16 @@ internal static class UpdateChecks
 {
     public static async Task RunAsync(Action<bool, string> check)
     {
+        var install = Path.GetFullPath("result-fixture");
+        var completed = new UpdateResult(install, "0.1.0-rc.5", true, "", "UpdateComplete");
+        check(UpdateInstaller.ValidateResult(completed, install, Version("0.1.0-rc.4")) is { Success: false, MessageKey: "UpdateFailed" },
+            "An older running app cannot display a newer target as successfully installed");
+        check(UpdateInstaller.ValidateResult(completed, install, Version("0.1.0-rc.5")) is { Success: true },
+            "Successful update results require the running version to match");
+        check(UpdateInstaller.ValidateResult(completed, install, Version("0.1.0-rc.6")) is null
+            && UpdateInstaller.ValidateResult(completed, install + "-other", Version("0.1.0-rc.5")) is null
+            && UpdateInstaller.ValidateResult(completed with { Version = "broken" }, install, Version("0.1.0-rc.5")) is null,
+            "Stale, malformed and other-installation update results are ignored");
         var versions = new[] { "1.0.0-alpha", "1.0.0-alpha.1", "1.0.0-alpha.beta", "1.0.0-beta", "1.0.0-beta.2",
             "1.0.0-beta.11", "1.0.0-rc.1", "1.0.0", "1.0.1", "1.1.0", "2.0.0" }.Select(Version).ToArray();
         check(versions.Zip(versions.Skip(1)).All(pair => pair.First.CompareTo(pair.Second) < 0),

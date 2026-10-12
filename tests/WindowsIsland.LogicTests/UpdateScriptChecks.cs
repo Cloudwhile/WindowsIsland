@@ -76,6 +76,35 @@ internal static class UpdateScriptChecks
                 && (await fixture.RestartArgumentsAsync()).Contains("--after-update", StringComparison.Ordinal),
                 "MSI helper success, reboot-required and failure retain preferences and refresh app registration on restart: " + code);
         }
+        foreach (var code in new[] { 0, 3010 })
+        using (var fixture = new Fixture(Path.Combine(root, "msi-unchanged-" + code), code))
+        {
+            File.WriteAllText(Path.Combine(fixture.Job, "expected-version.txt"), "99.0.0");
+            await fixture.StartAsync();
+            var result = await fixture.ResultAsync();
+            check(!result.Success && result.MessageKey == "UpdateFailed" && File.Exists(Path.Combine(fixture.Job, "update.msi")),
+                "MSI success codes cannot claim success when installed binaries retain the old version: " + code);
+            check((await fixture.RestartArgumentsAsync()).Contains("--after-update", StringComparison.Ordinal),
+                "MSI version mismatch still restores notification registration on restart: " + code);
+        }
+        using (var fixture = new Fixture(Path.Combine(root, "msi-missing-assembly"), 0))
+        {
+            File.Delete(fixture.Installed("WindowsIsland.dll"));
+            await fixture.StartAsync();
+            check(!(await fixture.ResultAsync()).Success,
+                "A matching executable cannot hide a missing application assembly after MSI installation");
+            await fixture.RestartArgumentsAsync();
+        }
+        using (var fixture = new Fixture(Path.Combine(root, "zip-version-mismatch")))
+        {
+            File.WriteAllText(Path.Combine(fixture.Job, "expected-version.txt"), "99.0.0");
+            await fixture.StartAsync();
+            var result = await fixture.ResultAsync();
+            check(!result.Success && result.MessageKey == "UpdateRestored"
+                && File.ReadAllText(fixture.Installed("a-library.dll")) == "old library",
+                "ZIP version mismatch rolls the replaced files back before reporting failure");
+            await fixture.RestartArgumentsAsync();
+        }
     }
 
     private static async Task WaitAsync(Func<bool> condition, string name)
@@ -111,6 +140,7 @@ internal static class UpdateScriptChecks
                 File.Copy(source, destination);
             }
             File.Copy(Path.Combine(AppContext.BaseDirectory, "WindowsIsland.LogicTests.exe"), Installed("WindowsIsland.exe"));
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "WindowsIsland.LogicTests.dll"), Installed("WindowsIsland.dll"));
             var updater = Installed("Updater/Apply-Update.ps1");
             Directory.CreateDirectory(Path.GetDirectoryName(updater)!);
             File.Copy(Path.Combine(Environment.CurrentDirectory, "packaging", "Apply-Update.ps1"), updater);
@@ -138,6 +168,7 @@ internal static class UpdateScriptChecks
             }
             Directory.CreateDirectory(Payload);
             File.Copy(Installed("WindowsIsland.exe"), Path.Combine(Payload, "WindowsIsland.exe"));
+            File.Copy(Installed("WindowsIsland.dll"), Path.Combine(Payload, "WindowsIsland.dll"));
             File.WriteAllText(Path.Combine(Payload, "a-library.dll"), "new library");
             File.WriteAllText(Path.Combine(Payload, "new-file.txt"), "new file");
             File.WriteAllText(Path.Combine(Payload, "WindowsIsland.pri"), "new resources");

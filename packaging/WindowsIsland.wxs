@@ -8,6 +8,7 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/Cloudwhile/WindowsIsland" />
     <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="REINSTALLMODE" Value="amus" />
     <Property Id="INSTALLFOLDER" Secure="yes">
       <RegistrySearch Id="ExistingInstallDirectory" Root="HKCU"
                       Key="Software\Cloudwhile\WindowsIsland\Installer" Name="InstallDirectory" Type="raw" />

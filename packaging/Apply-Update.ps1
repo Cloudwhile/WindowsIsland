@@ -48,6 +48,15 @@ function File-Digest([string]$path) {
     finally { $algorithm.Dispose(); $stream.Dispose() }
 }
 
+function Assert-InstalledVersion {
+    $expected = ([string]$job.Version -replace '^v', '').Split('+')[0]
+    foreach ($name in @('WindowsIsland.exe', 'WindowsIsland.dll')) {
+        $path = Join-Path $install $name
+        $actual = ([Diagnostics.FileVersionInfo]::GetVersionInfo($path).ProductVersion -replace '^v', '').Split('+')[0]
+        if (!$actual -or $actual -cne $expected) { throw '更新后的程序版本与目标版本不一致。' }
+    }
+}
+
 $jobDirectory = Full-Path ([IO.Path]::GetDirectoryName((Full-Path $JobPath)))
 $workRoot = [IO.Path]::GetDirectoryName($jobDirectory)
 $jobId = [Guid]::Empty
@@ -167,6 +176,7 @@ try {
         $json = ConvertTo-Json -InputObject @($owned) -Compress
         [IO.File]::WriteAllText($inventory, $json, [Text.UTF8Encoding]::new($false))
     }
+    Assert-InstalledVersion
     $success = $true
     $message = '更新完成。'
     $messageKey = 'UpdateComplete'
