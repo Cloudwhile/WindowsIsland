@@ -26,7 +26,7 @@ internal static class UpdateScriptChecks
             await WaitAsync(() => !Directory.Exists(fixture.Payload), "Successful update cleanup");
             check(!Directory.Exists(Path.Combine(fixture.Job, "backup")), "Successful updates clean up only their payload and backup directories");
         }
-        using (var fixture = new Fixture(Path.Combine(root, "gui-success"), gui: true))
+        using (var fixture = new Fixture(Path.Combine(root, "gui-success"), gui: true, restoreRegistration: true))
         {
             await fixture.StartAsync();
             var result = await fixture.ResultAsync();
@@ -34,15 +34,18 @@ internal static class UpdateScriptChecks
                 "A GUI application without redirected console streams hands ZIP updates to the real helper");
             check((await fixture.RestartArgumentsAsync()).Contains("--after-update", StringComparison.Ordinal),
                 "Updates started by a GUI application restart it after replacement");
+            check((await fixture.RestartArgumentsAsync()).Contains("--restore-registration", StringComparison.Ordinal),
+                "ZIP update handoff preserves registered activation independently of notification preferences");
         }
-        using (var fixture = new Fixture(Path.Combine(root, "gui-msi-success"), 0, gui: true))
+        using (var fixture = new Fixture(Path.Combine(root, "gui-msi-success"), 0, gui: true, restoreRegistration: true))
         {
             await fixture.StartAsync();
             var result = await fixture.ResultAsync();
             check(result.Success && !Directory.Exists(fixture.Payload)
                 && File.ReadAllText(fixture.Installed("a-library.dll")) == "new MSI library",
                 "A GUI application without redirected console streams hands MSI updates to the real helper");
-            await fixture.RestartArgumentsAsync();
+            check((await fixture.RestartArgumentsAsync()).Contains("--restore-registration", StringComparison.Ordinal),
+                "MSI update handoff preserves registered activation after installation");
         }
         foreach (var msi in new[] { false, true })
         using (var fixture = new Fixture(Path.Combine(root, msi ? "junction-msi" : "junction-zip"),
@@ -64,7 +67,7 @@ internal static class UpdateScriptChecks
             check(!Directory.EnumerateFiles(fixture.PhysicalJob, ".path-*").Any(),
                 "Resolving a junction job leaves no temporary probe after update handoff");
         }
-        using (var fixture = new Fixture(Path.Combine(root, "rollback")))
+        using (var fixture = new Fixture(Path.Combine(root, "rollback"), restoreRegistration: true))
         {
             File.WriteAllText(fixture.Installed("z-locked.dll"), "locked original");
             File.WriteAllText(Path.Combine(fixture.Payload, "z-locked.dll"), "locked replacement");
@@ -77,6 +80,8 @@ internal static class UpdateScriptChecks
                 && File.ReadAllText(fixture.Installed("resources.pri")) == "old resources", "Rollback removes new files and restores obsolete files and registered resources");
             check((await fixture.RestartArgumentsAsync()).Contains("--show-update-result", StringComparison.Ordinal),
                 "Failed updates restart the restored application and show the failure result");
+            check((await fixture.RestartArgumentsAsync()).Contains("--restore-registration", StringComparison.Ordinal),
+                "ZIP rollback preserves registered activation so the restored application can read its result");
         }
         using (var fixture = new Fixture(Path.Combine(root, "conflict")))
         {
@@ -162,6 +167,7 @@ internal static class UpdateScriptChecks
         private readonly string _work;
         private readonly bool _junctionWork;
         private readonly bool _gui;
+        private readonly bool _restoreRegistration;
         private Process? _application;
         public string Job { get; }
         public string Payload { get; }
@@ -170,9 +176,11 @@ internal static class UpdateScriptChecks
         public string PhysicalJob => Path.Combine(PhysicalWork, Path.GetFileName(Job));
         public string FailureLog => Path.Combine(_work, "last-helper-error.log");
 
-        public Fixture(string directory, int? installerExitCode = null, bool gui = false, bool junctionWork = false)
+        public Fixture(string directory, int? installerExitCode = null, bool gui = false, bool junctionWork = false,
+            bool restoreRegistration = false)
         {
             _gui = gui;
+            _restoreRegistration = restoreRegistration;
             _junctionWork = junctionWork;
             _install = Path.Combine(directory, "installed with spaces");
             _work = Path.Combine(directory, "work");
@@ -275,6 +283,7 @@ internal static class UpdateScriptChecks
             start.ArgumentList.Add("--update-fixture");
             start.ArgumentList.Add(Job);
             if (_gui) start.ArgumentList.Add("--no-console");
+            if (_restoreRegistration) start.ArgumentList.Add("--restore-registration");
             _application = Process.Start(start)!;
             var errors = _gui ? Task.FromResult("") : _application.StandardError.ReadToEndAsync();
             var output = _gui ? Task.FromResult("") : _application.StandardOutput.ReadToEndAsync();

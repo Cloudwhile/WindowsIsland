@@ -39,11 +39,12 @@ public partial class App : Application
         ApplyLanguage(settings.Current.Language);
         var showSettings = !settings.Current.SetupCompleted || arguments.Contains("--settings", StringComparison.Ordinal);
         var afterUpdate = arguments.Contains("--after-update", StringComparison.Ordinal);
+        var restoreRegistration = arguments.Contains("--restore-registration", StringComparison.Ordinal);
         var showUpdateResult = afterUpdate || arguments.Contains("--show-update-result", StringComparison.Ordinal);
         if (!verification && showUpdateResult && UpdateInstaller.ReadResult() is { Success: false } failedUpdate)
             Diagnostics.State(DiagnosticArea.Updates, failedUpdate.MessageKey is "UpdateRestored" or "UpdateBackupRetained"
                 ? failedUpdate.MessageKey : "UpdateInstallFailed");
-        if (!verification && afterUpdate && settings.Current.SystemNotifications)
+        if (!verification && afterUpdate && (settings.Current.SystemNotifications || restoreRegistration))
         {
             try
             {
@@ -56,7 +57,7 @@ public partial class App : Application
             }
             catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Application, error, "RegisterAfterUpdate"); Trace.WriteLine(error); showSettings = true; }
         }
-        if (!verification && settings.Current.SystemNotifications && !AppInitialization.HasIdentity)
+        if (!verification && (settings.Current.SystemNotifications || restoreRegistration) && !AppInitialization.HasIdentity)
         {
             try
             {

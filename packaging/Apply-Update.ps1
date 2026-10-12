@@ -241,6 +241,9 @@ $temporaryResult = Join-Path $jobDirectory 'result.json'
 Copy-Item -LiteralPath $temporaryResult -Destination $resultPath -Force
 if ($canRestart) {
     $arguments = if ($success -or $job.InstallerPath) { '--settings --after-update' } else { '--settings --show-update-result' }
+    if ($job.PSObject.Properties['RestoreRegistration'] -and $job.RestoreRegistration -eq $true) {
+        $arguments += ' --restore-registration'
+    }
     Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $install -WindowStyle Hidden
 }
 if ($success) {

@@ -7,7 +7,8 @@ using Microsoft.Win32;
 namespace WindowsIsland.Services;
 
 internal sealed record UpdateJob(string InstallDirectory, string PayloadDirectory, string? InstallerPath,
-    int ProcessId, long ProcessStartedUtcTicks, string Version, string MutexName = @"Local\WindowsIsland.Tray");
+    int ProcessId, long ProcessStartedUtcTicks, string Version, string MutexName = @"Local\WindowsIsland.Tray",
+    bool RestoreRegistration = false);
 internal sealed record UpdateResult(string InstallDirectory, string Version, bool Success, string Message, string? MessageKey = null);
 
 internal static class UpdateInstaller
@@ -39,7 +40,7 @@ internal static class UpdateInstaller
     }
 
     public static async Task StartAsync(PreparedUpdate update, CancellationToken cancellationToken,
-        string mutexName = @"Local\WindowsIsland.Tray")
+        string mutexName = @"Local\WindowsIsland.Tray", bool restoreRegistration = false)
     {
         using var application = Process.GetCurrentProcess();
         var directory = Path.GetFullPath(AppContext.BaseDirectory);
@@ -47,7 +48,7 @@ internal static class UpdateInstaller
         var payload = UpdateWorkDirectory.Rebase(update.StagingDirectory, update.Directory, workDirectory);
         var installer = update.InstallerPath is { } path ? UpdateWorkDirectory.Rebase(path, update.Directory, workDirectory) : null;
         var job = new UpdateJob(directory, payload, installer,
-            application.Id, application.StartTime.ToUniversalTime().Ticks, update.Version, mutexName);
+            application.Id, application.StartTime.ToUniversalTime().Ticks, update.Version, mutexName, restoreRegistration);
         var jobPath = Path.Combine(workDirectory, "job.json");
         await File.WriteAllTextAsync(jobPath, JsonSerializer.Serialize(job), cancellationToken).ConfigureAwait(false);
         var scriptPath = Path.Combine(workDirectory, "Apply-Update.ps1");

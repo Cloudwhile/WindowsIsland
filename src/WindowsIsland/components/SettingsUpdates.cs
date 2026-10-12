@@ -171,7 +171,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             if (_disposed) return;
             Show("UpdateInstalling", InfoBarSeverity.Informational);
             _cancel.IsEnabled = false;
-            await UpdateInstaller.StartAsync(update, _operation.Token);
+            await UpdateInstaller.StartAsync(update, _operation.Token, restoreRegistration: AppInitialization.HasIdentity);
             _restart();
         }
         catch (OperationCanceledException) { if (!_disposed) Show("UpdateCanceled", InfoBarSeverity.Informational); }

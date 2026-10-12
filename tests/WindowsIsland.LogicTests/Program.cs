@@ -22,7 +22,8 @@ if (args.FirstOrDefault() == "--update-fixture")
     using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), File.Exists(installer) ? installer : null,
         File.Exists(Path.Combine(directory, "expected-version.txt")) ? File.ReadAllText(Path.Combine(directory, "expected-version.txt"))
             : ReleaseVersion.Current.Display, Path.GetDirectoryName(directory)!);
-    try { await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory)); }
+    try { await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory),
+        restoreRegistration: args.Contains("--restore-registration", StringComparer.Ordinal)); }
     catch (Exception error)
     {
         if (!noConsole) Console.Error.WriteLine(error.Message);
