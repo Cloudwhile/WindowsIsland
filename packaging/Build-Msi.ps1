@@ -3,7 +3,8 @@ param(
     [string]$PublishDirectory = (Join-Path $PSScriptRoot '../artifacts/publish'),
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '../artifacts/distribution'),
     [string]$InstallerActions = (Join-Path $PSScriptRoot '../artifacts/native/Release/WindowsIsland.Installer.dll'),
-    [string]$Wix = (Join-Path $PSScriptRoot '../artifacts/tools/wix/wix.exe')
+    [string]$Wix = (Join-Path $PSScriptRoot '../artifacts/tools/wix/wix.exe'),
+    [string]$WixUiExtension = 'WixToolset.UI.wixext/5.0.2'
 )
 $ErrorActionPreference = 'Stop'
 $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
@@ -47,8 +48,13 @@ foreach ($file in @(Get-ChildItem -LiteralPath $publish -File -Recurse | Sort-Ob
 [void]$xml.AppendLine('</ComponentGroup></Fragment></Wix>')
 $payload = Join-Path $work 'Payload.wxs'
 [IO.File]::WriteAllText($payload,$xml.ToString(),[Text.UTF8Encoding]::new($false))
+$license = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../LICENSE') -Raw -Encoding UTF8
+$licenseRtf = Join-Path $work 'License.rtf'
+$rtfText = $license.Replace('\', '\\').Replace('{', '\{').Replace('}', '\}')
+$rtfText = $rtfText -replace "`r?`n", "\par`r`n"
+[IO.File]::WriteAllText($licenseRtf, "{\rtf1\ansi\deff0{\fonttbl{\f0 Segoe UI;}}\fs18 $rtfText}", [Text.Encoding]::ASCII)
 $msi = Join-Path $output "WindowsIsland-$Version-win-x64.msi"
-& $Wix build (Join-Path $PSScriptRoot 'WindowsIsland.wxs') $payload -arch x64 -d "ReleaseVersion=$Version" -d "MsiVersion=$msiVersion" -d "PublishDirectory=$publish" -d "PackagingDirectory=$PSScriptRoot" -d "InstallerActions=$actions" -intermediateFolder $work -pdbtype none -o $msi
+& $Wix build (Join-Path $PSScriptRoot 'WindowsIsland.wxs') $payload -arch x64 -ext $WixUiExtension -d "ReleaseVersion=$Version" -d "MsiVersion=$msiVersion" -d "PublishDirectory=$publish" -d "PackagingDirectory=$PSScriptRoot" -d "InstallerActions=$actions" -d "LicenseRtf=$licenseRtf" -intermediateFolder $work -pdbtype none -o $msi
 if ($LASTEXITCODE -ne 0) { throw "WiX build failed: $LASTEXITCODE" }
 $digest = (Get-FileHash -LiteralPath $msi -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText("$msi.sha256", "$digest  $([IO.Path]::GetFileName($msi))`n", [Text.UTF8Encoding]::new($false))

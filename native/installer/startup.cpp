@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <msiquery.h>
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -66,6 +67,68 @@ UINT Failed(MSIHANDLE session) {
     }
     return ERROR_INSTALL_FAILURE;
 }
+
+UINT DirectoryCheckFailed(MSIHANDLE session) {
+    auto record = MsiCreateRecord(1);
+    if (record) {
+        MsiRecordSetStringW(record, 0, L"Windows Island could not verify the selected installation directory.");
+        MsiProcessMessage(session, INSTALLMESSAGE_ERROR, record);
+        MsiCloseHandle(record);
+    }
+    return ERROR_INSTALL_FAILURE;
+}
+
+DWORD ProbeWriteAccess(const std::wstring& directory) {
+    std::filesystem::path candidate(directory);
+    while (!candidate.empty()) {
+        auto attributes = GetFileAttributesW(candidate.c_str());
+        if (attributes != INVALID_FILE_ATTRIBUTES) {
+            if ((attributes & FILE_ATTRIBUTE_DIRECTORY) == 0) return ERROR_DIRECTORY;
+            break;
+        }
+        auto error = GetLastError();
+        if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND) return error;
+        auto parent = candidate.parent_path();
+        if (parent == candidate) return error;
+        candidate = std::move(parent);
+    }
+    if (candidate.empty()) return ERROR_PATH_NOT_FOUND;
+
+    auto targetExists = _wcsicmp(candidate.c_str(), std::filesystem::path(directory).c_str()) == 0;
+    for (unsigned attempt = 0; attempt != 8; ++attempt) {
+        auto name = L".windows-island-write-test-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+            std::to_wstring(GetTickCount64()) + L"-" + std::to_wstring(attempt);
+        auto probe = candidate / name;
+        if (targetExists) {
+            auto file = CreateFileW(probe.c_str(), GENERIC_WRITE | DELETE,
+                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, CREATE_NEW,
+                FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
+            if (file != INVALID_HANDLE_VALUE) {
+                CloseHandle(file);
+                return ERROR_SUCCESS;
+            }
+        } else if (CreateDirectoryW(probe.c_str(), nullptr)) {
+            auto removed = RemoveDirectoryW(probe.c_str());
+            return removed ? ERROR_SUCCESS : GetLastError();
+        }
+        auto error = GetLastError();
+        if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS) return error;
+    }
+    return ERROR_ALREADY_EXISTS;
+}
+}
+
+extern "C" __declspec(dllexport) UINT __stdcall SelectInstallScope(MSIHANDLE session) {
+    try {
+        auto directory = Property(session, L"INSTALLFOLDER");
+        Require(!directory.empty());
+        auto result = ProbeWriteAccess(directory);
+        auto needsElevation = result == ERROR_ACCESS_DENIED || result == ERROR_PRIVILEGE_NOT_HELD;
+        Require(result == ERROR_SUCCESS || needsElevation);
+        Require(MsiSetPropertyW(session, L"ALLUSERS", needsElevation ? L"1" : L"2") == ERROR_SUCCESS);
+        Require(MsiSetPropertyW(session, L"MSIINSTALLPERUSER", needsElevation ? L"" : L"1") == ERROR_SUCCESS);
+        return ERROR_SUCCESS;
+    } catch (...) { return DirectoryCheckFailed(session); }
 }
 
 // Capture before the old MSI runs its uninstall script. Even old release candidates

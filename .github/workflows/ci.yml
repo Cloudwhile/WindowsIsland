@@ -112,7 +112,9 @@ jobs:
           [IO.File]::WriteAllText("$archive.sha256", "$digest  $name`n", [Text.UTF8Encoding]::new($false))
 
       - name: Set up MSI packaging
-        run: dotnet tool install wix --version 5.0.2 --tool-path artifacts/tools/wix --allow-roll-forward
+        run: |
+          dotnet tool install wix --version 5.0.2 --tool-path artifacts/tools/wix --allow-roll-forward
+          & artifacts/tools/wix/wix.exe extension add WixToolset.UI.wixext/5.0.2
 
       - name: Build MSI installer
         env:

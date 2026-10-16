@@ -1,14 +1,16 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package Name="Windows Island v$(ReleaseVersion)" Manufacturer="Cloudwhile"
            Version="$(MsiVersion)" UpgradeCode="8B397E71-1AA3-4F3B-911B-C08E0FAB484E"
-           Language="1033" Scope="perUser" InstallerVersion="500">
+           Language="1033" Scope="perUserOrMachine" InstallerVersion="500">
     <MajorUpgrade AllowSameVersionUpgrades="yes" Schedule="afterInstallFinalize" DowngradeErrorMessage="A newer version of Windows Island is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
     <Icon Id="AppIcon" SourceFile="$(PublishDirectory)\Assets\Island.ico" />
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/Cloudwhile/WindowsIsland" />
-    <Property Id="ARPNOMODIFY" Value="1" />
     <Property Id="REINSTALLMODE" Value="amus" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(LicenseRtf)" />
     <Property Id="INSTALLFOLDER" Secure="yes">
       <RegistrySearch Id="ExistingInstallDirectory" Root="HKCU"
                       Key="Software\Cloudwhile\WindowsIsland\Installer" Name="InstallDirectory" Type="raw" />
@@ -40,10 +42,18 @@
       </Directory>
     </StandardDirectory>
     <Binary Id="InstallerActions" SourceFile="$(InstallerActions)" />
+    <CustomAction Id="SelectInstallScope" BinaryRef="InstallerActions" DllEntry="SelectInstallScope" Return="check" />
     <CustomAction Id="CaptureStartup" BinaryRef="InstallerActions" DllEntry="CaptureStartup" Return="check" />
     <CustomAction Id="RestoreStartup" BinaryRef="InstallerActions" DllEntry="RestoreStartup"
                   Return="check" />
     <Property Id="RestoreStartup" Hidden="yes" />
+    <UI>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="SelectInstallScope" Order="3"
+               Condition="NOT Installed AND (WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID=&quot;1&quot;)" />
+    </UI>
+    <InstallUISequence>
+      <Custom Action="SelectInstallScope" Before="ExecuteAction" Condition="NOT Installed" />
+    </InstallUISequence>
     <CustomAction Id="UnregisterApplication" Directory="System64Folder"
                   ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File &quot;[INSTALLFOLDER]Uninstall.ps1&quot; -InstallDirectory &quot;[INSTALLFOLDER].&quot;"
                   Execute="deferred" Impersonate="yes" Return="check" />

@@ -18,6 +18,7 @@ $install = Join-Path $work 'installed with spaces'
 $normalInstall = (Get-ItemPropertyValue 'HKCU:\Software\Cloudwhile\WindowsIsland\Installer' -Name InstallDirectory -ErrorAction SilentlyContinue)
 $normalProcesses = @(Get-Process WindowsIsland -ErrorAction SilentlyContinue | ForEach-Object { @{ Id = $_.Id; Path = $_.Path } })
 New-Item -ItemType Directory -Path "$work/native","$work/packaging","$work/payload","$work/distribution" -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $repository 'LICENSE') -Destination "$work/LICENSE"
 
 # Every identity is isolated, including file component GUID seeds and startup registry paths.
 $build = Get-Content (Join-Path $PSScriptRoot 'Build-Msi.ps1') -Raw -Encoding UTF8
@@ -87,10 +88,10 @@ $definition = $definition.Replace('C7CB66D6-D2C1-426E-BED2-3FAF199B6C95', [Guid]
 $definition = $definition.Replace('Software\Cloudwhile\WindowsIsland\Installer', "$scope\Installer")
 $definition = $definition.Replace('CompressionLevel="high"', 'CompressionLevel="mszip"')
 $definition = $definition.Replace('Windows Island', "Windows Island Upgrade Test $id")
-$legacy = [xml]$definition
+$legacy = [xml]$definition.Replace('Scope="perUserOrMachine"', 'Scope="perUser"')
 $ns = [Xml.XmlNamespaceManager]::new($legacy.NameTable)
 $ns.AddNamespace('w', 'http://wixtoolset.org/schemas/v4/wxs')
-foreach ($node in @($legacy.SelectNodes('//w:Binary|//w:CustomAction[@Id="CaptureStartup" or @Id="RestoreStartup" or @Id="RollbackStartup"]|//w:Property[@Id="RestoreStartup" or @Id="RollbackStartup" or @Id="REINSTALLMODE"]|//w:Custom[@Action="CaptureStartup" or @Action="RestoreStartup" or @Action="RollbackStartup"]', $ns))) {
+foreach ($node in @($legacy.SelectNodes('//w:Binary|//w:CustomAction[@Id="SelectInstallScope" or @Id="CaptureStartup" or @Id="RestoreStartup" or @Id="RollbackStartup"]|//w:Property[@Id="RestoreStartup" or @Id="RollbackStartup" or @Id="REINSTALLMODE"]|//w:Custom[@Action="SelectInstallScope" or @Action="CaptureStartup" or @Action="RestoreStartup" or @Action="RollbackStartup"]|//w:Publish[@Value="SelectInstallScope"]', $ns))) {
     [void]$node.ParentNode.RemoveChild($node)
 }
 $legacy.SelectSingleNode('//w:MajorUpgrade', $ns).SetAttribute('Schedule', 'afterInstallValidate')
