@@ -52,6 +52,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly ToggleSwitch _animations, _muteDuringGames, _muteDuringFullScreen;
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _cancelled, _disposed;
+    private string _cancelledKey = "StartupPermissionCancelled";
     private bool? _ready;
     private string _selectedSection = "setup";
     private string _errorKey = "ErrorSettingsSave";
@@ -218,7 +219,14 @@ internal sealed class SettingsPage : Grid, IDisposable
         _progress.Visibility = Visibility.Visible;
         Refresh();
         try { await action(); }
-        catch (OperationCanceledException) { if (!_disposed) _cancelled = true; }
+        catch (OperationCanceledException)
+        {
+            if (!_disposed)
+            {
+                _cancelled = true;
+                _cancelledKey = message == "ErrorInitialize" ? "InitializationPermissionCancelled" : "StartupPermissionCancelled";
+            }
+        }
         catch (Exception error)
         {
             Diagnostics.Capture(DiagnosticArea.Settings, error, message); Trace.WriteLine(error);
@@ -345,7 +353,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             _header.Status = summary;
             _notice.Visibility = Visibility.Visible;
             _notice.Title = Localization.Get("Cancelled");
-            _notice.Message = Localization.Get("StartupPermissionCancelled");
+            _notice.Message = Localization.Get(_cancelledKey);
             _notice.Severity = InfoBarSeverity.Informational;
             return;
         }

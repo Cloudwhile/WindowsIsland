@@ -184,6 +184,9 @@
   <data name="StartupPermissionCancelled" xml:space="preserve">
     <value>已取消管理员权限请求，开机自启设置未更改。</value>
   </data>
+  <data name="InitializationPermissionCancelled" xml:space="preserve">
+    <value>已取消管理员权限请求，初始化尚未完成，请重试。</value>
+  </data>
   <data name="Cancelled" xml:space="preserve">
     <value>已取消</value>
   </data>

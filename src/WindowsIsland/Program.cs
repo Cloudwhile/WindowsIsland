@@ -10,6 +10,7 @@ internal static class Program
     private static void Main(string[] arguments)
     {
         if (StartupElevation.TryHandle(arguments, out var result)) { Environment.ExitCode = result; return; }
+        if (InitializationElevation.TryHandle(arguments, out result)) { Environment.ExitCode = result; return; }
         var verification = arguments.Contains("--verify-local");
         var settings = new SettingsStore(verification ? Path.Combine(AppContext.BaseDirectory, "verification-settings.json") : null);
         Diagnostics.Initialize(verification ? Path.Combine(AppContext.BaseDirectory, "verification-diagnostics")

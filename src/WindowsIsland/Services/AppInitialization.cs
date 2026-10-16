@@ -38,13 +38,8 @@ internal static class AppInitialization
         if (!force && installed is not null && SameLocation(installed, directory)) return installed.Id.FamilyName + "!App";
         var installedVersion = installed?.Id.Version;
         var version = installedVersion is { } value ? new Version(value.Major, value.Minor, value.Build, value.Revision) : null;
-        var manifest = InitializationManifest.Build(
-            template,
-            XDocument.Load(Path.Combine(directory, "Initialization", "RuntimeManifest.xml")),
-            path => File.Exists(Path.Combine(directory, path)), version);
-        InitializationResources.Prepare(Path.Combine(directory, "WindowsIsland.pri"), Path.Combine(directory, "resources.pri"));
+        await InitializationPreparation.PrepareAsync(directory, version, InitializationElevation.PrepareAsync);
         var manifestPath = Path.Combine(directory, "AppxManifest.xml");
-        manifest.Save(manifestPath);
         var operation = manager.RegisterPackageAsync(new Uri(manifestPath), null, DeploymentOptions.DevelopmentMode);
         DeploymentResult result;
         try { result = await operation.AsTask().WaitAsync(TimeSpan.FromSeconds(60)); }

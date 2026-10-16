@@ -57,12 +57,7 @@ internal sealed class SettingsWindow : Window
 
     private async Task<string?> PickDiagnosticFileAsync()
     {
-        var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
-        {
-            SuggestedFileName = "WindowsIsland-diagnostics-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"),
-            DefaultFileExtension = ".json"
-        };
-        picker.FileTypeChoices.Add(Localization.Get("DiagnosticsFileType"), new List<string> { ".json" });
-        return (await picker.PickSaveFileAsync())?.Path;
+        var fileType = Localization.Get("DiagnosticsFileType");
+        return await DiagnosticSaveDialog.PickAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), fileType, DateTime.Now);
     }
 }

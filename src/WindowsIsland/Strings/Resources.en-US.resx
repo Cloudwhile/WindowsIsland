@@ -184,6 +184,9 @@
   <data name="StartupPermissionCancelled" xml:space="preserve">
     <value>Administrator permission was cancelled. Startup settings were not changed.</value>
   </data>
+  <data name="InitializationPermissionCancelled" xml:space="preserve">
+    <value>Administrator permission was cancelled. Initialization is incomplete; please try again.</value>
+  </data>
   <data name="Cancelled" xml:space="preserve">
     <value>Cancelled</value>
   </data>

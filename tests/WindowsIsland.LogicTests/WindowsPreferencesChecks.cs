@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Microsoft.Win32;
 using WindowsIsland.Services;
 
@@ -38,6 +40,14 @@ internal static class WindowsPreferencesChecks
         check(StartupElevation.TryHandle(["--configure-startup", "unknown"], out var invalidResult) && invalidResult != 0,
             "Malformed privileged commands are handled without starting the normal application");
         check(!StartupElevation.TryHandle(["--settings"], out _), "Normal launch arguments retain the regular application startup");
+        var initialization = InitializationElevation.Request(executable, 42, 1234, new Version(1, 0, 0, 12));
+        check(initialization.UseShellExecute && initialization.Verb == "runas" && initialization.WindowStyle == ProcessWindowStyle.Hidden
+            && initialization.ArgumentList.SequenceEqual(["--prepare-initialization", "42", "1234", "1.0.0.12"]),
+            "Protected initialization requests UAC only for a hidden helper and fixed registration inputs");
+        check(InitializationElevation.TryHandle(["--prepare-initialization", "unknown"], out invalidResult) && invalidResult != 0,
+            "Malformed initialization helper commands do not start the normal application");
+        check(!InitializationElevation.TryHandle(["--settings"], out _), "Normal settings launch bypasses the initialization helper");
+        if (OperatingSystem.IsWindows()) CheckProtectedInitializationPreparation(check);
 
 
         CheckFilePersistence(executable, check);
@@ -59,6 +69,42 @@ internal static class WindowsPreferencesChecks
                 "Desktop verification keeps startup and do not disturb persistence in an isolated file");
         }
         finally { File.Delete(path); File.Delete(path + ".tmp"); }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void CheckProtectedInitializationPreparation(Action<bool, string> check)
+    {
+        if (!OperatingSystem.IsWindows() || WindowsIdentity.GetCurrent().User is not { } user) return;
+        var directory = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "initialization-preparation", Guid.NewGuid().ToString("N"));
+        var installation = new DirectoryInfo(directory);
+        var initialization = Path.Combine(directory, "Initialization");
+        Directory.CreateDirectory(initialization);
+        File.WriteAllText(Path.Combine(directory, "WindowsIsland.pri"), "verification resources");
+        File.WriteAllText(Path.Combine(initialization, "AppxManifest.xml"),
+            "<Package xmlns=\"http://schemas.microsoft.com/appx/manifest/foundation/windows10\"><Identity Name=\"WindowsIsland.InitializationVerification\" Version=\"1.0.0.0\" /><Capabilities /></Package>");
+        File.WriteAllText(Path.Combine(initialization, "RuntimeManifest.xml"),
+            "<Package xmlns=\"http://schemas.microsoft.com/appx/manifest/foundation/windows10\"><Extensions /></Package>");
+        var original = new DirectorySecurity();
+        original.SetSecurityDescriptorBinaryForm(installation.GetAccessControl(AccessControlSections.Access).GetSecurityDescriptorBinaryForm(),
+            AccessControlSections.Access);
+        var protectedAccess = installation.GetAccessControl(AccessControlSections.Access);
+        protectedAccess.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Deny));
+        var preparedByHelper = false;
+        try
+        {
+            installation.SetAccessControl(protectedAccess);
+            InitializationPreparation.PrepareAsync(directory, null, version =>
+            {
+                preparedByHelper = true;
+                installation.SetAccessControl(original);
+                InitializationPreparation.Prepare(directory, version);
+                return Task.CompletedTask;
+            }).GetAwaiter().GetResult();
+            check(preparedByHelper && File.Exists(Path.Combine(directory, "AppxManifest.xml"))
+                && InitializationResources.Matches(Path.Combine(directory, "WindowsIsland.pri"), Path.Combine(directory, "resources.pri")),
+                "Protected initialization requests only a preparation helper, then leaves registration files ready for the original user");
+        }
+        finally { installation.SetAccessControl(original); }
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
