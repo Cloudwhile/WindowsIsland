@@ -10,10 +10,16 @@ internal static class AvatarChecks
     {
         send("restore");
         Wait(() => !IsIconic(window));
-        var root = AutomationElement.FromHandle(window);
-        var sessions = root.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.AutomationIdProperty, "session_list"));
-        var viewport = sessions.Current.BoundingRectangle;
-        using var reader = new WeChatAvatarReader(root, window);
+        AutomationElement? root = null, sessions = null;
+        Wait(() =>
+        {
+            root = AutomationElement.FromHandle(window);
+            sessions = root?.FindFirst(TreeScope.Descendants,
+                new PropertyCondition(AutomationElement.AutomationIdProperty, "session_list"));
+            return sessions is not null;
+        });
+        var viewport = sessions!.Current.BoundingRectangle;
+        using var reader = new WeChatAvatarReader(root!, window);
         var rows = ReadRows();
         reader.BeginRead(rows);
         var group = rows.Single(row => row.Conversation == "示例群");
@@ -32,7 +38,7 @@ internal static class AvatarChecks
             check(reader.ReadConversation(recycled, viewport) is null, "A row recycled after frame capture cannot inherit the former conversation's pixels");
             reader.BeginRead(ReadRows());
             check(IsColor(reader.ReadConversation(recycled, viewport), Color.DarkOrange), "The next coherent frame supplies the recycled row's actual portrait");
-            using var staleReader = new WeChatAvatarReader(root, window);
+            using var staleReader = new WeChatAvatarReader(root!, window);
             staleReader.BeginRead(ReadRows());
             send("avatar-reorder");
             Wait(() => !recycled.IsCurrent());
@@ -55,7 +61,7 @@ internal static class AvatarChecks
             check(new WeChatAvatarCache(directory, "client/window/2").Get(key) is null,
                 "Identically named conversations in another client instance cannot share portraits");
             check(reopened.Get((key.Item1, "不同会话")) is null, "A reused automation key cannot return another conversation's cached portrait");
-            using var restoredReader = new WeChatAvatarReader(root, window, reopened);
+            using var restoredReader = new WeChatAvatarReader(root!, window, reopened);
             send("minimize");
             Wait(() => IsIconic(window));
             var minimizedRows = ReadRows();

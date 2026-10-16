@@ -17,10 +17,13 @@ internal static class AccessibilityRecoveryChecks
             var notifications = new ConcurrentQueue<IslandNotification>();
             using var listener = new WeChatService(() => true, action => action(), AppContext.BaseDirectory);
             listener.Received += notifications.Enqueue;
+            listener.Start();
+            Check(Wait(() => listener.StatusKey == "NotRunning"), "An unopened WeChat client is reported as not running");
+            Thread.Sleep(700);
+            Check(Diagnostics.Store!.Snapshot().Length == 0, "An unopened WeChat client does not create accessibility errors");
             var executable = Path.Combine(AppContext.BaseDirectory, "WeChat.exe");
             File.Copy(Environment.ProcessPath!, executable, true);
             using var fixture = ListenerChecks.FixtureClient.Start(executable, module);
-            listener.Start();
             Check(Wait(() => Recorded("AccessibilityUnavailable")), "The first unavailable accessibility attempt is recorded without message content");
             fixture.Send("accessibility-load");
             Check(Wait(() => listener.IsConnected(fixture.Process.Id)), "A failed first attempt retries when the client module becomes available");
@@ -36,6 +39,11 @@ internal static class AccessibilityRecoveryChecks
             Check(notifications.IsEmpty, "Gate restoration does not replay previous messages");
             fixture.Send("incoming:开关恢复后的消息");
             Check(Wait(() => notifications.Count == 1), "Messages continue after gate recovery without restarting the application");
+            var beforeClose = Diagnostics.Store!.Snapshot().Sum(entry => entry.Count);
+            fixture.Send("quit");
+            Check(fixture.Process.WaitForExit(5000) && Wait(() => listener.StatusKey == "NotRunning"), "Closing WeChat returns to the normal not-running state");
+            Thread.Sleep(700);
+            Check(Diagnostics.Store.Snapshot().Sum(entry => entry.Count) == beforeClose, "Closing WeChat does not create accessibility errors");
             listener.Dispose();
             Console.WriteLine($"{checks} WeChat accessibility recovery checks passed.");
             return 0;

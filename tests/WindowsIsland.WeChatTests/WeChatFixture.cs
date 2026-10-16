@@ -12,7 +12,7 @@ internal sealed class WeChatFixture : Window
 {
     private readonly ListBox _sessions = new SessionList(), _messages = new();
     private readonly ListBoxItem _friend = new(), _group = new SessionRow(), _service = new SessionRow("mmui::BrandSessionCell");
-    private readonly ListBoxItem _newChat = new SessionRow();
+    private ListBoxItem _newChat = new SessionRow();
     private readonly TextBox _input = new();
     private readonly Portrait _groupPortrait;
     private readonly Portrait _unavailablePortrait;
@@ -20,7 +20,7 @@ internal sealed class WeChatFixture : Window
     private int _unread = 7, _groupUnread = 4;
     private readonly string? _accessibilityModule;
     private readonly DockPanel _content;
-    private nint _module;
+    private nint _module, _window;
 
     private WeChatFixture(string pipe, string ready, string? accessibilityModule)
     {
@@ -70,6 +70,7 @@ internal sealed class WeChatFixture : Window
         AddMessage("历史消息", "Incoming");
         Loaded += (_, _) =>
         {
+            _window = new System.Windows.Interop.WindowInteropHelper(this).Handle;
             File.WriteAllText(ready, Environment.ProcessId.ToString());
             new Thread(() => Serve(pipe)) { IsBackground = true }.Start();
         };
@@ -77,6 +78,7 @@ internal sealed class WeChatFixture : Window
 
     public static int Run(string pipe, string ready, string? accessibilityModule = null)
     {
+        RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         var thread = new Thread(() => new Application().Run(new WeChatFixture(pipe, ready, accessibilityModule)));
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start(); thread.Join();
@@ -87,11 +89,16 @@ internal sealed class WeChatFixture : Window
     {
         try
         {
-            using var server = new NamedPipeServerStream(pipe, PipeDirection.In);
+            using var server = new NamedPipeServerStream(pipe, PipeDirection.InOut);
             server.WaitForConnection();
-            using var reader = new StreamReader(server);
+            using var reader = new StreamReader(server, leaveOpen: true);
+            using var writer = new StreamWriter(server, leaveOpen: true) { AutoFlush = true };
+            writer.WriteLine(_window.ToInt64());
             while (reader.ReadLine() is { } command)
+            {
                 Dispatcher.Invoke(() => Apply(command));
+                writer.WriteLine("ok");
+            }
         }
         catch (Exception error) when (error is IOException or TaskCanceledException or InvalidOperationException) { }
     }
@@ -121,8 +128,12 @@ internal sealed class WeChatFixture : Window
                 if (!_sessions.Items.Contains(_newChat)) _sessions.Items.Add(_newChat);
                 break;
             case "newchat-avatar":
-                _newChat.Tag = _friend.Tag;
+                var newChatIndex = _sessions.Items.IndexOf(_newChat);
+                if (newChatIndex >= 0) _sessions.Items.RemoveAt(newChatIndex);
+                _newChat = new ListBoxItem { Tag = _friend.Tag };
+                AutomationProperties.SetAutomationId(_newChat, "session_item_首次出现的会话");
                 Preview(_newChat, "首次出现的会话", _newChatBody, 1, pinned: false);
+                if (newChatIndex >= 0) _sessions.Items.Insert(newChatIndex, _newChat);
                 break;
             case "draft": Preview(_friend, "示例会话", "[草稿] " + body, _unread); break;
             case "history":

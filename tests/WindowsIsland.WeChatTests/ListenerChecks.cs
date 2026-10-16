@@ -64,8 +64,7 @@ internal static class ListenerChecks
         Quiet("Draft changes remain silent");
         fixture.Send("history");
         Quiet("Replacing the visible history does not replay older rows");
-        fixture.Process.Refresh();
-        AvatarChecks.Run(fixture.Process.MainWindowHandle, fixture.Send, Check);
+        AvatarChecks.Run(fixture.Window, fixture.Send, Check);
         fixture.Send("minimize");
         fixture.Send("incoming:最小化后收到的消息");
         Check(Wait(() => notifications.Count == 1), "UIAutomation continues reading a minimized client");
@@ -122,9 +121,10 @@ internal static class ListenerChecks
             && Math.Abs(pixel.G - expected.G) <= 5 && Math.Abs(pixel.B - expected.B) <= 5;
     }
 
-    internal sealed class FixtureClient(Process process, NamedPipeClientStream pipe, StreamWriter writer, string ready) : IDisposable
+    internal sealed class FixtureClient(Process process, NamedPipeClientStream pipe, StreamWriter writer, StreamReader reader, nint window, string ready) : IDisposable
     {
         public Process Process { get; } = process;
+        public nint Window { get; } = window;
         public static FixtureClient Start(string executable, string? accessibilityModule = null)
         {
             var token = Guid.NewGuid().ToString("N");
@@ -133,15 +133,23 @@ internal static class ListenerChecks
             start.ArgumentList.Add("--fixture"); start.ArgumentList.Add(token); start.ArgumentList.Add(ready);
             if (accessibilityModule is not null) start.ArgumentList.Add(accessibilityModule);
             var process = Process.Start(start)!;
-            var pipe = new NamedPipeClientStream(".", token, PipeDirection.Out);
+            var pipe = new NamedPipeClientStream(".", token, PipeDirection.InOut);
             try
             {
                 pipe.Connect(8000);
-                return new(process, pipe, new StreamWriter(pipe) { AutoFlush = true }, ready);
+                var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+                var reader = new StreamReader(pipe, leaveOpen: true);
+                if (!long.TryParse(reader.ReadLine(), out var window) || window == 0)
+                    throw new InvalidDataException("The WeChat fixture did not provide its window handle.");
+                return new(process, pipe, writer, reader, (nint)window, ready);
             }
             catch { if (!process.HasExited) process.Kill(); pipe.Dispose(); process.Dispose(); throw; }
         }
-        public void Send(string command) => writer.WriteLine(command);
+        public void Send(string command)
+        {
+            writer.WriteLine(command);
+            if (reader.ReadLine() != "ok") throw new EndOfStreamException("The WeChat fixture did not acknowledge the command.");
+        }
         public void Dispose()
         {
             if (!Process.HasExited)
@@ -149,7 +157,7 @@ internal static class ListenerChecks
                 try { Send("quit"); } catch (IOException) { }
                 if (!Process.WaitForExit(3000)) Process.Kill();
             }
-            writer.Dispose(); pipe.Dispose(); Process.Dispose();
+            reader.Dispose(); writer.Dispose(); pipe.Dispose(); Process.Dispose();
             if (File.Exists(ready)) File.Delete(ready);
         }
     }

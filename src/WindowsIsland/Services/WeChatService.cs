@@ -141,13 +141,21 @@ internal sealed class WeChatService : IDisposable
                                     watch = new(root, window, avatars, (_, _) => Signal(), (_, _) => Signal());
                                     client.Windows[window] = watch;
                                     try { Automation.AddStructureChangedEventHandler(root, TreeScope.Subtree, watch.Callback); }
-                                    catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
+                                    catch (Exception error)
+                                    {
+                                        if (IsWindow(window) && IsClientRunning(client)) Diagnostics.Capture(DiagnosticArea.WeChat, error);
+                                        Trace.WriteLine(error.GetType().Name);
+                                    }
                                     try
                                     {
                                         Automation.AddAutomationPropertyChangedEventHandler(root, TreeScope.Subtree, watch.PropertyCallback,
                                         AutomationElement.NameProperty, AutomationElement.ItemStatusProperty);
                                     }
-                                    catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
+                                    catch (Exception error)
+                                    {
+                                        if (IsWindow(window) && IsClientRunning(client)) Diagnostics.Capture(DiagnosticArea.WeChat, error);
+                                        Trace.WriteLine(error.GetType().Name);
+                                    }
                                 }
                                 var snapshot = watch.Reader.Read();
                                 _conversations.Update(client.Id, snapshot.Previews);
@@ -187,7 +195,8 @@ internal sealed class WeChatService : IDisposable
                             catch (Exception error) when (error is ElementNotAvailableException or InvalidOperationException or COMException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
                             {
                                 if (client.Windows.Remove(window, out var stale)) RemoveWatch(stale);
-                                Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat UIAutomation: {error.GetType().Name}");
+                                if (IsWindow(window) && IsClientRunning(client)) Diagnostics.Capture(DiagnosticArea.WeChat, error);
+                                Trace.WriteLine($"WeChat UIAutomation: {error.GetType().Name}");
                             }
                         }
                         foreach (var stale in client.Windows.Keys.Where(window => !IsWindow(window)).ToArray())
@@ -231,7 +240,11 @@ internal sealed class WeChatService : IDisposable
                         alive.Add(process.Id);
                         _clients.TryAdd(process.Id, new(process.Id, executable, process.StartTime.ToUniversalTime().Ticks));
                     }
-                    catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat discovery: {error.GetType().Name}"); }
+                    catch (Exception error)
+                    {
+                        if (IsProcessRunning(process)) Diagnostics.Capture(DiagnosticArea.WeChat, error);
+                        Trace.WriteLine($"WeChat discovery: {error.GetType().Name}");
+                    }
                 }
             }
         }
@@ -312,9 +325,30 @@ internal sealed class WeChatService : IDisposable
     {
         watch.Reader.Dispose();
         try { Automation.RemoveStructureChangedEventHandler(watch.Root, watch.Callback); }
+        catch (Exception error) when (error is ElementNotAvailableException or InvalidOperationException or COMException)
+        { Trace.WriteLine(error.GetType().Name); }
         catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
         try { Automation.RemoveAutomationPropertyChangedEventHandler(watch.Root, watch.PropertyCallback); }
+        catch (Exception error) when (error is ElementNotAvailableException or InvalidOperationException or COMException)
+        { Trace.WriteLine(error.GetType().Name); }
         catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine(error.GetType().Name); }
+    }
+
+    private static bool IsClientRunning(Client client)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(client.Id);
+            return !process.HasExited && process.StartTime.ToUniversalTime().Ticks == client.StartedAt;
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        { return false; }
+    }
+
+    private static bool IsProcessRunning(Process process)
+    {
+        try { return !process.HasExited; }
+        catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
     }
 
     private void RemoveClient(Client client)
