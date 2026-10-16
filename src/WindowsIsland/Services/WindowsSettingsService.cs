@@ -14,7 +14,7 @@ internal sealed class WindowsSettingsService
         _verification = verification;
         _store = verification
             ? new FileWindowsPreferenceStore(Path.Combine(AppContext.BaseDirectory, "verification-system-settings.json"))
-            : new RegistryWindowsPreferenceStore(Registry.CurrentUser);
+            : new RegistryWindowsPreferenceStore(Registry.CurrentUser, disableVirtualization: true);
         Startup = new(_store, Environment.ProcessPath!);
         DoNotDisturb = new(verification ? new FileQuietHoursStore(_store) : new WindowsQuietHoursStore());
     }

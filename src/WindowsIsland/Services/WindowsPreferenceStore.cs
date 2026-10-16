@@ -1,21 +1,48 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text.Json;
 using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
 
 namespace WindowsIsland.Services;
 
 [SupportedOSPlatform("windows")]
-internal sealed class RegistryWindowsPreferenceStore(RegistryKey user) : IWindowsPreferenceStore
+internal sealed class RegistryWindowsPreferenceStore(RegistryKey user, bool disableVirtualization = false) : IWindowsPreferenceStore
 {
+    private const int RegOptionDontVirtualize = 0x10;
+    private const int KeyRead = 0x20019;
+    private const int KeyWrite = 0x20006;
+
+    private RegistryKey? Open(string path, bool writable, bool create = false)
+    {
+        if (!disableVirtualization) return user.OpenSubKey(path, writable);
+        SafeRegistryHandle handle;
+        int result;
+        if (create)
+        {
+            result = RegCreateKeyEx(user.Handle, path, 0, null, RegOptionDontVirtualize,
+                KeyWrite, nint.Zero, out handle, out _);
+        }
+        else
+        {
+            result = RegOpenKeyEx(user.Handle, path, RegOptionDontVirtualize,
+                writable ? KeyWrite : KeyRead, out handle);
+        }
+        if (result == 2) return null;
+        if (result != 0) throw new IOException("Could not open the preference key.", new Win32Exception(result));
+        return RegistryKey.FromHandle(handle);
+    }
+
     public string[] SubKeys(string path)
     {
-        using var key = user.OpenSubKey(path);
+        using var key = Open(path, writable: false);
         return key?.GetSubKeyNames() ?? [];
     }
 
     public PreferenceValue? Read(string path, string name)
     {
-        using var key = user.OpenSubKey(path);
+        using var key = Open(path, writable: false);
         var value = key?.GetValue(name, null, RegistryValueOptions.DoNotExpandEnvironmentNames);
         if (value is null) return null;
         return key!.GetValueKind(name) switch
@@ -29,7 +56,7 @@ internal sealed class RegistryWindowsPreferenceStore(RegistryKey user) : IWindow
 
     public void Write(string path, string name, PreferenceValue value)
     {
-        using var key = user.CreateSubKey(path, writable: true) ?? throw new IOException("Could not open the preference key.");
+        using var key = Open(path, writable: true, create: true) ?? throw new IOException("Could not open the preference key.");
         switch (value.Kind)
         {
             case PreferenceValueKind.String: key.SetValue(name, value.Text ?? "", RegistryValueKind.String); break;
@@ -41,9 +68,18 @@ internal sealed class RegistryWindowsPreferenceStore(RegistryKey user) : IWindow
 
     public void Remove(string path, string name)
     {
-        using var key = user.OpenSubKey(path, writable: true);
+        using var key = Open(path, writable: true);
         key?.DeleteValue(name, throwOnMissingValue: false);
     }
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int RegCreateKeyEx(
+        SafeRegistryHandle hKey, string lpSubKey, int reserved, string? lpClass, int options,
+        int samDesired, nint securityAttributes, out SafeRegistryHandle result, out int disposition);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int RegOpenKeyEx(
+        SafeRegistryHandle hKey, string lpSubKey, int options, int samDesired, out SafeRegistryHandle result);
 }
 
 internal sealed class FileWindowsPreferenceStore : IWindowsPreferenceStore

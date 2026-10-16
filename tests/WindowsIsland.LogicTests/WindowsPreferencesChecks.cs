@@ -68,7 +68,7 @@ internal static class WindowsPreferencesChecks
         try
         {
             using var root = Registry.CurrentUser.CreateSubKey(path);
-            var store = new RegistryWindowsPreferenceStore(root);
+            var store = new RegistryWindowsPreferenceStore(root, disableVirtualization: true);
             var startup = new StartupRegistration(store, executable);
             startup.Set(true);
             check(startup.Read() == StartupState.Enabled, "The native registry adapter persists startup in an isolated test hive");
