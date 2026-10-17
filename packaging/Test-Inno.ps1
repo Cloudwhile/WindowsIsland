@@ -75,6 +75,10 @@ try {
     if ((Get-Content (Join-Path $work 'uninstall.log') -Raw) -match 'Cannot call|Runtime error|cleanup did not complete') { throw 'Uninstall reported a runtime or cleanup error.' }
     'PASS real Inno uninstall completes without unsupported original-user calls'
 } finally {
+    foreach ($logName in @('install.log','upgrade.log','uninstall.log')) {
+        $logPath = Join-Path $work $logName
+        if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Tail 45 }
+    }
     if ((Appx 'Get-AppxPackage -Name WindowsIsland.Desktop | Select-Object PackageFullName,InstallLocation | ConvertTo-Json -Compress') -ne $originalRegistration) {
         throw 'Normal package registration changed.'
     }

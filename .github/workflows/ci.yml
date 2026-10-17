@@ -36,6 +36,13 @@ jobs:
       - name: Check standard-user test context
         run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1 -Probe
 
+      - name: Prepare isolated package registration permissions
+        run: |
+          $key = 'HKLM:/SOFTWARE/Microsoft/Windows/CurrentVersion/AppModelUnlock'
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name AllowAllTrustedApps -Value 1 -PropertyType DWord -Force | Out-Null
+          New-ItemProperty -Path $key -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
+
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -158,6 +165,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: WindowsIsland-diagnostics
-          path: artifacts/verification/
+          path: |
+            artifacts/verification/**/*.log
+            artifacts/verification/**/*.json
           if-no-files-found: ignore
           retention-days: 7
