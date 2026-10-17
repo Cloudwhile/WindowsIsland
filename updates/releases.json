@@ -2,29 +2,29 @@
   "schema_version": 1,
   "releases": [
     {
-      "tag_name": "v0.1.4",
-      "name": "Windows Island v0.1.4",
-      "body": "# Windows Island v0.1.4\n\n## Fixed\n\n- 修复消息岛安装在 `C:\\Program Files` 等受保护目录时，应用内更新无法完成的问题。\n- 修复 MSI 升级时无法关闭正在运行的消息岛或释放占用文件而导致安装失败的问题。\n- 修复通过 MSI 卸载后安装目录仍有文件残留的问题。\n\n## Improved\n\n- 更新包下载支持断点续传；取消或网络中断后可从已有进度继续。\n- 更新页在下载期间显示实时传输速率和完成百分比。\n\n## Upgrade Notes\n\n- 如果 v0.1.3 的 MSI 安装位于 `C:\\Program Files` 等受保护目录，应用内更新可能仍会失败；请首次手动运行下方 v0.1.4 MSI，之后的应用内更新即可使用新的权限处理流程。\n- 其他安装可直接在消息岛的更新页升级；手动升级时，MSI 用户运行下方安装包，ZIP 用户退出消息岛后将新压缩包完整解压到原目录。\n- 接收预发布更新默认关闭；v0.1.4 为正式版，无需开启此选项。\n\n## Downloads\n\n适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。\n\n- [MSI 安装包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.4/WindowsIsland-0.1.4-win-x64.msi)\n- [ZIP 压缩包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.4/WindowsIsland-0.1.4-win-x64.zip)\n- 对应的 SHA-256 校验文件见下方附件。\n\n## Full Changelog\n\nhttps://github.com/Cloudwhile/WindowsIsland/compare/v0.1.3...v0.1.4\n",
+      "tag_name": "v0.1.5",
+      "name": "Windows Island v0.1.5",
+      "body": "# Windows Island v0.1.5\n\n## Fixed\n\n- 修复初始化资源写入受保护安装目录时无响应或重复失败的问题，并保留失败原因以便重试。\n- 修复 MSI 首次安装、升级、修复和卸载时无法关闭目标安装目录中仍在运行的消息岛的问题；无响应进程只在超时并完成身份核对后处理，不影响其他目录实例。\n- 修复弹窗收起期间更新消息造成透明度叠加、收起不平滑的问题。\n- 修复系统高对比度或透明效果不可用时外观设置可能阻止应用启动的问题。\n\n## Improved\n\n- 在“设置 → 外观”提供毛玻璃开关、背景透明度滑块和透明度过渡开关。\n- 背景透明度只影响弹窗背景，正文、应用图标和会话头像保持清晰；偏好逐项校验并在重启后保留。\n- 透明度过渡使用线性动画，关闭过渡不会关闭弹窗形状动画。\n- 保持 MSI 安装路径可选；只有选定目录需要时才申请管理员权限。\n\n## Upgrade Notes\n\n- v0.1.5 为正式版，默认不接收预发布更新。\n- MSI 用户运行 MSI 安装包，ZIP 用户退出消息岛后将压缩包完整解压到原目录。\n\n## Downloads\n\n适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。\n\n- [MSI 安装包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.msi)\n- [ZIP 压缩包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.zip)\n- 对应的 SHA-256 校验文件见下方附件。\n\n## Full Changelog\n\nhttps://github.com/Cloudwhile/WindowsIsland/compare/v0.1.4...v0.1.5\n",
       "prerelease": false,
       "assets": [
         {
-          "name": "WindowsIsland-0.1.4-win-x64.zip",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.4/WindowsIsland-0.1.4-win-x64.zip",
-          "size": 121294631
+          "name": "WindowsIsland-0.1.5-win-x64.zip",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.zip",
+          "size": 121301435
         },
         {
-          "name": "WindowsIsland-0.1.4-win-x64.zip.sha256",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.4/WindowsIsland-0.1.4-win-x64.zip.sha256",
+          "name": "WindowsIsland-0.1.5-win-x64.zip.sha256",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.zip.sha256",
           "size": 98
         },
         {
-          "name": "WindowsIsland-0.1.4-win-x64.msi",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.4/WindowsIsland-0.1.4-win-x64.msi",
-          "size": 94209536
+          "name": "WindowsIsland-0.1.5-win-x64.msi",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.msi",
+          "size": 94205817
         },
         {
-          "name": "WindowsIsland-0.1.4-win-x64.msi.sha256",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.4/WindowsIsland-0.1.4-win-x64.msi.sha256",
+          "name": "WindowsIsland-0.1.5-win-x64.msi.sha256",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.msi.sha256",
           "size": 98
         }
       ]
