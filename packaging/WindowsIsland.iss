@@ -11,14 +11,16 @@ AppVerName={#AppName} {#AppVersion}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}
 AppUpdatesURL={#AppUrl}
-DefaultDirName={localappdata}\Programs\Windows Island
+DefaultDirName={code:GetDefaultDirName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog commandline
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-CloseApplications=yes
+; The upgrade hook below closes only the WindowsIsland process from {app}.
+; Restart Manager would also close Telegram while it has our hook DLL loaded.
+CloseApplications=no
 RestartApplications=no
 OutputDir={#OutputDirectory}
 OutputBaseFilename=WindowsIsland-{#AppVersion}-win-x64
@@ -41,9 +43,59 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\WindowsIsland.exe"; IconFile
 Filename: "{app}\WindowsIsland.exe"; Parameters: "--settings"; Description: "Launch {#AppName}"; Flags: postinstall nowait skipifsilent unchecked runasoriginaluser
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File ""{app}\Uninstall.ps1"" -InstallDirectory ""{app}"""; RunOnceId: "WindowsIsland.Unregister"
+; Cleanup is invoked from CurUninstallStepChanged with ExecAsOriginalUser so
+; an elevated uninstaller cannot accidentally modify the administrator HKCU.
 
 [Code]
+function GetDefaultDirName(Param: String): String;
+begin
+  if RegQueryStringValue(HKCU, 'Software\Cloudwhile\WindowsIsland\Installer', 'InstallDirectory', Result) then
+    exit;
+  Result := ExpandConstant('{localappdata}\Programs\Windows Island');
+end;
+
+function RunUpgradeCleanup(): Boolean;
+var
+  ResultCode: Integer;
+  Parameters: String;
+begin
+  Result := True;
+  if not FileExists(ExpandConstant('{app}\WindowsIsland.exe')) or
+     not FileExists(ExpandConstant('{app}\Uninstall.ps1')) then
+    exit;
+  Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File ' +
+    '"' + ExpandConstant('{app}\Uninstall.ps1') + '" -InstallDirectory "' +
+    ExpandConstant('{app}') + '"';
+  Result := ExecAsOriginalUser(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  if not Result then
+    MsgBox('Windows Island could not close the previous installation before updating.', mbError, MB_OK);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  if not RunUpgradeCleanup() then
+    Result := 'The previous Windows Island installation is still running.';
+end;
+
+procedure CurUninstallStepChanged(UserStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  Parameters: String;
+begin
+  if UserStep <> usUninstall then
+    exit;
+  if not FileExists(ExpandConstant('{app}\Uninstall.ps1')) then
+    exit;
+  Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File ' +
+    '"' + ExpandConstant('{app}\Uninstall.ps1') + '" -InstallDirectory "' +
+    ExpandConstant('{app}') + '"';
+  if not (ExecAsOriginalUser(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0)) then
+    MsgBox('Windows Island cleanup did not complete. Some registration may remain.', mbError, MB_OK);
+end;
+
 function InitializePackage(): Boolean;
 var
   ResultCode: Integer;

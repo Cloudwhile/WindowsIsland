@@ -5,6 +5,9 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
+if (!(Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.TelegramHook.dll') -PathType Leaf)) {
+    throw 'Published payload is missing WindowsIsland.TelegramHook.dll.'
+}
 $definition = [xml](Get-Content -LiteralPath $Project -Raw)
 $references = @($definition.SelectNodes('/Project/ItemGroup/FrameworkReference'))
 $expected = @{}

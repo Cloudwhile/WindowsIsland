@@ -182,7 +182,7 @@ internal static class UpdateScriptChecks
         public string Work => _work;
         public string PhysicalWork { get; }
         public string PhysicalJob => Path.Combine(PhysicalWork, Path.GetFileName(Job));
-        public string MsiName => "WindowsIsland-" + ReleaseVersion.Current.Display + "-win-x64.msi";
+        public string MsiName => "WindowsIsland-" + ReleaseVersion.Current.Display + "-win-x64.exe";
         public string MsiSource => Path.Combine(PhysicalWork, MsiName);
         public string FailureLog => Path.Combine(_work, "last-helper-error.log");
 

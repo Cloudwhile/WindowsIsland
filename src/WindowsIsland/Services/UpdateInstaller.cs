@@ -52,7 +52,10 @@ internal static class UpdateInstaller
             WorkingDirectory = Path.GetDirectoryName(directInstaller)!,
             WindowStyle = ProcessWindowStyle.Hidden
         };
-        foreach (var argument in new[] { "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS" })
+        // Preserve the active installation location when migrating from MSI or
+        // when the user selected a non-default Inno directory.
+        installerStart.ArgumentList.Add("/DIR=" + Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
+        foreach (var argument in new[] { "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" })
             installerStart.ArgumentList.Add(argument);
         using var installerProcess = Process.Start(installerStart)
             ?? throw Localization.IoError("UpdateErrorHelperStart");

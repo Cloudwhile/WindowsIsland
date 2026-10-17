@@ -17,6 +17,9 @@ $parts = @([int]$Matches[1],[int]$Matches[2],[int]$Matches[3])
 if ($parts[0] -gt 255 -or $parts[1] -gt 255 -or $parts[2] -gt 65535) { throw 'Version exceeds MSI limits.' }
 $msiVersion = $parts -join '.'
 if (!(Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.exe'))) { throw 'Publish output is missing.' }
+if (!(Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.TelegramHook.dll') -PathType Leaf)) {
+    throw 'Publish output is missing WindowsIsland.TelegramHook.dll.'
+}
 function Escape-Xml([string]$value) { [Security.SecurityElement]::Escape($value) }
 function Get-Id([string]$value) {
     $bytes = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($value.ToLowerInvariant()))

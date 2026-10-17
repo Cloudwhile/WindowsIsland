@@ -8,8 +8,13 @@ if (($root.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
 $executable = Join-Path $directory 'WindowsIsland.exe'
 foreach ($application in @(Get-Process WindowsIsland -ErrorAction SilentlyContinue)) {
     if ($application.Path -eq $executable) {
-        Stop-Process -InputObject $application
-        if (!$application.WaitForExit(5000)) { throw 'Windows Island could not be stopped.' }
+        # Let the application dispose its Telegram hook before falling back to
+        # a forceful stop; otherwise the installer can inherit a locked DLL.
+        try { [void]$application.CloseMainWindow() } catch { }
+        if (!$application.WaitForExit(5000)) {
+            Stop-Process -InputObject $application -Force
+            if (!$application.WaitForExit(5000)) { throw 'Windows Island could not be stopped.' }
+        }
     }
 }
 function Remove-LegacyHookCache {
@@ -46,7 +51,7 @@ function Remove-PackageMetadata {
     catch [UnauthorizedAccessException] { return }
     catch [System.Security.SecurityException] { return }
     for ($attempt = 0; $attempt -lt 50; $attempt++) {
-        try { Remove-Item -LiteralPath $metadata -Recurse -Force; return }
+        try { [IO.Directory]::Delete($metadata, $false); return }
         catch [IO.IOException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
         catch [UnauthorizedAccessException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
     }
@@ -62,8 +67,8 @@ function Remove-ManagedHookBinary {
     catch [System.Security.SecurityException] { return }
     for ($attempt = 0; $attempt -lt 50; $attempt++) {
         try { Remove-Item -LiteralPath $hook -Force; return }
-        catch [IO.IOException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
-        catch [UnauthorizedAccessException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
+        catch [IO.IOException] { if ($attempt -eq 49) { throw 'Telegram hook DLL could not be removed.' }; Start-Sleep -Milliseconds 100 }
+        catch [UnauthorizedAccessException] { if ($attempt -eq 49) { throw 'Telegram hook DLL could not be removed.' }; Start-Sleep -Milliseconds 100 }
     }
 }
 $startupKey = 'Software\Microsoft\Windows\CurrentVersion\Run'
