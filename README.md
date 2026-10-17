@@ -84,7 +84,7 @@ When a selected game or full-screen mute condition is detected, the island pause
 
 ## Updates
 
-Open **Updates** and click the check icon to view available releases and their notes. Click download to prepare an update; the app restarts to complete installation and keeps your preferences. Downloads can be canceled or retried.
+Open **Updates** and click the check icon to view available releases and their notes. Click download to prepare an update; the app restarts to complete installation and keeps your preferences. Interrupted downloads resume from saved progress, while the update page shows the current percentage and transfer rate.
 
 **Include prerelease updates** is off by default. Enable it if you also want to receive prereleases.
 
