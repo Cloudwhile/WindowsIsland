@@ -28,8 +28,7 @@ body:
     attributes:
       label: 安装方式 / Installation method
       options:
-        - MSI 安装包 / MSI installer
-        - ZIP 压缩包 / ZIP archive
+        - Windows 安装器 / Windows installer
         - 源码构建 / Source build
         - 不确定 / Not sure
     validations:

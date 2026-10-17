@@ -30,7 +30,7 @@ function Convert-Release($release) {
     $tag = $release.tag_name
     $baseName = "WindowsIsland-$($tag.Substring(1))-win-x64"
     $assets = [Collections.Generic.List[object]]::new()
-    foreach ($extension in '.zip', '.zip.sha256', '.msi', '.msi.sha256') {
+    foreach ($extension in '.exe', '.exe.sha256') {
         $name = "$baseName$extension"
         $matching = @($release.assets | Where-Object { $_ -is [Collections.IDictionary] -and $_.name -ceq $name })
         if ($matching.Count -ne 1) { return }

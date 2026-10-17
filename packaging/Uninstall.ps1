@@ -1,6 +1,10 @@
 param([Parameter(Mandatory)][string]$InstallDirectory, [switch]$PreserveManagedHook)
 $ErrorActionPreference = 'Stop'
 $directory = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
+$root = Get-Item -LiteralPath $directory -Force
+if (($root.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw 'Installation directory cannot be a reparse point.'
+}
 $executable = Join-Path $directory 'WindowsIsland.exe'
 foreach ($application in @(Get-Process WindowsIsland -ErrorAction SilentlyContinue)) {
     if ($application.Path -eq $executable) {
@@ -34,9 +38,10 @@ function Remove-PackageMetadata {
     try {
         $root = Get-Item -LiteralPath $metadata -Force
         if (($root.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
-        foreach ($item in @(Get-ChildItem -LiteralPath $metadata -Force -Recurse)) {
-            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
-        }
+        # Package removal owns the contents. This script only removes the
+        # directory after confirming it is empty, so unrelated metadata cannot
+        # be recursively deleted from an installation directory.
+        if (@(Get-ChildItem -LiteralPath $metadata -Force).Count -ne 0) { return }
     } catch [IO.IOException] { return }
     catch [UnauthorizedAccessException] { return }
     catch [System.Security.SecurityException] { return }

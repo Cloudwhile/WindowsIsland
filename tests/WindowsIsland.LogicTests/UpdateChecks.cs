@@ -61,8 +61,8 @@ internal static class UpdateChecks
             requests.Clear();
             var preview = await client.FindUpdateAsync(Version("1.2.0"), true, CancellationToken.None);
             check(preview?.Tag == "v1.5.0-rc.99" && requests.Count == 1 && preview.Notes == "修复与改进"
-                && preview.Installer?.Name.EndsWith(".msi", StringComparison.Ordinal) == true,
-                "Preview updates retain release notes and MSI metadata and choose the highest version regardless of manifest order");
+                && preview.Installer?.Name.EndsWith(".exe", StringComparison.Ordinal) == true,
+                "Preview updates retain release notes and installer metadata and choose the highest version regardless of manifest order");
             check(await client.FindUpdateAsync(Version("1.5.0-rc.99"), true, CancellationToken.None) is null,
                 "The current version and older releases are never offered as an update");
         }
@@ -118,7 +118,7 @@ internal static class UpdateChecks
             var published = document.RootElement.GetProperty("releases").EnumerateArray().Select(GitHubReleaseClient.ParseRelease).ToArray();
             check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length == 1
                 && published.All(release => release is { Installer: not null, InstallerChecksum: not null }),
-                "The checked-in manifest retains only the latest published release with both ZIP and MSI assets");
+                "The checked-in manifest retains only the latest published release with the installer and checksum assets");
         }
 
         var root = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "updates", Guid.NewGuid().ToString("N"));
@@ -139,7 +139,7 @@ internal static class UpdateChecks
             }
             check(!Directory.Exists(directory), "Cancelling a prepared update removes only its temporary job directory");
         }
-        var installer = Encoding.UTF8.GetBytes("verified MSI fixture");
+        var installer = Encoding.UTF8.GetBytes("verified installer fixture");
         var installerDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(installer)).ToLowerInvariant()
             + "  " + release.Installer!.Name + "\n");
         var msiRelease = release with
@@ -155,7 +155,7 @@ internal static class UpdateChecks
             var name = Path.GetFileName(request.RequestUri!.AbsolutePath);
             requested.Add(name);
             var content = name == msiRelease.InstallerChecksum!.Name ? installerDigest
-                : name == msiRelease.Installer!.Name ? installer : throw new InvalidOperationException("Unexpected ZIP request in MSI update: " + name);
+                : name == msiRelease.Installer!.Name ? installer : throw new InvalidOperationException("Unexpected asset request in installer update: " + name);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(content) });
         })))
         using (var prepared = await UpdatePackage.PrepareAsync(client, msiRelease, true,
@@ -166,11 +166,11 @@ internal static class UpdateChecks
                 && Path.GetFileName(prepared.InstallerPath) == msiRelease.Installer.Name
                 && !File.Exists(Path.Combine(prepared.Directory, "update.msi"))
                 && File.ReadAllBytes(prepared.InstallerPath).SequenceEqual(installer),
-                "MSI updates download only their checksum and verified installer exactly once");
+                "Installer updates download only their checksum and verified installer exactly once");
             check(!Directory.Exists(prepared.StagingDirectory) && !File.Exists(Path.Combine(prepared.Directory, "update.zip"))
                 && stages.All(value => value.MessageKey != "UpdateExtracting")
                 && stages.Count(value => value.MessageKey == "UpdateDownloading" && value.Percent == 0) == 1,
-                "MSI preparation never extracts a ZIP or restarts download progress after extraction");
+                "Installer preparation never extracts a ZIP or restarts download progress after extraction");
         }
 
         var resumeInstaller = Enumerable.Range(0, 320 * 1024).Select(index => (byte)(index * 31)).ToArray();
@@ -307,8 +307,8 @@ internal static class UpdateChecks
             { Content = new ByteArrayContent(request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal) ? installerDigest : installer[..^1]) }))))
         {
             await RejectAsync(() => UpdatePackage.PrepareAsync(client, msiRelease, true, null, CancellationToken.None, root), check,
-                "A truncated MSI is rejected without falling back to a ZIP or leaving a prepared job");
-            check(!Directory.EnumerateDirectories(root).Any(), "Failed MSI preparation removes only its own incomplete work directory");
+                "A truncated installer is rejected without falling back to a ZIP or leaving a prepared job");
+            check(!Directory.EnumerateDirectories(root).Any(), "Failed installer preparation removes only its own incomplete work directory");
         }
         var wrong = Encoding.UTF8.GetBytes(new string('0', 64) + "  " + release.Archive.Name + "\n");
         using (var client = DownloadClient(zip, wrong))
@@ -322,7 +322,7 @@ internal static class UpdateChecks
                 "Truncated downloads are rejected before replacing the application");
         using (var client = DownloadClient(zip, digest))
             await RejectAsync(() => UpdatePackage.PrepareAsync(client, release with { Installer = null, InstallerChecksum = null }, true,
-                null, CancellationToken.None, root), check, "MSI installations require a matching MSI instead of overwriting installer files");
+                null, CancellationToken.None, root), check, "Installer updates require a matching installer asset instead of overwriting application files");
         using (var client = DownloadClient(zip, digest))
         using (var cancel = new CancellationTokenSource())
         {
@@ -347,7 +347,7 @@ internal static class UpdateChecks
         bool complete = true, bool unsafeUrl = false) => new
     {
         tag_name = tag, name = "Windows Island " + tag, body = "修复与改进", draft, prerelease,
-        assets = (complete ? new[] { ".zip", ".zip.sha256", ".msi", ".msi.sha256" } : new[] { ".zip" }).Select(extension => new
+        assets = (complete ? new[] { ".exe", ".exe.sha256", ".zip", ".zip.sha256" } : new[] { ".zip" }).Select(extension => new
         {
             name = "WindowsIsland-" + tag[1..] + "-win-x64" + extension,
             browser_download_url = (unsafeUrl ? "https://example.com/" : GitHubReleaseClient.DownloadPrefix + tag + "/")

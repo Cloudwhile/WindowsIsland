@@ -31,8 +31,7 @@ Download Windows Island from [Releases](https://github.com/Cloudwhile/WindowsIsl
 
 | Package | How to open |
 | --- | --- |
-| MSI installer | Install, then open Windows Island from the Start menu |
-| ZIP archive | Extract the entire archive, then run `WindowsIsland.exe` |
+| Windows installer | Choose an installation folder, then open Windows Island from the Start menu |
 
 1. In **Setup**, click the icon beside **App initialization**.
 2. Click the icon beside **Notification access** and allow access in the Windows prompt.

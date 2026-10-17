@@ -11,6 +11,7 @@ internal static class Program
     {
         if (UpdateElevation.TryHandle(arguments, out var result)) { Environment.ExitCode = result; return; }
         if (StartupElevation.TryHandle(arguments, out result)) { Environment.ExitCode = result; return; }
+        if (InitializationInstaller.TryHandle(arguments, out result)) { Environment.ExitCode = result; return; }
         if (InitializationElevation.TryHandle(arguments, out result)) { Environment.ExitCode = result; return; }
         var verification = arguments.Contains("--verify-local");
         var settings = new SettingsStore(verification ? Path.Combine(AppContext.BaseDirectory, "verification-settings.json") : null);

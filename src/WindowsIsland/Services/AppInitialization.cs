@@ -7,6 +7,13 @@ namespace WindowsIsland.Services;
 
 internal static class AppInitialization
 {
+    private static readonly SemaphoreSlim InitializationGate = new(1, 1);
+    private static long _retryAfterUtcTicks;
+    private static int _failedAttempts;
+
+    internal static bool RetryDeferred => DateTimeOffset.UtcNow.UtcTicks < Volatile.Read(ref _retryAfterUtcTicks);
+    internal static int FailedAttempts => Volatile.Read(ref _failedAttempts);
+
     public static bool HasIdentity
     {
         get
@@ -25,7 +32,29 @@ internal static class AppInitialization
         return package is null ? null : package.Id.FamilyName + "!App";
     }
 
-    public static Task<string> InitializeAsync(bool force = false) => Task.Run(() => InitializeCoreAsync(force));
+    public static async Task<string> InitializeAsync(bool force = false)
+    {
+        if (!force && RetryDeferred)
+            throw new InitializationDeferredException(new DateTimeOffset(Volatile.Read(ref _retryAfterUtcTicks), TimeSpan.Zero));
+        await InitializationGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            if (!force && RetryDeferred)
+                throw new InitializationDeferredException(new DateTimeOffset(Volatile.Read(ref _retryAfterUtcTicks), TimeSpan.Zero));
+            var result = await Task.Run(() => InitializeCoreAsync(force)).ConfigureAwait(false);
+            Volatile.Write(ref _failedAttempts, 0);
+            Volatile.Write(ref _retryAfterUtcTicks, 0);
+            return result;
+        }
+        catch
+        {
+            var attempts = Interlocked.Increment(ref _failedAttempts);
+            var seconds = Math.Min(300, Math.Pow(2, Math.Min(attempts, 8)));
+            Volatile.Write(ref _retryAfterUtcTicks, DateTimeOffset.UtcNow.AddSeconds(seconds).UtcTicks);
+            throw;
+        }
+        finally { InitializationGate.Release(); }
+    }
 
     private static async Task<string> InitializeCoreAsync(bool force)
     {
@@ -69,4 +98,10 @@ internal static class AppInitialization
         string.Equals(Path.TrimEndingDirectorySeparator(package.InstalledLocation.Path),
             Path.TrimEndingDirectorySeparator(directory), StringComparison.OrdinalIgnoreCase);
 
+}
+
+internal sealed class InitializationDeferredException(DateTimeOffset retryAfter)
+    : IOException("Initialization retry is deferred until " + retryAfter.ToUniversalTime().ToString("O"))
+{
+    internal DateTimeOffset RetryAfter { get; } = retryAfter;
 }

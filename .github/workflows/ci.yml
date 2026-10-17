@@ -105,31 +105,13 @@ jobs:
           Copy-Item -LiteralPath README.zh-CN.md -Destination (Join-Path $publish 'README.zh-CN.md')
           $distribution = Join-Path $env:GITHUB_WORKSPACE 'artifacts/distribution'
           New-Item -ItemType Directory -Path $distribution -Force | Out-Null
-          $name = "WindowsIsland-$env:APP_VERSION-win-x64.zip"
-          $archive = Join-Path $distribution $name
-          [IO.Compression.ZipFile]::CreateFromDirectory($publish, $archive)
-          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          [IO.File]::WriteAllText("$archive.sha256", "$digest  $name`n", [Text.UTF8Encoding]::new($false))
+      - name: Set up Inno Setup
+        run: choco install innosetup --version=6.4.2 --no-progress --yes
 
-      - name: Set up MSI packaging
-        run: |
-          dotnet tool install wix --version 5.0.2 --tool-path artifacts/tools/wix --allow-roll-forward
-          & artifacts/tools/wix/wix.exe extension add WixToolset.UI.wixext/5.0.2
-
-      - name: Build MSI installer
+      - name: Build Inno Setup installer
         env:
           APP_VERSION: ${{ steps.version.outputs.value }}
-        run: ./packaging/Build-Msi.ps1 -Version $env:APP_VERSION
-
-      - name: Check MSI installation and removal
-        timeout-minutes: 5
-        env:
-          APP_VERSION: ${{ steps.version.outputs.value }}
-        run: ./packaging/Test-Msi.ps1 -InstallerPath "artifacts/distribution/WindowsIsland-$env:APP_VERSION-win-x64.msi"
-
-      - name: Check isolated MSI upgrades and rollback
-        timeout-minutes: 10
-        run: ./packaging/Test-MsiUpgrade.ps1
+        run: ./packaging/Build-Inno.ps1 -Version $env:APP_VERSION
 
       - name: Upload Windows package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

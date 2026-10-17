@@ -67,14 +67,15 @@ internal sealed class GitHubReleaseClient : IDisposable
         var name = $"WindowsIsland-{tag[1..]}-win-x64";
         var files = assets.EnumerateArray().Select(asset => ParseAsset(asset, tag)).OfType<ReleaseAsset>().ToArray();
         if (files.GroupBy(asset => asset.Name, StringComparer.Ordinal).Any(group => group.Count() > 1)) return null;
+        var installer = files.FirstOrDefault(asset => asset.Name == name + ".exe");
+        var installerChecksum = files.FirstOrDefault(asset => asset.Name == name + ".exe.sha256");
+        if (installer is null || installerChecksum is null) return null;
         var archive = files.FirstOrDefault(asset => asset.Name == name + ".zip");
         var checksum = files.FirstOrDefault(asset => asset.Name == name + ".zip.sha256");
-        if (archive is null || checksum is null) return null;
         var page = new Uri($"https://github.com/{Repository}/releases/tag/{Uri.EscapeDataString(tag)}");
         var title = String(element, "name");
         return new(version!, tag, title.Length == 0 ? tag : title, String(element, "body"), page, prerelease || version!.IsPrerelease,
-            archive, checksum, files.FirstOrDefault(asset => asset.Name == name + ".msi"),
-            files.FirstOrDefault(asset => asset.Name == name + ".msi.sha256"));
+            archive ?? installer, checksum ?? installerChecksum, installer, installerChecksum);
     }
 
     private static ReleaseAsset? ParseAsset(JsonElement element, string tag)

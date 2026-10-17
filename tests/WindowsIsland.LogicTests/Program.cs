@@ -254,7 +254,6 @@ await RegisteredRestartChecks.RunAsync(Check);
 await InitializationRegistrationChecks.RunAsync(Check);
 await UpdateChecks.RunAsync(Check);
 await UpdateCheckServiceChecks.RunAsync(Check);
-await UpdateScriptChecks.RunAsync(Check);
 Console.WriteLine($"{checks} checks passed.");
 
 sealed class ManualTime : TimeProvider

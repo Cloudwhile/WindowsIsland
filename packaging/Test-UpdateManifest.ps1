@@ -20,7 +20,7 @@ function Release([string]$tag, [bool]$prerelease = $false, [bool]$draft = $false
     @{
         tag_name = $tag; name = "Windows Island $tag"; body = "修复与改进`r`n更新说明"
         prerelease = $prerelease; draft = $draft; author = @{ login = 'not-needed' }
-        assets = @('.zip', '.zip.sha256', '.msi', '.msi.sha256' | ForEach-Object {
+        assets = @('.exe', '.exe.sha256' | ForEach-Object {
             @{ name = "$name$_"; size = 1024; state = 'uploaded'
                browser_download_url = "https://github.com/Cloudwhile/WindowsIsland/releases/download/$tag/$name$_" }
         })
@@ -45,7 +45,7 @@ $preview = Release 'v1.5.0-rc.10'
 $flaggedStable = Release 'v1.4.1' $true
 $draft = Release 'v9.0.0' $false $true
 $missing = Release 'v8.0.0'
-$missing.assets = $missing.assets[0..2]
+$missing.assets = @($missing.assets[0])
 $foreign = Release 'v7.0.0'
 $foreign.assets[0].browser_download_url = 'https://example.com/archive.zip'
 $wrongVersion = Release 'v6.0.0'
@@ -69,7 +69,7 @@ $manifest = Get-Content -LiteralPath $output -Raw -Encoding utf8 | ConvertFrom-J
 Check ($manifest.schema_version -eq 1 -and $manifest.releases.Count -eq 1 -and
     $manifest.releases[0].tag_name -ceq 'v1.5.0-rc.10') 'All pages are scanned but the feed retains only the required latest release'
 Check ($manifest.releases[0].prerelease) 'A prerelease suffix selects the preview channel for the retained release'
-Check (@($manifest.releases.assets).Count -eq 4 -and @($manifest.releases.assets | Where-Object { $_.size -le 0 }).Count -eq 0) 'The retained release has four correctly sized ZIP and MSI assets'
+Check (@($manifest.releases.assets).Count -eq 2 -and @($manifest.releases.assets | Where-Object { $_.size -le 0 }).Count -eq 0) 'The retained release has the installer and SHA-256 assets'
 Check ($manifest.releases[0].body -ceq "修复与改进`n更新说明" -and !$manifest.releases[0].Contains('author')) 'Notes retain Chinese text and omit unrelated metadata'
 $bytes = [IO.File]::ReadAllBytes($output)
 Check (!($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) -and

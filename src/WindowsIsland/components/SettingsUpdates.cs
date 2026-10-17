@@ -142,9 +142,8 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         if (state.Candidate is not { } release) return;
         try
         {
-            var msi = await Task.Run(() => UpdateInstaller.IsMsiInstallation());
             if (_disposed || !ReferenceEquals(state, _updates.State)) return;
-            _packageSize = msi && release.Installer is { } installer ? installer.Size : release.Archive.Size;
+            _packageSize = release.Installer is { } installer ? installer.Size : 0;
             RefreshAvailable();
         }
         catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Updates, error); }
@@ -169,7 +168,8 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
                 _progress.IsIndeterminate = !value.Percent.HasValue;
                 _progress.Value = value.Percent ?? 0;
             });
-            using var update = await UpdatePackage.PrepareAsync(_client, candidate, UpdateInstaller.IsMsiInstallation(), progress, _operation!.Token);
+            using var update = await UpdatePackage.PrepareAsync(_client, candidate, useInstaller: true,
+                progress: progress, cancellationToken: _operation!.Token);
             if (_disposed) return;
             Show("UpdateInstalling", InfoBarSeverity.Informational);
             _cancel.IsEnabled = false;
