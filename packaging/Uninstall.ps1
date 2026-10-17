@@ -28,6 +28,39 @@ function Remove-LegacyHookCache {
     }
 }
 Remove-LegacyHookCache
+function Remove-PackageMetadata {
+    $metadata = Join-Path $directory 'microsoft.system.package.metadata'
+    if (!(Test-Path -LiteralPath $metadata -PathType Container)) { return }
+    try {
+        $root = Get-Item -LiteralPath $metadata -Force
+        if (($root.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
+        foreach ($item in @(Get-ChildItem -LiteralPath $metadata -Force -Recurse)) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
+        }
+    } catch [IO.IOException] { return }
+    catch [UnauthorizedAccessException] { return }
+    catch [System.Security.SecurityException] { return }
+    for ($attempt = 0; $attempt -lt 50; $attempt++) {
+        try { Remove-Item -LiteralPath $metadata -Recurse -Force; return }
+        catch [IO.IOException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
+        catch [UnauthorizedAccessException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
+    }
+}
+function Remove-ManagedHookBinary {
+    $hook = Join-Path $directory 'WindowsIsland.TelegramHook.dll'
+    if (!(Test-Path -LiteralPath $hook -PathType Leaf)) { return }
+    try {
+        $item = Get-Item -LiteralPath $hook -Force
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { return }
+    } catch [IO.IOException] { return }
+    catch [UnauthorizedAccessException] { return }
+    catch [System.Security.SecurityException] { return }
+    for ($attempt = 0; $attempt -lt 50; $attempt++) {
+        try { Remove-Item -LiteralPath $hook -Force; return }
+        catch [IO.IOException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
+        catch [UnauthorizedAccessException] { if ($attempt -eq 49) { return }; Start-Sleep -Milliseconds 100 }
+    }
+}
 $startupKey = 'Software\Microsoft\Windows\CurrentVersion\Run'
 $approvalKey = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
 $startup = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($startupKey, $true)
@@ -44,3 +77,5 @@ foreach ($package in @(Get-AppxPackage -Name WindowsIsland.Desktop)) {
         Remove-AppxPackage -Package $package.PackageFullName -PreserveApplicationData
     }
 }
+Remove-PackageMetadata
+Remove-ManagedHookBinary

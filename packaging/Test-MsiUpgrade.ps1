@@ -311,6 +311,7 @@ try {
             $legacyHook = Join-Path $install ('Hooks/' + ('A' * 64))
             New-Item -ItemType Directory -Path $legacyHook,(Join-Path $install 'microsoft.system.package.metadata') -Force | Out-Null
             [IO.File]::WriteAllText((Join-Path $legacyHook 'WindowsIsland.TelegramHook.dll'), 'legacy runtime copy')
+            [IO.File]::WriteAllText((Join-Path $install 'WindowsIsland.TelegramHook.dll'), 'legacy root runtime copy')
             [IO.File]::WriteAllText((Join-Path $install '.update-files.json'), '[]')
             $running = Start-RunningFixture $install -DenyTerminate
         }
@@ -326,6 +327,7 @@ try {
             if ($run.GetValue('WindowsIsland') -cne $foreign) { throw 'Uninstall affected another installation.' }
         } elseif ($null -ne $run.GetValue('WindowsIsland', $null)) { throw "Uninstall retained its startup command: $case" }
         if (Test-Path (Join-Path $install 'WindowsIsland.exe')) { throw "Uninstall retained its executable: $case" }
+        if (Test-Path (Join-Path $install 'WindowsIsland.TelegramHook.dll')) { throw "Uninstall retained its Telegram hook: $case" }
         if ($case -eq 'enabled' -and (Test-Path -LiteralPath $install)) { throw 'MSI Remove retained its managed installation directory.' }
         "PASS isolated MSI upgrade preserves startup and installation state: $case"
         if ($case -eq 'enabled') { 'PASS isolated MSI upgrade and Remove close occupied files and remove managed runtime content.' }
