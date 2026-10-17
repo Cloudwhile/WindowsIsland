@@ -33,6 +33,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check standard-user test context
+        run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1 -Probe
+
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:

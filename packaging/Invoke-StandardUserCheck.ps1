@@ -1,11 +1,11 @@
 #Requires -Version 7.0
-param([Parameter(Mandatory)][ValidateSet('Test-Inno.ps1','Test-MsiUpgrade.ps1')][string]$Script)
+param([Parameter(Mandatory)][ValidateSet('Test-Inno.ps1','Test-MsiUpgrade.ps1')][string]$Script, [switch]$Probe)
 $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 try { $administrator = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }
 finally { $identity.Dispose() }
 $test = Join-Path $PSScriptRoot $Script
-if (!$administrator) { & $test; return }
+if (!$administrator) { if (!$Probe) { & $test }; return }
 # Hosted Windows runners use a full administrator token. Run per-user installer
 # checks with a filtered token of the same user, without changing product cleanup.
 $log = Join-Path $PSScriptRoot "../artifacts/verification/standard-user-$Script.log"
@@ -25,7 +25,9 @@ try {
 finally { Stop-Transcript }
 '@
 $body = $body.Replace('__LOG__', $log.Replace("'", "''")).Replace('__TEST__', $test.Replace("'", "''"))
-$encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($body))
+if ($Probe) { $body = $body.Replace("& '" + $test.Replace("'", "''") + "'", "Write-Output 'PASS standard-user token'") }
+$childScript = Join-Path (Split-Path $log) ('standard-user-' + [Guid]::NewGuid().ToString('N') + '.ps1')
+[IO.File]::WriteAllText($childScript, $body)
 Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
@@ -33,7 +35,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 public static class IslandStandardUserCheck
 {
-    public static int Run(string executable, string encoded, string directory)
+    public static int Run(string executable, string script, string directory)
     {
         IntPtr token = IntPtr.Zero, filtered = IntPtr.Zero, sid = IntPtr.Zero, label = IntPtr.Zero;
         IntPtr administrators = IntPtr.Zero, disabled = IntPtr.Zero;
@@ -55,9 +57,13 @@ public static class IslandStandardUserCheck
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Set medium integrity");
             var startup = new Startup { Size = Marshal.SizeOf<Startup>(), Flags = 1, Show = 0 };
             Process child;
-            var command = new StringBuilder("\"" + executable + "\" -NoProfile -NonInteractive -EncodedCommand " + encoded);
+            // CreateProcessWithTokenW limits its command line to 1024 characters.
+            var command = new StringBuilder("\"" + executable + "\" -NoProfile -NonInteractive -File \"" + script + "\"");
             if (!CreateProcessWithTokenW(filtered, 0, executable, command, 0x08000000, IntPtr.Zero, directory, ref startup, out child))
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Start standard-user checks");
+            {
+                int error = Marshal.GetLastWin32Error();
+                throw new Win32Exception(error, "Start standard-user checks: " + error);
+            }
             try
             {
                 if (WaitForSingleObject(child.Handle, 900000) != 0) throw new TimeoutException("Installer checks timed out.");
@@ -98,6 +104,7 @@ public static class IslandStandardUserCheck
     [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr pointer);
 }
 '@
-$result = [IslandStandardUserCheck]::Run((Get-Process -Id $PID).Path, $encoded, (Get-Location).Path)
+try { $result = [IslandStandardUserCheck]::Run((Get-Process -Id $PID).Path, $childScript, (Get-Location).Path) }
+finally { Remove-Item -LiteralPath $childScript -Force }
 if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log }
 if ($result -ne 0) { throw "Standard-user installer checks failed: $result" }
