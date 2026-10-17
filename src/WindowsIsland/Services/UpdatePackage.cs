@@ -1,11 +1,13 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Compression;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace WindowsIsland.Services;
 
-internal sealed record UpdateProgress(string MessageKey, double? Percent = null);
+internal sealed record UpdateProgress(string MessageKey, double? Percent = null, double? BytesPerSecond = null);
 
 internal sealed class PreparedUpdate(string directory, string stagingDirectory, string? installerPath,
     string version, string root) : IDisposable
@@ -56,12 +58,14 @@ internal static class UpdatePackage
             if (useInstaller)
             {
                 installer = Path.Combine(directory, "update.msi");
-                await DownloadVerifiedAsync(client, release.Installer!, release.InstallerChecksum!, installer, progress, cancellationToken).ConfigureAwait(false);
+                await DownloadVerifiedAsync(client, release.Installer!, release.InstallerChecksum!, installer, root,
+                    progress, cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 var archive = Path.Combine(directory, "update.zip");
-                await DownloadVerifiedAsync(client, release.Archive, release.Checksum, archive, progress, cancellationToken).ConfigureAwait(false);
+                await DownloadVerifiedAsync(client, release.Archive, release.Checksum, archive, root,
+                    progress, cancellationToken).ConfigureAwait(false);
                 progress?.Report(new("UpdateExtracting"));
                 await Task.Run(() => Extract(archive, staging, cancellationToken), cancellationToken).ConfigureAwait(false);
             }
@@ -76,17 +80,30 @@ internal static class UpdatePackage
     }
 
     private static async Task DownloadVerifiedAsync(GitHubReleaseClient client, ReleaseAsset asset, ReleaseAsset checksum,
-        string destination, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
+        string destination, string root, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
     {
         var checksumPath = destination + ".sha256";
-        await DownloadAsync(client, checksum, checksumPath, 4096, null, cancellationToken).ConfigureAwait(false);
+        await DownloadFreshAsync(client, checksum, checksumPath, 4096, cancellationToken).ConfigureAwait(false);
         var expected = ReadChecksum(await File.ReadAllTextAsync(checksumPath, cancellationToken).ConfigureAwait(false), asset.Name);
-        await DownloadAsync(client, asset, destination, MaximumDownload, progress, cancellationToken).ConfigureAwait(false);
-        progress?.Report(new("UpdateVerifying"));
-        await using var file = File.OpenRead(destination);
-        var actual = await SHA256.HashDataAsync(file, cancellationToken).ConfigureAwait(false);
-        if (!CryptographicOperations.FixedTimeEquals(actual, expected))
-            throw Localization.DataError("UpdateErrorChecksumMismatch");
+        var partial = ResumePath(root, expected, asset.Size);
+        CleanupResumeFiles(root);
+        try
+        {
+            await DownloadResumableAsync(client, asset, partial, MaximumDownload, progress, cancellationToken).ConfigureAwait(false);
+            progress?.Report(new("UpdateVerifying"));
+            await using (var file = File.OpenRead(partial))
+            {
+                var actual = await SHA256.HashDataAsync(file, cancellationToken).ConfigureAwait(false);
+                if (!CryptographicOperations.FixedTimeEquals(actual, expected))
+                    throw Localization.DataError("UpdateErrorChecksumMismatch");
+            }
+            File.Move(partial, destination);
+        }
+        catch (InvalidDataException error) when (Localization.ErrorKey(error, "") is "UpdateErrorChecksumMismatch" or "UpdateErrorSizeMismatch")
+        {
+            DeleteResumeFile(partial);
+            throw;
+        }
     }
 
     internal static byte[] ReadChecksum(string text, string filename)
@@ -98,11 +115,12 @@ internal static class UpdatePackage
         return Convert.FromHexString(parts[0]);
     }
 
-    private static async Task DownloadAsync(GitHubReleaseClient client, ReleaseAsset asset, string destination, long limit,
-        IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
+    private static async Task DownloadFreshAsync(GitHubReleaseClient client, ReleaseAsset asset, string destination,
+        long limit, CancellationToken cancellationToken)
     {
         if (asset.Size <= 0 || asset.Size > limit) throw Localization.DataError("UpdateErrorSizeInvalid");
         using var response = await client.DownloadAsync(asset.Download, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode != HttpStatusCode.OK) throw Localization.DataError("UpdateErrorIncomplete");
         if (response.Content.Headers.ContentLength is { } length && length != asset.Size)
             throw Localization.DataError("UpdateErrorIncomplete");
         await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
@@ -110,22 +128,126 @@ internal static class UpdatePackage
             128 * 1024, FileOptions.Asynchronous);
         var buffer = new byte[128 * 1024];
         long received = 0;
-        var report = Stopwatch.StartNew();
-        progress?.Report(new("UpdateDownloading", 0));
         int count;
         while ((count = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
             received += count;
             if (received > asset.Size) throw Localization.DataError("UpdateErrorSizeMismatch");
             await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
-            if (report.ElapsedMilliseconds >= 100)
-            {
-                progress?.Report(new("UpdateDownloading", received * 100d / asset.Size));
-                report.Restart();
-            }
         }
         if (received != asset.Size) throw Localization.DataError("UpdateErrorIncomplete");
-        progress?.Report(new("UpdateDownloadComplete", 100));
+    }
+
+    private static async Task DownloadResumableAsync(GitHubReleaseClient client, ReleaseAsset asset, string partial,
+        long limit, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken)
+    {
+        if (asset.Size <= 0 || asset.Size > limit) throw Localization.DataError("UpdateErrorSizeInvalid");
+        if (Directory.Exists(partial)) throw Localization.IoError("UpdateErrorWorkDir");
+        if (File.Exists(partial) && (File.GetAttributes(partial) & FileAttributes.ReparsePoint) != 0)
+            throw Localization.IoError("UpdateErrorWorkDir");
+
+        await using var output = new FileStream(partial, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None,
+            128 * 1024, FileOptions.Asynchronous);
+        if (output.Length > asset.Size) output.SetLength(0);
+        var received = output.Length;
+        if (received == asset.Size)
+        {
+            progress?.Report(new("UpdateDownloadComplete", 100));
+            return;
+        }
+
+        var resumed = received > 0;
+        progress?.Report(new(resumed ? "UpdateResuming" : "UpdateDownloading", received * 100d / asset.Size));
+        var response = await client.DownloadAsync(asset.Download, cancellationToken, resumed ? received : null).ConfigureAwait(false);
+        if (resumed && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+        {
+            response.Dispose();
+            output.SetLength(0);
+            received = 0;
+            resumed = false;
+            progress?.Report(new("UpdateDownloading", 0));
+            response = await client.DownloadAsync(asset.Download, cancellationToken).ConfigureAwait(false);
+        }
+
+        using (response)
+        {
+            if (resumed && response.StatusCode == HttpStatusCode.OK)
+            {
+                output.SetLength(0);
+                received = 0;
+                resumed = false;
+                progress?.Report(new("UpdateDownloading", 0));
+            }
+            else if (resumed)
+            {
+                ValidatePartialResponse(response, received, asset.Size);
+            }
+            else if (response.StatusCode != HttpStatusCode.OK)
+            {
+                throw Localization.DataError("UpdateErrorIncomplete");
+            }
+
+            var expectedResponseLength = asset.Size - received;
+            if (response.Content.Headers.ContentLength is { } length && length != expectedResponseLength)
+                throw Localization.DataError("UpdateErrorIncomplete");
+            output.Position = received;
+            await using var input = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+            var buffer = new byte[128 * 1024];
+            var report = Stopwatch.StartNew();
+            var total = Stopwatch.StartNew();
+            long intervalBytes = 0;
+            long transferred = 0;
+            int count;
+            while ((count = await input.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+            {
+                if (received + count > asset.Size) throw Localization.DataError("UpdateErrorSizeMismatch");
+                await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
+                received += count;
+                transferred += count;
+                intervalBytes += count;
+                if (report.ElapsedMilliseconds >= 250)
+                {
+                    var speed = intervalBytes / report.Elapsed.TotalSeconds;
+                    progress?.Report(new(resumed ? "UpdateResuming" : "UpdateDownloading",
+                        received * 100d / asset.Size, speed));
+                    intervalBytes = 0;
+                    report.Restart();
+                }
+            }
+            if (received != asset.Size) throw Localization.DataError("UpdateErrorIncomplete");
+            var finalSpeed = transferred > 0 ? transferred / Math.Max(total.Elapsed.TotalSeconds, 0.001) : (double?)null;
+            progress?.Report(new("UpdateDownloadComplete", 100, finalSpeed));
+        }
+    }
+
+    private static void ValidatePartialResponse(HttpResponseMessage response, long start, long total)
+    {
+        var range = response.Content.Headers.ContentRange;
+        if (response.StatusCode != HttpStatusCode.PartialContent || range is null || range.Unit != "bytes"
+            || range.From != start || range.To != total - 1 || range.Length != total
+            || response.Content.Headers.ContentLength is { } length && length != range.To - range.From + 1)
+            throw Localization.DataError("UpdateErrorIncomplete");
+    }
+
+    private static string ResumePath(string root, byte[] checksum, long size) => Path.Combine(root,
+        "resume-" + Convert.ToHexString(checksum).ToLowerInvariant() + "-" + size.ToString(CultureInfo.InvariantCulture) + ".part");
+
+    private static void CleanupResumeFiles(string root)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-7);
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(root, "resume-*.part", SearchOption.TopDirectoryOnly))
+                if (File.GetLastWriteTimeUtc(file) < cutoff)
+                    DeleteResumeFile(file);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Trace.WriteLine(error); }
+    }
+
+    private static void DeleteResumeFile(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Trace.WriteLine(error); }
     }
 
     internal static void Extract(string archivePath, string destination, CancellationToken cancellationToken)

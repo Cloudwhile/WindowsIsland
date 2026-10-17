@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
+using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
@@ -8,7 +9,7 @@ namespace WindowsIsland.Services;
 
 internal sealed record UpdateJob(string InstallDirectory, string PayloadDirectory, string? InstallerPath,
     int ProcessId, long ProcessStartedUtcTicks, string Version, string MutexName = @"Local\WindowsIsland.Tray",
-    bool RestoreRegistration = false);
+    bool RestoreRegistration = false, bool RequiresElevation = false, string UserSid = "");
 internal sealed record UpdateResult(string InstallDirectory, string Version, bool Success, string Message, string? MessageKey = null);
 
 internal static class UpdateInstaller
@@ -47,14 +48,19 @@ internal static class UpdateInstaller
         var workDirectory = UpdateWorkDirectory.Resolve(update.Directory);
         var payload = UpdateWorkDirectory.Rebase(update.StagingDirectory, update.Directory, workDirectory);
         var installer = update.InstallerPath is { } path ? UpdateWorkDirectory.Rebase(path, update.Directory, workDirectory) : null;
+        var requiresElevation = RequiresElevation(directory);
+        var userSid = OperatingSystem.IsWindows() ? WindowsIdentity.GetCurrent().User?.Value ?? "" : "";
         var job = new UpdateJob(directory, payload, installer,
-            application.Id, application.StartTime.ToUniversalTime().Ticks, update.Version, mutexName, restoreRegistration);
+            application.Id, application.StartTime.ToUniversalTime().Ticks, update.Version, mutexName, restoreRegistration,
+            requiresElevation, userSid);
         var jobPath = Path.Combine(workDirectory, "job.json");
         await File.WriteAllTextAsync(jobPath, JsonSerializer.Serialize(job), cancellationToken).ConfigureAwait(false);
         var scriptPath = Path.Combine(workDirectory, "Apply-Update.ps1");
         // Windows PowerShell 5.1 needs a BOM to read Chinese strings in script files.
         var script = await File.ReadAllTextAsync(Path.Combine(directory, "Updater", "Apply-Update.ps1"), cancellationToken).ConfigureAwait(false);
         await File.WriteAllTextAsync(scriptPath, script, new UTF8Encoding(true), cancellationToken).ConfigureAwait(false);
+        if (requiresElevation)
+            await UpdateElevation.StartWorkerAsync(jobPath, workDirectory, cancellationToken).ConfigureAwait(false);
         var start = new ProcessStartInfo
         {
             FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"),
@@ -95,6 +101,21 @@ internal static class UpdateInstaller
             throw;
         }
         finally { _ = ReleaseHelperAsync(helper, errors); }
+    }
+
+    internal static bool RequiresElevation(string directory)
+    {
+        var probe = Path.Combine(Path.GetFullPath(directory), ".island-access-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var file = new FileStream(probe, FileMode.CreateNew, FileAccess.Write,
+                FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.DeleteOnClose);
+            return false;
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return true;
+        }
     }
 
     private static async Task ReleaseHelperAsync(Process helper, Task<string> errors)

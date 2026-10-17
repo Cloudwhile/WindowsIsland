@@ -36,6 +36,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     private string? _messageKey;
     private object[] _messageArguments = [];
     private double? _percent;
+    private double? _bytesPerSecond;
 
     public SettingsUpdates(SettingsStore store, UpdateCheckService updates, Action restart)
     {
@@ -163,6 +164,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
                 if (_disposed || !_busy || !ReferenceEquals(_operation, operation) || operation.IsCancellationRequested) return;
                 Show(value.MessageKey, InfoBarSeverity.Informational);
                 _percent = value.Percent;
+                _bytesPerSecond = value.BytesPerSecond;
                 RefreshLanguage();
                 _progress.IsIndeterminate = !value.Percent.HasValue;
                 _progress.Value = value.Percent ?? 0;
@@ -205,6 +207,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         _messageKey = messageKey;
         _messageArguments = arguments;
         _percent = null;
+        _bytesPerSecond = null;
         _status.Title = "";
         RefreshLanguage();
         _status.Severity = severity;
@@ -217,7 +220,11 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         if (_messageKey is { } key)
         {
             var message = Localization.Format(key, _messageArguments);
-            _status.Message = _percent is { } percent ? Localization.Format("UpdateProgressPercent", message, percent) : message;
+            _status.Message = _percent is { } percent
+                ? _bytesPerSecond is { } speed and > 0
+                    ? Localization.Format("UpdateProgressPercentSpeed", message, percent, FormatSpeed(speed))
+                    : Localization.Format("UpdateProgressPercent", message, percent)
+                : message;
         }
         if (_candidate is { Notes.Length: 0 }) _notes.Text = Localization.Get("UpdateNotesEmpty");
         RefreshAvailable();
@@ -235,6 +242,18 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     internal static string FormatSize(long bytes) => bytes >= 1024 * 1024
         ? Localization.Format("SizeMegabytes", Math.Round(bytes / 1024d / 1024d, 1))
         : Localization.Format("SizeKilobytes", Math.Max(1, (long)Math.Round(bytes / 1024d)));
+
+    internal static string FormatSpeed(double bytesPerSecond)
+    {
+        var (value, unit) = bytesPerSecond switch
+        {
+            >= 1024d * 1024 * 1024 => (bytesPerSecond / 1024 / 1024 / 1024, "GB/s"),
+            >= 1024d * 1024 => (bytesPerSecond / 1024 / 1024, "MB/s"),
+            >= 1024d => (bytesPerSecond / 1024, "KB/s"),
+            _ => (bytesPerSecond, "B/s")
+        };
+        return string.Format(Localization.Culture, "{0:0.0} {1}", value, unit);
+    }
 
     private void OnSettingsChanged(AppSettings _) => Refresh();
 

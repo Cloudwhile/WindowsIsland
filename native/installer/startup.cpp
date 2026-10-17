@@ -1,5 +1,7 @@
 #include <windows.h>
+#include <tlhelp32.h>
 #include <msiquery.h>
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -12,6 +14,27 @@ constexpr auto ValueName = L"WindowsIsland";
 struct Key {
     HKEY value = nullptr;
     ~Key() { if (value) RegCloseKey(value); }
+};
+struct Handle {
+    HANDLE value = nullptr;
+    Handle() = default;
+    explicit Handle(HANDLE handle) : value(handle) {}
+    Handle(const Handle&) = delete;
+    Handle& operator=(const Handle&) = delete;
+    Handle(Handle&& other) noexcept : value(other.value) { other.value = nullptr; }
+    Handle& operator=(Handle&& other) noexcept {
+        if (this != &other) {
+            if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value);
+            value = other.value;
+            other.value = nullptr;
+        }
+        return *this;
+    }
+    ~Handle() { if (value && value != INVALID_HANDLE_VALUE) CloseHandle(value); }
+};
+struct ApplicationProcess {
+    DWORD id;
+    Handle handle;
 };
 void Require(bool success) { if (!success) throw std::runtime_error("Startup migration failed"); }
 
@@ -78,6 +101,72 @@ UINT DirectoryCheckFailed(MSIHANDLE session) {
     return ERROR_INSTALL_FAILURE;
 }
 
+UINT CloseFailed(MSIHANDLE session) {
+    auto record = MsiCreateRecord(1);
+    if (record) {
+        MsiRecordSetStringW(record, 0, L"Windows Island could not close the running application. Exit it and try again.");
+        MsiProcessMessage(session, INSTALLMESSAGE_ERROR, record);
+        MsiCloseHandle(record);
+    }
+    return ERROR_INSTALL_FAILURE;
+}
+
+std::wstring FullPath(const std::wstring& path) {
+    auto required = GetFullPathNameW(path.c_str(), 0, nullptr, nullptr);
+    Require(required > 0 && required <= 32768);
+    std::wstring result(required, L'\0');
+    auto length = GetFullPathNameW(path.c_str(), required, result.data(), nullptr);
+    Require(length > 0 && length < required);
+    result.resize(length);
+    return result;
+}
+
+std::vector<ApplicationProcess> FindApplicationProcesses(const std::wstring& executable) {
+    std::vector<ApplicationProcess> result;
+    Handle snapshot(CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0));
+    Require(snapshot.value != INVALID_HANDLE_VALUE);
+    PROCESSENTRY32W entry{ sizeof(entry) };
+    if (!Process32FirstW(snapshot.value, &entry)) {
+        Require(GetLastError() == ERROR_NO_MORE_FILES);
+        return result;
+    }
+    do {
+        if (_wcsicmp(entry.szExeFile, L"WindowsIsland.exe") != 0) continue;
+        Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE | PROCESS_TERMINATE,
+            FALSE, entry.th32ProcessID));
+        if (!process.value) continue;
+        std::wstring path(32768, L'\0');
+        DWORD length = static_cast<DWORD>(path.size());
+        if (!QueryFullProcessImageNameW(process.value, 0, path.data(), &length)) continue;
+        path.resize(length);
+        if (_wcsicmp(path.c_str(), executable.c_str()) == 0)
+            result.push_back({ entry.th32ProcessID, std::move(process) });
+    } while (Process32NextW(snapshot.value, &entry));
+    Require(GetLastError() == ERROR_NO_MORE_FILES);
+    return result;
+}
+
+BOOL CALLBACK RequestApplicationExit(HWND window, LPARAM data) {
+    auto& processes = *reinterpret_cast<std::vector<ApplicationProcess>*>(data);
+    DWORD owner = 0;
+    GetWindowThreadProcessId(window, &owner);
+    if (std::ranges::any_of(processes, [owner](const auto& process) { return process.id == owner; }))
+        PostMessageW(window, RegisterWindowMessageW(L"WindowsIsland.ExitForMaintenance"), 0, 0);
+    return TRUE;
+}
+
+bool WaitForExit(const std::vector<ApplicationProcess>& processes, DWORD timeout) {
+    auto deadline = GetTickCount64() + timeout;
+    for (;;) {
+        auto running = std::ranges::any_of(processes, [](const auto& process) {
+            return WaitForSingleObject(process.handle.value, 0) == WAIT_TIMEOUT;
+        });
+        if (!running) return true;
+        if (GetTickCount64() >= deadline) return false;
+        Sleep(100);
+    }
+}
+
 DWORD ProbeWriteAccess(const std::wstring& directory) {
     std::filesystem::path candidate(directory);
     while (!candidate.empty()) {
@@ -129,6 +218,23 @@ extern "C" __declspec(dllexport) UINT __stdcall SelectInstallScope(MSIHANDLE ses
         Require(MsiSetPropertyW(session, L"MSIINSTALLPERUSER", needsElevation ? L"" : L"1") == ERROR_SUCCESS);
         return ERROR_SUCCESS;
     } catch (...) { return DirectoryCheckFailed(session); }
+}
+
+extern "C" __declspec(dllexport) UINT __stdcall CloseApplication(MSIHANDLE session) {
+    try {
+        auto directory = Property(session, L"INSTALLFOLDER");
+        Require(!directory.empty());
+        auto executable = FullPath((std::filesystem::path(directory) / L"WindowsIsland.exe").wstring());
+        auto processes = FindApplicationProcesses(executable);
+        if (processes.empty()) return ERROR_SUCCESS;
+        EnumWindows(RequestApplicationExit, reinterpret_cast<LPARAM>(&processes));
+        if (WaitForExit(processes, 10000)) return ERROR_SUCCESS;
+        for (const auto& process : processes) {
+            if (WaitForSingleObject(process.handle.value, 0) == WAIT_TIMEOUT
+                && !TerminateProcess(process.handle.value, ERROR_INSTALL_FAILURE)) return CloseFailed(session);
+        }
+        return WaitForExit(processes, 5000) ? ERROR_SUCCESS : CloseFailed(session);
+    } catch (...) { return CloseFailed(session); }
 }
 
 // Capture before the old MSI runs its uninstall script. Even old release candidates

@@ -169,6 +169,137 @@ internal static class UpdateChecks
                 && stages.Count(value => value.MessageKey == "UpdateDownloading" && value.Percent == 0) == 1,
                 "MSI preparation never extracts a ZIP or restarts download progress after extraction");
         }
+
+        var resumeInstaller = Enumerable.Range(0, 320 * 1024).Select(index => (byte)(index * 31)).ToArray();
+        var resumeDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(resumeInstaller)).ToLowerInvariant()
+            + "  " + release.Installer.Name + "\n");
+        var resumeRelease = release with
+        {
+            Installer = release.Installer with { Size = resumeInstaller.Length },
+            InstallerChecksum = release.InstallerChecksum! with { Size = resumeDigest.Length }
+        };
+        var split = resumeInstaller.Length / 3;
+        var resumeRoot = root + "-resume";
+        using (var client = InterruptedDownloadClient(resumeInstaller, resumeDigest, split))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, resumeRelease, true, null,
+                CancellationToken.None, resumeRoot), check, "Interrupted downloads retain a resumable fragment outside the prepared job");
+        var fragment = Directory.EnumerateFiles(resumeRoot, "resume-*.part").Single();
+        check(new FileInfo(fragment).Length == split && !Directory.EnumerateDirectories(resumeRoot).Any(),
+            "An interrupted transfer preserves only the verified release fragment and removes its temporary job");
+        var staleFragment = Path.Combine(resumeRoot, "resume-" + new string('0', 64) + "-1.part");
+        await File.WriteAllBytesAsync(staleFragment, [0]);
+        File.SetLastWriteTimeUtc(staleFragment, DateTime.UtcNow.AddDays(-8));
+        var resumedStages = new List<UpdateProgress>();
+        var rangeSeen = false;
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(resumeDigest) });
+            var from = request.Headers.Range?.Ranges.Single().From;
+            rangeSeen = from == split;
+            var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                Content = new ByteArrayContent(resumeInstaller[split..])
+            };
+            response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(
+                split, resumeInstaller.Length - 1, resumeInstaller.Length);
+            return Task.FromResult(response);
+        })))
+        using (var prepared = await UpdatePackage.PrepareAsync(client, resumeRelease, true,
+            new InlineProgress(resumedStages.Add), CancellationToken.None, resumeRoot))
+        {
+            check(rangeSeen && File.ReadAllBytes(prepared.InstallerPath!).SequenceEqual(resumeInstaller)
+                && resumedStages.Any(value => value.MessageKey == "UpdateResuming" && value.Percent > 0)
+                && resumedStages.Any(value => value.BytesPerSecond > 0),
+                "A retry requests the missing byte range, verifies the complete installer and reports a concrete transfer rate");
+        }
+        check(!Directory.EnumerateFiles(resumeRoot, "resume-*.part").Any() && !File.Exists(staleFragment),
+            "A successfully verified resumed download removes its fragment and stale fragments expire after seven days");
+
+        var canceledRoot = root + "-canceled-resume";
+        using (var cancel = new CancellationTokenSource())
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(resumeDigest) });
+            var content = new StreamContent(new CancelingReadStream(resumeInstaller, split, cancel));
+            content.Headers.ContentLength = resumeInstaller.Length;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        })))
+        {
+            try
+            {
+                await UpdatePackage.PrepareAsync(client, resumeRelease, true, null, cancel.Token, canceledRoot);
+                check(false, "Cancellation during a package transfer is observed");
+            }
+            catch (OperationCanceledException)
+            {
+                var canceledFragment = Directory.EnumerateFiles(canceledRoot, "resume-*.part").Single();
+                check(new FileInfo(canceledFragment).Length == split && !Directory.EnumerateDirectories(canceledRoot).Any(),
+                    "Cancellation during a package transfer retains the completed bytes for the next retry");
+            }
+        }
+
+        var ignoredInstaller = resumeInstaller.ToArray();
+        ignoredInstaller[0] ^= 0x5a;
+        var ignoredDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(ignoredInstaller)).ToLowerInvariant()
+            + "  " + release.Installer.Name + "\n");
+        var ignoredRelease = release with
+        {
+            Installer = release.Installer with { Size = ignoredInstaller.Length },
+            InstallerChecksum = release.InstallerChecksum! with { Size = ignoredDigest.Length }
+        };
+        var ignoredRoot = root + "-ignored-range";
+        using (var client = InterruptedDownloadClient(ignoredInstaller, ignoredDigest, split))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, ignoredRelease, true, null,
+                CancellationToken.None, ignoredRoot), check, "A second interrupted fixture creates an independent resume fragment");
+        var ignoredRangeSeen = false;
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ignoredDigest) });
+            ignoredRangeSeen = request.Headers.Range?.Ranges.Single().From == split;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ignoredInstaller) });
+        })))
+        using (var prepared = await UpdatePackage.PrepareAsync(client, ignoredRelease, true, null,
+            CancellationToken.None, ignoredRoot))
+            check(ignoredRangeSeen && File.ReadAllBytes(prepared.InstallerPath!).SequenceEqual(ignoredInstaller),
+                "A server that ignores Range causes a safe full restart instead of appending duplicate bytes");
+
+        var invalidRangeInstaller = resumeInstaller.ToArray();
+        invalidRangeInstaller[1] ^= 0xa5;
+        var invalidRangeDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(invalidRangeInstaller)).ToLowerInvariant()
+            + "  " + release.Installer.Name + "\n");
+        var invalidRangeRelease = release with
+        {
+            Installer = release.Installer with { Size = invalidRangeInstaller.Length },
+            InstallerChecksum = release.InstallerChecksum! with { Size = invalidRangeDigest.Length }
+        };
+        var invalidRangeRoot = root + "-invalid-range";
+        using (var client = InterruptedDownloadClient(invalidRangeInstaller, invalidRangeDigest, split))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, invalidRangeRelease, true, null,
+                CancellationToken.None, invalidRangeRoot), check, "An invalid-range fixture creates a resume fragment");
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(invalidRangeDigest) });
+            var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                Content = new ByteArrayContent(invalidRangeInstaller[split..])
+            };
+            response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(
+                split + 1, invalidRangeInstaller.Length - 1, invalidRangeInstaller.Length);
+            return Task.FromResult(response);
+        })))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, invalidRangeRelease, true, null,
+                CancellationToken.None, invalidRangeRoot), check, "A mismatched Content-Range is rejected before bytes are appended");
+        check(new FileInfo(Directory.EnumerateFiles(invalidRangeRoot, "resume-*.part").Single()).Length == split,
+            "Rejecting an invalid range response does not corrupt the retained fragment");
+
         using (var client = new GitHubReleaseClient(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             { Content = new ByteArrayContent(request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal) ? installerDigest : installer[..^1]) }))))
         {
@@ -234,6 +365,17 @@ internal static class UpdateChecks
         });
     }));
 
+    private static GitHubReleaseClient InterruptedDownloadClient(byte[] installer, byte[] checksum, int length) =>
+        new(new Handler((request, token) =>
+    {
+        token.ThrowIfCancellationRequested();
+        if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(checksum) });
+        var content = new ByteArrayContent(installer[..length]);
+        content.Headers.ContentLength = null;
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+    }));
+
     private static byte[] Archive((string Name, int Attributes)? extra = null, bool includeRequired = true, string? omitRequired = null)
     {
         using var stream = new MemoryStream();
@@ -271,6 +413,20 @@ internal static class UpdateChecks
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
+    }
+
+    private sealed class CancelingReadStream(byte[] content, int cancelAt, CancellationTokenSource cancel) : MemoryStream(content)
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Position >= cancelAt)
+            {
+                cancel.Cancel();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var remaining = (int)Math.Min(cancelAt - Position, buffer.Length);
+            return base.ReadAsync(buffer[..remaining], cancellationToken);
+        }
     }
 
     private sealed class InlineProgress(Action<UpdateProgress> report) : IProgress<UpdateProgress>

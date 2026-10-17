@@ -5,6 +5,7 @@ namespace WindowsIsland.Services;
 internal static class AppActivation
 {
     public static readonly uint SettingsMessage = RegisterWindowMessage("WindowsIsland.OpenSettings");
+    public static readonly uint ExitMessage = RegisterWindowMessage("WindowsIsland.ExitForMaintenance");
 
     public static void ShowSettings() => PostMessage((nint)0xFFFF, SettingsMessage, 0, 0);
 

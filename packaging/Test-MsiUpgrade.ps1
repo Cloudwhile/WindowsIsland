@@ -41,6 +41,31 @@ extern "C" __declspec(dllexport) UINT __stdcall FailUpgrade(MSIHANDLE) { return 
 '
 [IO.File]::WriteAllText("$work/native/startup.cpp", $source)
 [IO.File]::WriteAllText("$work/native/probe.cpp", 'extern "C" __declspec(dllexport) int PayloadRevision() { return PAYLOAD_REVISION; }')
+[IO.File]::WriteAllText("$work/native/running.cpp", @'
+#include <windows.h>
+UINT exitMessage = 0;
+LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    if (message == exitMessage) { DestroyWindow(window); return 0; }
+    if (message == WM_DESTROY) { PostQuitMessage(0); return 0; }
+    return DefWindowProcW(window, message, wparam, lparam);
+}
+int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
+    auto payload = LoadLibraryW(L"versioned-payload.dll");
+    if (!payload) return 2;
+    exitMessage = RegisterWindowMessageW(L"WindowsIsland.ExitForMaintenance");
+    WNDCLASSW type{};
+    type.lpfnWndProc = WindowProc;
+    type.hInstance = instance;
+    type.lpszClassName = L"WindowsIsland.MsiRunningFixture";
+    if (!RegisterClassW(&type)) return 3;
+    auto window = CreateWindowExW(0, type.lpszClassName, L"", 0, 0, 0, 0, 0, nullptr, nullptr, instance, nullptr);
+    if (!window) return 4;
+    MSG message{};
+    while (GetMessageW(&message, nullptr, 0, 0) > 0) DispatchMessageW(&message);
+    FreeLibrary(payload);
+    return 0;
+}
+'@)
 [IO.File]::WriteAllText("$work/native/probe.rc", @'
 #include <windows.h>
 1 VERSIONINFO
@@ -74,6 +99,8 @@ target_compile_options(UpgradeActions PRIVATE /W4 /utf-8 /EHsc)
 target_link_libraries(UpgradeActions PRIVATE msi advapi32)
 add_library(ProbeBefore SHARED probe.cpp probe.rc)
 add_library(ProbeAfter SHARED probe.cpp probe.rc)
+add_executable(RunningApplication WIN32 running.cpp)
+set_target_properties(RunningApplication PROPERTIES OUTPUT_NAME WindowsIsland)
 target_compile_definitions(ProbeBefore PRIVATE PAYLOAD_REVISION=4 PAYLOAD_LABEL="0.1.0-rc.4")
 target_compile_definitions(ProbeAfter PRIVATE PAYLOAD_REVISION=5 PAYLOAD_LABEL="0.1.0-rc.5")
 '@)
@@ -91,7 +118,7 @@ $definition = $definition.Replace('Windows Island', "Windows Island Upgrade Test
 $legacy = [xml]$definition.Replace('Scope="perUserOrMachine"', 'Scope="perUser"')
 $ns = [Xml.XmlNamespaceManager]::new($legacy.NameTable)
 $ns.AddNamespace('w', 'http://wixtoolset.org/schemas/v4/wxs')
-foreach ($node in @($legacy.SelectNodes('//w:Binary|//w:CustomAction[@Id="SelectInstallScope" or @Id="CaptureStartup" or @Id="RestoreStartup" or @Id="RollbackStartup"]|//w:Property[@Id="RestoreStartup" or @Id="RollbackStartup" or @Id="REINSTALLMODE"]|//w:Custom[@Action="SelectInstallScope" or @Action="CaptureStartup" or @Action="RestoreStartup" or @Action="RollbackStartup"]|//w:Publish[@Value="SelectInstallScope"]', $ns))) {
+foreach ($node in @($legacy.SelectNodes('//w:Binary|//w:CustomAction[@Id="SelectInstallScope" or @Id="CloseApplication" or @Id="CaptureStartup" or @Id="RestoreStartup" or @Id="RollbackStartup"]|//w:Property[@Id="RestoreStartup" or @Id="RollbackStartup" or @Id="REINSTALLMODE"]|//w:Custom[@Action="SelectInstallScope" or @Action="CloseApplication" or @Action="CaptureStartup" or @Action="RestoreStartup" or @Action="RollbackStartup"]|//w:Publish[@Value="SelectInstallScope"]', $ns))) {
     [void]$node.ParentNode.RemoveChild($node)
 }
 $legacy.SelectSingleNode('//w:MajorUpgrade', $ns).SetAttribute('Schedule', 'afterInstallValidate')
@@ -102,6 +129,7 @@ function Build-Package([string]$version, [string]$definitionText, [string]$marke
     [IO.File]::WriteAllText("$work/payload/upgrade-marker.txt", $marker)
     $probe = if ($marker -eq 'legacy') { 'ProbeBefore' } else { 'ProbeAfter' }
     Copy-Item -LiteralPath "$work/native/build/Release/$probe.dll" -Destination "$work/payload/versioned-payload.dll" -Force
+    Copy-Item -LiteralPath "$work/native/build/Release/WindowsIsland.exe" -Destination "$work/payload/WindowsIsland.exe" -Force
     & "$work/packaging/Build-Msi.ps1" -Version $version -PublishDirectory "$work/payload" -OutputDirectory "$work/distribution" -Wix $wixPath -InstallerActions "$work/native/build/Release/UpgradeActions.dll"
     if ($LASTEXITCODE) { throw 'Upgrade verification packaging failed.' }
     Join-Path $work "distribution/WindowsIsland-$version-win-x64.msi"
@@ -129,6 +157,7 @@ $command = '"' + (Join-Path $install 'WindowsIsland.exe') + '" --startup'
 $foreign = '"' + (Join-Path $work 'other/WindowsIsland.exe') + '" --startup'
 try {
     foreach ($case in $Cases) {
+        $running = $null
         $run.DeleteValue('WindowsIsland', $false)
         $approval.DeleteValue('WindowsIsland', $false)
         Invoke-Msi '/i' $old "$case-install"
@@ -140,8 +169,19 @@ try {
         }
         $expectedRun = $run.GetValue('WindowsIsland', $null)
         $expectedApproval = $approval.GetValue('WindowsIsland', $null)
+        if ($case -eq 'enabled') {
+            $running = Start-Process (Join-Path $install 'WindowsIsland.exe') -WorkingDirectory $install -PassThru -WindowStyle Hidden
+            Start-Sleep -Milliseconds 500
+            if ($running.HasExited) { throw 'The isolated running-application fixture exited before upgrade.' }
+        }
         if ($case -eq 'rollback') { Invoke-Msi '/i' $broken "$case-upgrade" -Fail }
         else { Invoke-Msi '/i' $new "$case-upgrade" }
+        if ($running) {
+            $running.Refresh()
+            if (!$running.HasExited) { throw 'The MSI upgrade did not close the application that occupied installed files.' }
+            $running.Dispose()
+            $running = $null
+        }
         if ($run.GetValue('WindowsIsland', $null) -cne $expectedRun) { throw "Startup command changed: $case" }
         $actualApproval = $approval.GetValue('WindowsIsland', $null)
         if (($null -eq $actualApproval) -ne ($null -eq $expectedApproval)) { throw "Startup approval presence changed: $case" }
@@ -155,21 +195,41 @@ try {
         }
         foreach ($file in @(Get-ChildItem -LiteralPath $publish -File -Recurse)) {
             $relative = [IO.Path]::GetRelativePath($publish, $file.FullName)
-            if ((Get-FileHash -LiteralPath (Join-Path $install $relative)).Hash -ne (Get-FileHash -LiteralPath $file.FullName).Hash) {
+            $expected = if ($relative -eq 'WindowsIsland.exe') { "$work/native/build/Release/WindowsIsland.exe" } else { $file.FullName }
+            if ((Get-FileHash -LiteralPath (Join-Path $install $relative)).Hash -ne (Get-FileHash -LiteralPath $expected).Hash) {
                 throw "Installed payload hash mismatch: $case / $relative"
             }
         }
+        if ($case -eq 'enabled') {
+            $legacyHook = Join-Path $install ('Hooks/' + ('A' * 64))
+            New-Item -ItemType Directory -Path $legacyHook -Force | Out-Null
+            [IO.File]::WriteAllText((Join-Path $legacyHook 'WindowsIsland.TelegramHook.dll'), 'legacy runtime copy')
+            [IO.File]::WriteAllText((Join-Path $install '.update-files.json'), '[]')
+            $running = Start-Process (Join-Path $install 'WindowsIsland.exe') -WorkingDirectory $install -PassThru -WindowStyle Hidden
+            Start-Sleep -Milliseconds 500
+            if ($running.HasExited) { throw 'The isolated running-application fixture exited before Remove.' }
+        }
         Invoke-Msi '/x' $(if ($case -eq 'rollback') { $old } else { $new }) "$case-uninstall"
+        if ($running) {
+            $running.Refresh()
+            if (!$running.HasExited) { throw 'MSI Remove did not close the running application.' }
+            $running.Dispose()
+            $running = $null
+        }
         if ($case -eq 'foreign') {
             if ($run.GetValue('WindowsIsland') -cne $foreign) { throw 'Uninstall affected another installation.' }
         } elseif ($null -ne $run.GetValue('WindowsIsland', $null)) { throw "Uninstall retained its startup command: $case" }
         if (Test-Path (Join-Path $install 'WindowsIsland.exe')) { throw "Uninstall retained its executable: $case" }
+        if ($case -eq 'enabled' -and (Test-Path -LiteralPath $install)) { throw 'MSI Remove retained its managed installation directory.' }
         "PASS isolated MSI upgrade preserves startup and installation state: $case"
+        if ($case -eq 'enabled') { 'PASS isolated MSI upgrade and Remove close occupied files and remove managed runtime content.' }
     }
 } catch {
     $_ | Out-String | Set-Content (Join-Path $work 'failure.txt')
     throw
 } finally {
+    if ($running -and !$running.HasExited) { Stop-Process -InputObject $running -Force; $running.WaitForExit() }
+    if ($running) { $running.Dispose() }
     foreach ($package in @($old, $new, $broken)) {
         $process = Start-Process msiexec.exe -ArgumentList @('/x', ('"{0}"' -f $package), '/qn', '/norestart', ('INSTALLFOLDER="{0}"' -f $install)) -Wait -PassThru -WindowStyle Hidden
         if ($process.ExitCode -notin @(0, 3010, 1605, 1614)) { Write-Warning "Isolated package cleanup failed: $package ($($process.ExitCode))" }

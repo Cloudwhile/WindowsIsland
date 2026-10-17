@@ -313,11 +313,17 @@
   <data name="UpdateDownloading" xml:space="preserve">
     <value>正在下载更新</value>
   </data>
+  <data name="UpdateResuming" xml:space="preserve">
+    <value>正在续传更新</value>
+  </data>
   <data name="UpdateDownloadComplete" xml:space="preserve">
     <value>下载完成</value>
   </data>
   <data name="UpdateProgressPercent" xml:space="preserve">
     <value>{0} {1:0}%</value>
+  </data>
+  <data name="UpdateProgressPercentSpeed" xml:space="preserve">
+    <value>{0} {1:0}% · {2}</value>
   </data>
   <data name="UpdateErrorInstallerMissing" xml:space="preserve">
     <value>此版本的安装包尚未就绪，请稍后重试。</value>

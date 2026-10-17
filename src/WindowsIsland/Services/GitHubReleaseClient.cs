@@ -99,13 +99,23 @@ internal sealed class GitHubReleaseClient : IDisposable
     private static string String(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
 
-    internal async Task<HttpResponseMessage> DownloadAsync(Uri uri, CancellationToken cancellationToken)
+    internal async Task<HttpResponseMessage> DownloadAsync(Uri uri, CancellationToken cancellationToken, long? rangeStart = null)
     {
         if (!uri.AbsoluteUri.StartsWith(DownloadPrefix, StringComparison.Ordinal))
             throw Localization.DataError("UpdateErrorAssetAddress");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        if (rangeStart is { } offset)
+        {
+            if (offset <= 0) throw new ArgumentOutOfRangeException(nameof(rangeStart));
+            request.Headers.Range = new RangeHeaderValue(offset, null);
+        }
         var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        try { EnsureSuccess(response); return response; }
+        try
+        {
+            if (rangeStart.HasValue && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable) return response;
+            EnsureSuccess(response);
+            return response;
+        }
         catch { response.Dispose(); throw; }
     }
 

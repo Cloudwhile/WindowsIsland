@@ -48,6 +48,14 @@ $uiSequence = @(Get-MsiTable 'InstallUISequence')
 if (!($uiSequence | Where-Object { $_[0] -eq 'SelectInstallScope' })) {
     throw 'The MSI does not check the selected directory before the full-UI execution handoff.'
 }
+$customActions = @(Get-MsiTable 'CustomAction')
+if (!($customActions | Where-Object { $_[0] -eq 'CloseApplication' })) {
+    throw 'The MSI does not contain the running-application shutdown action.'
+}
+$executeSequence = @(Get-MsiTable 'InstallExecuteSequence')
+if (!($executeSequence | Where-Object { $_[0] -eq 'CloseApplication' -and [int]$_[2] -lt 1400 })) {
+    throw 'The MSI does not close the running application before validating file replacement.'
+}
 $installer = New-Object -ComObject WindowsInstaller.Installer
 $database = $installer.GetType().InvokeMember('OpenDatabase', 'InvokeMethod', $null, $installer, @($msi, 0))
 $summary = $database.GetType().InvokeMember('SummaryInformation', 'GetProperty', $null, $database, @(0))
@@ -84,21 +92,41 @@ try {
         $application = Start-Process (Join-Path $directory 'WindowsIsland.exe') -ArgumentList '--settings' -PassThru -WindowStyle Hidden
         Start-Sleep -Seconds 5
         if ($application.HasExited) { throw 'The installed application exited during startup.' }
+        $arguments = @('/i', ('"{0}"' -f $msi), '/qn', '/norestart', 'REINSTALL=ALL', 'REINSTALLMODE=amus',
+            ('INSTALLFOLDER="{0}"' -f $directory), '/L*v', ('"{0}"' -f (Join-Path $logs 'repair.log')))
+        $process = Start-Process msiexec.exe -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
+        if ($process.ExitCode -notin @(0,3010)) { throw "MSI repair failed while the application was running: $($process.ExitCode)" }
+        $application.Refresh()
+        if (!$application.HasExited) { throw 'MSI repair did not close the running application before replacing files.' }
+        $application.Dispose()
+        $application = Start-Process (Join-Path $directory 'WindowsIsland.exe') -ArgumentList '--settings' -PassThru -WindowStyle Hidden
+        Start-Sleep -Seconds 5
+        if ($application.HasExited) { throw 'The repaired application exited during startup.' }
     }
+    $legacyHook = Join-Path $directory ('Hooks/' + ('A' * 64))
+    New-Item -ItemType Directory -Path $legacyHook -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $legacyHook 'WindowsIsland.TelegramHook.dll') -Value 'legacy runtime copy'
+    Set-Content -LiteralPath (Join-Path $directory '.update-files.json') -Value '[]'
     'PASS MSI installs the complete application and its Start menu shortcut.'
 } finally {
-    if ($application -and !$application.HasExited) {
-        if ($application.Path -ne (Join-Path $directory 'WindowsIsland.exe')) { throw 'Unexpected application process.' }
-        Stop-Process -InputObject $application
-        [void]$application.WaitForExit(5000)
-    }
     if ($installed) {
         $arguments = @('/x', ('"{0}"' -f $msi), '/qn', '/norestart', '/L*v', ('"{0}"' -f (Join-Path $logs 'uninstall.log')))
         $process = Start-Process msiexec.exe -ArgumentList $arguments -PassThru -Wait -WindowStyle Hidden
         if ($process.ExitCode -notin @(0,3010)) { throw "MSI uninstall failed: $($process.ExitCode)" }
     }
+    if ($application) {
+        $application.Refresh()
+        if (!$application.HasExited) {
+            if ($application.Path -ne (Join-Path $directory 'WindowsIsland.exe')) { throw 'Unexpected application process.' }
+            Stop-Process -InputObject $application
+            [void]$application.WaitForExit(5000)
+            throw 'MSI uninstall did not close the running application.'
+        }
+        $application.Dispose()
+    }
 }
-if (Test-Path -LiteralPath (Join-Path $directory 'WindowsIsland.exe')) { throw 'MSI uninstall left the application installed.' }
+if (Test-Path -LiteralPath $directory) { throw 'MSI uninstall left its installation directory behind.' }
+'PASS MSI closes its running application and removes its managed runtime files and installation directory.'
 if (Test-Path -LiteralPath $shortcut) { throw 'MSI uninstall left a Start menu shortcut.' }
 if ((Get-ItemProperty -Path $registration -Name InstallDirectory -ErrorAction SilentlyContinue).InstallDirectory) { throw 'MSI uninstall left its installation registration.' }
 'PASS MSI uninstalls the application and its Start menu shortcut.'

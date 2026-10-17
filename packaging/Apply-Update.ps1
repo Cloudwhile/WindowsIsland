@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$JobPath)
+param([Parameter(Mandatory)][string]$JobPath, [switch]$ElevatedWorker, [int]$BootstrapId = 0)
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -70,13 +70,26 @@ try {
     $jobDirectory = Full-Path ([IO.Path]::GetDirectoryName((Full-Path $JobPath)))
     $workRoot = [IO.Path]::GetDirectoryName($jobDirectory)
     $jobId = [Guid]::Empty
-    if (!(Full-Path $PSScriptRoot).Equals($jobDirectory, [StringComparison]::OrdinalIgnoreCase) -or
+    if ((!$ElevatedWorker -and !(Full-Path $PSScriptRoot).Equals($jobDirectory, [StringComparison]::OrdinalIgnoreCase)) -or
         ![Guid]::TryParseExact([IO.Path]::GetFileName($jobDirectory), 'N', [ref]$jobId)) {
         throw '更新任务目录无效。'
     }
     Assert-NoLinks $jobDirectory
     $stage = 'Paths'
     $job = Get-Content -LiteralPath $JobPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if (!$job.PSObject.Properties['RequiresElevation'] -or $job.RequiresElevation -isnot [bool] -or
+        !$job.PSObject.Properties['UserSid'] -or [string]$job.UserSid -notmatch '^S-1-(?:\d+-){1,14}\d+$') {
+        throw '更新权限信息无效。'
+    }
+    if ($ElevatedWorker) {
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        try {
+            if (!([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+                throw '更新辅助程序没有管理员权限。'
+            }
+        } finally { $identity.Dispose() }
+        if (!$job.RequiresElevation -or $BootstrapId -le 0) { throw '更新任务不需要管理员权限。' }
+    }
     $install = Full-Path $job.InstallDirectory
     $payload = Full-Path $job.PayloadDirectory
     $backup = Join-Path $jobDirectory 'backup'
@@ -95,6 +108,15 @@ try {
         !(Full-Path $parent.MainModule.FileName).Equals($executable, [StringComparison]::OrdinalIgnoreCase)) {
         throw '更新进程与安装目录不匹配。'
     }
+    if ($ElevatedWorker) {
+        try {
+            $bootstrap = [Diagnostics.Process]::GetProcessById($BootstrapId)
+            try {
+                if (!(Full-Path $bootstrap.MainModule.FileName).Equals($executable, [StringComparison]::OrdinalIgnoreCase) -or
+                    !$bootstrap.WaitForExit(10000)) { throw '更新权限辅助程序未退出。' }
+            } finally { $bootstrap.Dispose() }
+        } catch [ArgumentException] { }
+    }
 } catch {
     if ($stage -ne 'Task') { Write-UpdateError $_ }
     throw
@@ -105,6 +127,7 @@ $canRestart = $false
 $success = $false
 $mutex = $null
 $acquired = $false
+$delegated = $false
 $message = '更新未完成，请重试。'
 $messageKey = 'UpdateFailed'
 try {
@@ -114,15 +137,18 @@ try {
         if (!$installer.Equals((Join-Path $jobDirectory 'update.msi'), [StringComparison]::OrdinalIgnoreCase) -or
             !(Test-Path -LiteralPath $installer -PathType Leaf)) { throw '更新安装包路径无效。' }
         Assert-NoLinks $installer
-        $registration = Get-ItemProperty -LiteralPath 'HKCU:\Software\Cloudwhile\WindowsIsland\Installer'
+        $registrationPath = 'Registry::HKEY_USERS\' + [string]$job.UserSid + '\Software\Cloudwhile\WindowsIsland\Installer'
+        $registration = Get-ItemProperty -LiteralPath $registrationPath
         if (!(Full-Path $registration.InstallDirectory).Equals($install, [StringComparison]::OrdinalIgnoreCase)) {
             throw '安装记录与更新目录不匹配。'
         }
     } else {
         $stage = 'Payload'
-        $probe = Join-Path $install ('.island-update-' + $jobId.ToString('N'))
-        [IO.File]::WriteAllText($probe, '')
-        Remove-Item -LiteralPath $probe -Force
+        if ($ElevatedWorker -or !$job.RequiresElevation) {
+            $probe = Join-Path $install ('.island-update-' + $jobId.ToString('N'))
+            [IO.File]::WriteAllText($probe, '')
+            Remove-Item -LiteralPath $probe -Force
+        }
         $files = @(Get-ChildItem -LiteralPath $payload -Recurse -File -Force)
         if ($files.Count -eq 0 -or !(Test-Path -LiteralPath (Join-Path $payload 'WindowsIsland.exe') -PathType Leaf)) {
             throw '更新包不完整。'
@@ -155,24 +181,62 @@ try {
         $plan.Add([pscustomobject]@{ Relative = '.update-files.json'; Target = (Child-Path $install '.update-files.json');
             Source = $null; Existed = [IO.File]::Exists($inventory) })
     }
-    $stage = 'Commit'
-    [IO.File]::WriteAllText((Join-Path $jobDirectory 'ready'), '')
-    $deadline = [DateTime]::UtcNow.AddSeconds(20)
-    while (!(Test-Path -LiteralPath (Join-Path $jobDirectory 'commit'))) {
-        if ([DateTime]::UtcNow -gt $deadline) { throw '更新交接超时。' }
-        Start-Sleep -Milliseconds 100
+    if ($ElevatedWorker) {
+        $stage = 'ElevatedReady'
+        [IO.File]::WriteAllText((Join-Path $jobDirectory 'elevated-ready'), '')
+        $deadline = [DateTime]::UtcNow.AddSeconds(90)
+        while (!(Test-Path -LiteralPath (Join-Path $jobDirectory 'elevated-commit'))) {
+            if ([DateTime]::UtcNow -gt $deadline) { throw '更新权限交接超时。' }
+            Start-Sleep -Milliseconds 100
+        }
+    } else {
+        if ($job.RequiresElevation) {
+            $stage = 'Elevation'
+            $deadline = [DateTime]::UtcNow.AddSeconds(10)
+            while (!(Test-Path -LiteralPath (Join-Path $jobDirectory 'elevated-ready'))) {
+                if (Test-Path -LiteralPath (Join-Path $jobDirectory 'elevation-failed')) { throw '管理员权限更新辅助程序启动失败。' }
+                if ([DateTime]::UtcNow -gt $deadline) { throw '管理员权限请求超时。' }
+                Start-Sleep -Milliseconds 100
+            }
+        }
+        $stage = 'Commit'
+        [IO.File]::WriteAllText((Join-Path $jobDirectory 'ready'), '')
+        $deadline = [DateTime]::UtcNow.AddSeconds(20)
+        while (!(Test-Path -LiteralPath (Join-Path $jobDirectory 'commit'))) {
+            if ([DateTime]::UtcNow -gt $deadline) { throw '更新交接超时。' }
+            Start-Sleep -Milliseconds 100
+        }
+        $stage = 'Exit'
+        if (!$parent.WaitForExit(30000)) { throw '消息岛未退出，更新已取消。' }
+        $canRestart = $true
+        $stage = 'Mutex'
+        $mutex = [Threading.Mutex]::new($false, [string]$job.MutexName)
+        try { $acquired = $mutex.WaitOne(0) }
+        catch [Threading.AbandonedMutexException] { $acquired = $true }
+        if (!$acquired) { $canRestart = $false; throw '消息岛已经重新运行，更新已取消。' }
+        if ($job.RequiresElevation) {
+            $stage = 'ElevatedInstall'
+            [IO.File]::WriteAllText((Join-Path $jobDirectory 'elevated-commit'), '')
+            $deadline = [DateTime]::UtcNow.AddMinutes(15)
+            while (!(Test-Path -LiteralPath (Join-Path $jobDirectory 'elevated-finished'))) {
+                if ([DateTime]::UtcNow -gt $deadline) { throw '管理员权限更新安装超时。' }
+                Start-Sleep -Milliseconds 100
+            }
+            $delegatedPath = Join-Path $workRoot 'result.json'
+            if (!(Test-Path -LiteralPath $delegatedPath -PathType Leaf)) { throw '管理员权限更新辅助程序没有返回结果。' }
+            $delegatedResult = Get-Content -LiteralPath $delegatedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if (!(Full-Path $delegatedResult.InstallDirectory).Equals($install, [StringComparison]::OrdinalIgnoreCase) -or
+                [string]$delegatedResult.Version -cne [string]$job.Version) { throw '管理员权限更新结果无效。' }
+            $success = $delegatedResult.Success -eq $true
+            $message = [string]$delegatedResult.Message
+            $messageKey = [string]$delegatedResult.MessageKey
+            $delegated = $true
+        }
     }
-    $stage = 'Exit'
-    if (!$parent.WaitForExit(30000)) { throw '消息岛未退出，更新已取消。' }
-    $canRestart = $true
-    $stage = 'Mutex'
-    $mutex = [Threading.Mutex]::new($false, [string]$job.MutexName)
-    try { $acquired = $mutex.WaitOne(0) }
-    catch [Threading.AbandonedMutexException] { $acquired = $true }
-    if (!$acquired) { $canRestart = $false; throw '消息岛已经重新运行，更新已取消。' }
 
-    $stage = 'Install'
-    if ($job.InstallerPath) {
+    if (!$delegated) {
+      $stage = 'Install'
+      if ($job.InstallerPath) {
         $start = [Diagnostics.ProcessStartInfo]::new()
         $start.FileName = Join-Path ([Environment]::GetFolderPath('System')) 'msiexec.exe'
         $start.UseShellExecute = $false
@@ -184,7 +248,7 @@ try {
             $installation.WaitForExit()
             if ($installation.ExitCode -notin @(0, 3010)) { throw "安装更新失败：$($installation.ExitCode)" }
         } finally { $installation.Dispose() }
-    } else {
+      } else {
         [IO.Directory]::CreateDirectory($backup) | Out-Null
         foreach ($item in $plan) {
             if ($item.Existed) { Copy-Retry $item.Target (Child-Path $backup $item.Relative) }
@@ -197,12 +261,13 @@ try {
         }
         $json = ConvertTo-Json -InputObject @($owned) -Compress
         [IO.File]::WriteAllText($inventory, $json, [Text.UTF8Encoding]::new($false))
+      }
+      $stage = 'Version'
+      Assert-InstalledVersion
+      $success = $true
+      $message = '更新完成。'
+      $messageKey = 'UpdateComplete'
     }
-    $stage = 'Version'
-    Assert-InstalledVersion
-    $success = $true
-    $message = '更新完成。'
-    $messageKey = 'UpdateComplete'
 } catch {
     Write-UpdateError $_
     if ($modified) {
@@ -239,6 +304,9 @@ $resultPath = Join-Path $workRoot 'result.json'
 $temporaryResult = Join-Path $jobDirectory 'result.json'
 [IO.File]::WriteAllText($temporaryResult, ($result | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath $temporaryResult -Destination $resultPath -Force
+if ($ElevatedWorker) {
+    [IO.File]::WriteAllText((Join-Path $jobDirectory 'elevated-finished'), '', [Text.UTF8Encoding]::new($false))
+}
 if ($canRestart) {
     $arguments = if ($success -or $job.InstallerPath) { '--settings --after-update' } else { '--settings --show-update-result' }
     if ($job.PSObject.Properties['RestoreRegistration'] -and $job.RestoreRegistration -eq $true) {
@@ -246,7 +314,7 @@ if ($canRestart) {
     }
     Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $install -WindowStyle Hidden
 }
-if ($success) {
+if ($success -and !$ElevatedWorker) {
     foreach ($name in @('payload', 'backup')) {
         $cleanup = Full-Path (Join-Path $jobDirectory $name)
         if (![IO.Path]::GetDirectoryName($cleanup).Equals($jobDirectory, [StringComparison]::OrdinalIgnoreCase)) {

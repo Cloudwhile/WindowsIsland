@@ -9,6 +9,10 @@ internal static class UpdateScriptChecks
     {
         if (!OperatingSystem.IsWindows()) return;
         var root = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "update-script", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        check(!UpdateInstaller.RequiresElevation(root)
+            && !Directory.EnumerateFiles(root, ".island-access-*").Any(),
+            "Writable installation directories do not request elevation or retain access probes");
         using (var fixture = new Fixture(Path.Combine(root, "success")))
         {
             await fixture.StartAsync();
@@ -220,7 +224,7 @@ internal static class UpdateScriptChecks
                 File.Copy(Installed("WindowsIsland.exe"), Installed("msiexec-fixture.exe"));
                 File.WriteAllText(Installed("msi-fixture-exit.txt"), code.ToString());
                 var script = File.ReadAllText(updater)
-                    .Replace("$registration = Get-ItemProperty -LiteralPath 'HKCU:\\Software\\Cloudwhile\\WindowsIsland\\Installer'",
+                    .Replace("$registration = Get-ItemProperty -LiteralPath $registrationPath",
                         "$registration = [pscustomobject]@{ InstallDirectory = $install }", StringComparison.Ordinal)
                     .Replace("$start.FileName = Join-Path ([Environment]::GetFolderPath('System')) 'msiexec.exe'",
                         "$start.FileName = Join-Path $install 'msiexec-fixture.exe'", StringComparison.Ordinal);

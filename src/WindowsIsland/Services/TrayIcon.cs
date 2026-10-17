@@ -116,6 +116,7 @@ internal sealed class TrayIcon : IDisposable
         {
             if (message == _taskbarCreated) { _added = false; EnsureAdded(); }
             if (message == AppActivation.SettingsMessage) { _openSettings(); return 0; }
+            if (message == AppActivation.ExitMessage) { _exit(); return 0; }
             if (message == CallbackMessage)
             {
                 var action = (uint)(lParam.ToInt64() & 0xFFFF);

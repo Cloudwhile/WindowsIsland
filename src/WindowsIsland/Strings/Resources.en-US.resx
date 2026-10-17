@@ -313,11 +313,17 @@
   <data name="UpdateDownloading" xml:space="preserve">
     <value>Downloading the update</value>
   </data>
+  <data name="UpdateResuming" xml:space="preserve">
+    <value>Resuming the update</value>
+  </data>
   <data name="UpdateDownloadComplete" xml:space="preserve">
     <value>Download complete</value>
   </data>
   <data name="UpdateProgressPercent" xml:space="preserve">
     <value>{0} {1:0}%</value>
+  </data>
+  <data name="UpdateProgressPercentSpeed" xml:space="preserve">
+    <value>{0} {1:0}% · {2}</value>
   </data>
   <data name="UpdateErrorInstallerMissing" xml:space="preserve">
     <value>The installer for this version is not ready. Try again later.</value>

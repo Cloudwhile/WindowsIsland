@@ -29,7 +29,14 @@ internal static class TelegramHookInjector
 
         using var dll = File.OpenRead(hookPath);
         var hash = Convert.ToHexString(SHA256.HashData(dll));
-        var directory = Path.Combine(Path.GetDirectoryName(hookPath)!, "Hooks", hash);
+        var cache = fixture ? Path.GetDirectoryName(hookPath)! : Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsIsland");
+        if (!fixture)
+        {
+            Directory.CreateDirectory(cache);
+            cache = UpdateWorkDirectory.Resolve(cache);
+        }
+        var directory = Path.Combine(cache, "Hooks", hash);
         Directory.CreateDirectory(directory);
         var runtimePath = Path.Combine(directory, "WindowsIsland.TelegramHook.dll");
         if (!File.Exists(runtimePath)) File.Copy(hookPath, runtimePath);
