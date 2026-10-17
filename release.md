@@ -3,6 +3,7 @@
 ## Fixed
 
 - 修复 Windows CI 仅依赖已下架的固定 Inno Setup Chocolatey 包版本，导致安装器构建无法开始的问题。
+- 修复完成应用初始化后，部分系统上重启交接迟迟未就绪而导致初始化失败的问题。
 
 ## Upgrade Notes
 
