@@ -1,22 +1,33 @@
-# Windows Island v0.1.6
+# Windows Island v0.1.7-alpha.1
+
+> [!IMPORTANT]
+> 这是预发布版本，适合希望提前体验修复的用户。接收预发布更新默认关闭，可在更新页开启。
 
 ## Fixed
 
-- 修复 Windows CI 仅依赖已下架的固定 Inno Setup Chocolatey 包版本，导致安装器构建无法开始的问题。
-- 修复完成应用初始化后，部分系统上重启交接迟迟未就绪而导致初始化失败的问题。
+- 修复部分系统因缺少应用注册许可而初始化失败的问题，按需请求管理员授权后重试。
+- 修复卸载时出现运行时错误的问题，并清理安装生成的注册文件。
+- 修复浅色模式下通知弹窗周围出现白色矩形的问题。
+- 将未完成初始化或授权的提示明确为“系统通知尚未就绪”，避免与已连接的微信等独立来源混淆。
+
+## Security
+
+- 内置 .NET 与 Windows Desktop 运行时更新至 10.0.13。
 
 ## Upgrade Notes
 
-- v0.1.6 为正式版，默认不接收预发布更新。
-- 更新会下载并校验对应的 Inno Setup 安装器，由安装器关闭正在运行的同目录实例并完成原地升级。
+- 可在更新页开启“接收预发布更新”后检查更新，也可下载下方安装器手动覆盖安装。
+- 安装器允许选择安装目录，按需申请管理员权限；升级时关闭同目录的消息岛实例，卸载时保留用户数据。
+- 应用内更新支持中断后续传，并显示下载进度与传输速率。
+- 系统通知需要完成初始化并允许通知访问；已连接的微信等独立来源和通知预览不依赖这一步。
 
 ## Downloads
 
 适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。
 
-- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.6/WindowsIsland-0.1.6-win-x64.exe)
-- 对应的 SHA-256 校验文件见下方附件。
+- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.7-alpha.1/WindowsIsland-0.1.7-alpha.1-win-x64.exe)
+- [SHA-256 校验文件](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.7-alpha.1/WindowsIsland-0.1.7-alpha.1-win-x64.exe.sha256)
 
 ## Full Changelog
 
-https://github.com/Cloudwhile/WindowsIsland/compare/v0.1.5...v0.1.6
+https://github.com/Cloudwhile/WindowsIsland/compare/v0.1.6...v0.1.7-alpha.1

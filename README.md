@@ -67,6 +67,8 @@ Sources are built-in plugins with independent switches and connection status.
 
 The island starts with new messages when a source connects or is re-enabled. Muted WeChat conversations stay quiet, and previous messages are not replayed. Turning off one source leaves the others running.
 
+System notifications require initialization and notification access. Connected sources such as WeChat and the notification preview remain available before system notification setup is complete.
+
 ## Settings
 
 The sidebar contains **Setup**, **Sources**, **Appearance**, **Updates**, and **Diagnostics & feedback**.

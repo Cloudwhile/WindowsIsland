@@ -170,7 +170,7 @@
     <value>Not running</value>
   </data>
   <data name="IncompleteSetup" xml:space="preserve">
-    <value>Setup incomplete</value>
+    <value>System notifications are not ready</value>
   </data>
   <data name="SettingsSaved" xml:space="preserve">
     <value>Settings saved.</value>
@@ -179,7 +179,7 @@
     <value>Allow notification access, or turn off system notifications to continue.</value>
   </data>
   <data name="InitializeThenGrantAccess" xml:space="preserve">
-    <value>Initialize the app, then allow notification access.</value>
+    <value>Initialize the app and allow notification access to receive system notifications. Connected sources such as WeChat can still receive messages.</value>
   </data>
   <data name="ActionOpenWindowsNotificationSettings" xml:space="preserve">
     <value>Open Windows notification settings</value>

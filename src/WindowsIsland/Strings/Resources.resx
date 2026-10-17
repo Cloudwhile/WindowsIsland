@@ -170,7 +170,7 @@
     <value>未运行</value>
   </data>
   <data name="IncompleteSetup" xml:space="preserve">
-    <value>初始化未完成</value>
+    <value>系统通知尚未就绪</value>
   </data>
   <data name="SettingsSaved" xml:space="preserve">
     <value>设置已保存。</value>
@@ -179,7 +179,7 @@
     <value>请允许通知访问，或关闭系统通知后继续。</value>
   </data>
   <data name="InitializeThenGrantAccess" xml:space="preserve">
-    <value>请先完成应用初始化，再允许通知访问。</value>
+    <value>接收系统通知需要先完成初始化并允许通知访问。已连接的微信等来源仍可接收消息。</value>
   </data>
   <data name="ActionOpenWindowsNotificationSettings" xml:space="preserve">
     <value>打开 Windows 通知设置</value>
