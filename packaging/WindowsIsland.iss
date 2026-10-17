@@ -71,7 +71,7 @@ begin
   Result := ExecAsOriginalUser(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
   if not Result then
-    MsgBox('Windows Island could not close the previous installation before updating.', mbError, MB_OK);
+    SuppressibleMsgBox('Windows Island could not close the previous installation before updating.', mbError, MB_OK, IDOK);
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -97,7 +97,7 @@ begin
     dispatches per-user work to the interactive user's token when elevated. }
   if not (Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0)) then
-    MsgBox('Windows Island cleanup did not complete. Some registration may remain.', mbError, MB_OK);
+    SuppressibleMsgBox('Windows Island cleanup did not complete. Some registration may remain.', mbError, MB_OK, IDOK);
 end;
 
 function InitializePackage(): Boolean;
@@ -107,7 +107,7 @@ begin
   Result := ExecAsOriginalUser(ExpandConstant('{app}\WindowsIsland.exe'), '--install-initialization', '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
   if not Result then
-    MsgBox('Windows Island package initialization failed. Please retry the installation or run it as administrator.', mbError, MB_OK);
+    SuppressibleMsgBox('Windows Island package initialization failed. Please retry the installation or run it as administrator.', mbError, MB_OK, IDOK);
 end;
 
 procedure CurStepChanged(CurrentStep: TSetupStep);

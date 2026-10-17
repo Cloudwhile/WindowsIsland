@@ -129,7 +129,7 @@ jobs:
         run: ./packaging/Build-Inno.ps1 -Version $env:APP_VERSION
 
       - name: Check isolated Inno installation and removal
-        run: ./packaging/Test-Inno.ps1
+        run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1
 
       - name: Set up isolated MSI upgrade checks
         run: |
@@ -139,7 +139,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Check isolated upgrades and rollback
-        run: ./packaging/Test-MsiUpgrade.ps1
+        run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-MsiUpgrade.ps1
 
       - name: Upload Windows package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
