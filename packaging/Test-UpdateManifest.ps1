@@ -66,22 +66,27 @@ $pages = @(@($draft, $preview, $foreign, $wrongSize, $unfinished, $badFlag),
 Write-Metadata $pages
 & $generator -ReleaseDataPath $source -OutputPath $output -RequiredTag 'v1.5.0-rc.10'
 $manifest = Get-Content -LiteralPath $output -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
-Check ($manifest.schema_version -eq 1 -and $manifest.releases.Count -eq 3) 'All pages are scanned and drafts, incomplete and invalid releases are omitted'
-Check ('v1.4.0' -cin $manifest.releases.tag_name) 'Publishing a preview retains the previous stable version'
-Check (@($manifest.releases | Where-Object { $_.prerelease }).Count -eq 2) 'Both release flags and prerelease tag suffixes select the preview channel'
-Check (@($manifest.releases.assets).Count -eq 12 -and @($manifest.releases.assets | Where-Object { $_.size -le 0 }).Count -eq 0) 'Every published entry has the four correctly sized ZIP and MSI assets'
+Check ($manifest.schema_version -eq 1 -and $manifest.releases.Count -eq 1 -and
+    $manifest.releases[0].tag_name -ceq 'v1.5.0-rc.10') 'All pages are scanned but the feed retains only the required latest release'
+Check ($manifest.releases[0].prerelease) 'A prerelease suffix selects the preview channel for the retained release'
+Check (@($manifest.releases.assets).Count -eq 4 -and @($manifest.releases.assets | Where-Object { $_.size -le 0 }).Count -eq 0) 'The retained release has four correctly sized ZIP and MSI assets'
 Check ($manifest.releases[0].body -ceq "修复与改进`n更新说明" -and !$manifest.releases[0].Contains('author')) 'Notes retain Chinese text and omit unrelated metadata'
 $bytes = [IO.File]::ReadAllBytes($output)
 Check (!($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) -and
     ![IO.File]::ReadAllText($output).Contains('\u')) 'The manifest uses UTF-8 without BOM or escaped Chinese'
 $expected = [Convert]::ToBase64String($bytes)
 Write-Metadata @($stable, $flaggedStable, $preview)
-& $generator -ReleaseDataPath $source -OutputPath $output -RequiredTag 'v1.4.0'
+& $generator -ReleaseDataPath $source -OutputPath $output -RequiredTag 'v1.5.0-rc.10'
 Check ($expected -ceq [Convert]::ToBase64String([IO.File]::ReadAllBytes($output))) 'Equivalent flat metadata produces identical bytes regardless of input order'
+& $generator -ReleaseDataPath $source -OutputPath $output -RequiredTag 'v1.4.0'
+$manifest = Get-Content -LiteralPath $output -Raw -Encoding utf8 | ConvertFrom-Json -AsHashtable
+Check ($manifest.releases.Count -eq 1 -and $manifest.releases[0].tag_name -ceq 'v1.4.0' -and
+    !$manifest.releases[0].prerelease) 'Selecting a stable release also replaces the feed with one latest entry'
 Reject @(@($stable, $preview)) 'v9.9.9' 'A missing current tag fails without overwriting the feed'
 Reject @($stable, $missing) 'v8.0.0' 'An incomplete current release fails without overwriting the feed'
 Reject @($stable, $stable) 'v1.4.0' 'Duplicate tags fail without overwriting the feed'
 Reject @{ releases = @($stable) } 'v1.4.0' 'An invalid root fails without overwriting the feed'
+Reject @($stable) '' 'A non-empty feed requires an explicit latest release tag'
 $oversized = Release 'v1.4.0'
 $oversized.body = 'x' * (4 * 1024 * 1024)
 Reject @($oversized) 'v1.4.0' 'An oversized generated feed fails before replacing the existing file'

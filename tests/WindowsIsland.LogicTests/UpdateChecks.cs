@@ -116,9 +116,9 @@ internal static class UpdateChecks
         using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Environment.CurrentDirectory, "updates", "releases.json"))))
         {
             var published = document.RootElement.GetProperty("releases").EnumerateArray().Select(GitHubReleaseClient.ParseRelease).ToArray();
-            check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length > 0
+            check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length == 1
                 && published.All(release => release is { Installer: not null, InstallerChecksum: not null }),
-                "The checked-in manifest of actual published releases is readable by the client with both ZIP and MSI assets");
+                "The checked-in manifest retains only the latest published release with both ZIP and MSI assets");
         }
 
         var root = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "updates", Guid.NewGuid().ToString("N"));

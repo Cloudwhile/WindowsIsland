@@ -61,8 +61,14 @@ $entries = @($entries | Sort-Object -Property { $_.tag_name } -CaseSensitive)
 if (@($entries | Group-Object -Property { $_.tag_name } -CaseSensitive | Where-Object Count -gt 1).Count) {
     throw 'Release metadata contains duplicate tags.'
 }
-if ($RequiredTag -and $RequiredTag -cnotin $entries.tag_name) {
-    throw "The published release is missing or incomplete: $RequiredTag"
+if ($entries.Count -and !$RequiredTag) {
+    throw 'A required release tag is needed for a non-empty update manifest.'
+}
+if ($RequiredTag) {
+    if ($RequiredTag -cnotin $entries.tag_name) {
+        throw "The published release is missing or incomplete: $RequiredTag"
+    }
+    $entries = @($entries | Where-Object { $_.tag_name -ceq $RequiredTag })
 }
 $manifest = [ordered]@{ schema_version = 1; releases = $entries } | ConvertTo-Json -Depth 10
 $bytes = [Text.UTF8Encoding]::new($false).GetBytes($manifest + "`n")
