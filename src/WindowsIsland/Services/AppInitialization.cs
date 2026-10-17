@@ -71,7 +71,14 @@ internal static class AppInitialization
         if (!force && installed is not null) return installed.Id.FamilyName + "!App";
         var installedVersion = installed?.Id.Version;
         var version = installedVersion is { } value ? new Version(value.Major, value.Minor, value.Build, value.Revision) : null;
-        var systemPrepared = await InitializationPreparation.PrepareAsync(directory, version, InitializationElevation.PrepareAsync);
+        bool systemPrepared;
+        if (!InitializationPolicy.IsEnabled())
+        {
+            await InitializationElevation.PrepareAsync(version);
+            systemPrepared = true;
+        }
+        else
+            systemPrepared = await InitializationPreparation.PrepareAsync(directory, version, InitializationElevation.PrepareAsync);
         return await InitializationRegistration.RegisterAsync(
             () => RegisterCurrentUserAsync(manager, directory, name),
             () => InitializationElevation.PrepareAsync(version), systemPrepared);

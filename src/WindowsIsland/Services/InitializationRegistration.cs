@@ -12,7 +12,8 @@ internal static class InitializationRegistration
         bool systemPrepared = false)
     {
         try { return await register().ConfigureAwait(false); }
-        catch (Exception error) when (!systemPrepared && error.HResult == unchecked((int)0x80070005))
+        catch (Exception error) when (!systemPrepared
+            && (error.HResult == unchecked((int)0x80070005) || IsSideLoadingDisabled(error)))
         {
             // Preparing the manifest does not prove that Windows can prepare its
             // own package metadata. Recover that deployment boundary once, then

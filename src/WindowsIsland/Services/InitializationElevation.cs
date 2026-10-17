@@ -51,6 +51,7 @@ internal static class InitializationElevation
             if (parent.Id == Environment.ProcessId || parent.StartTime.ToUniversalTime().Ticks != started
                 || !string.Equals(parent.MainModule?.FileName, Environment.ProcessPath, StringComparison.OrdinalIgnoreCase)) return true;
             // No caller-supplied paths or contents, and no per-user registration here.
+            InitializationPolicy.EnsureEnabled();
             InitializationPreparation.Prepare(AppContext.BaseDirectory, version);
             result = 0;
         }

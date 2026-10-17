@@ -14,7 +14,9 @@ internal static class InitializationRegistrationChecks
         check(result == "requesting-user!App" && stages.SequenceEqual(["register"]),
             "Writable package registration never requests administrative permissions");
 
-        foreach (var denial in new Exception[] { new UnauthorizedAccessException(), new COMException("denied", unchecked((int)0x80070005)) })
+        foreach (var denial in new Exception[] { new UnauthorizedAccessException(), new COMException("denied", unchecked((int)0x80070005)),
+            new COMException("development disabled", InitializationRegistration.SideLoadingDisabledHResult),
+            new InvalidOperationException("wrapped", new COMException("development disabled", InitializationRegistration.SideLoadingDisabledHResult)) })
         {
             stages.Clear();
             result = await InitializationRegistration.RegisterAsync(() =>
@@ -27,9 +29,10 @@ internal static class InitializationRegistrationChecks
         }
 
         foreach (var alreadyPrepared in new[] { false, true })
+        foreach (var denied in new Exception[] { new UnauthorizedAccessException(),
+            new COMException("development disabled", InitializationRegistration.SideLoadingDisabledHResult) })
         {
             stages.Clear();
-            var denied = new UnauthorizedAccessException();
             var failure = await FailureAsync(() => InitializationRegistration.RegisterAsync<string>(() =>
             {
                 stages.Add("register");
@@ -48,16 +51,24 @@ internal static class InitializationRegistrationChecks
             "Unrelated package registration errors retain their cause without requesting elevation");
 
         foreach (var prepareFailure in new Exception[] { new OperationCanceledException(), new IOException("preparation failed") })
+        foreach (var denied in new Exception[] { new UnauthorizedAccessException(),
+            new COMException("development disabled", InitializationRegistration.SideLoadingDisabledHResult) })
         {
             var registrations = 0;
             var failure = await FailureAsync(() => InitializationRegistration.RegisterAsync<string>(() =>
             {
                 registrations++;
-                throw new UnauthorizedAccessException();
+                throw denied;
             }, () => Task.FromException(prepareFailure)));
             check(ReferenceEquals(failure, prepareFailure) && registrations == 1,
                 "Cancelled or failed privileged preparation leaves initialization retryable without another registration: " + prepareFailure.GetType().Name);
         }
+
+        check(!InitializationPolicy.Enabled(null, null) && !InitializationPolicy.Enabled(null, "1")
+            && !InitializationPolicy.Enabled(null, 0), "Missing or invalid package development settings require preparation");
+        check(InitializationPolicy.Enabled(null, 1) && InitializationPolicy.Enabled(1, 0)
+            && !InitializationPolicy.Enabled(0, 1) && !InitializationPolicy.Enabled("1", 1),
+            "Managed package policy takes precedence over local development settings");
     }
 
     private static async Task<Exception?> FailureAsync(Func<Task> action)
