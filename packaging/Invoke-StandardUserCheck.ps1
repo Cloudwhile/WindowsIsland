@@ -36,22 +36,28 @@ public static class IslandStandardUserCheck
     public static int Run(string executable, string encoded, string directory)
     {
         IntPtr token = IntPtr.Zero, filtered = IntPtr.Zero, sid = IntPtr.Zero, label = IntPtr.Zero;
+        IntPtr administrators = IntPtr.Zero, disabled = IntPtr.Zero;
         try
         {
-            if (!OpenProcessToken(GetCurrentProcess(), 0x018B, out token)
-                || !CreateRestrictedToken(token, 0x5, 0, IntPtr.Zero, 0, IntPtr.Zero, 0, IntPtr.Zero, out filtered))
-                throw new Win32Exception(Marshal.GetLastWin32Error());
+            if (!OpenProcessToken(GetCurrentProcess(), 0x018B, out token))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Open runner token");
+            if (!ConvertStringSidToSidW("S-1-5-32-544", out administrators))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Resolve administrator group");
+            disabled = Marshal.AllocHGlobal(Marshal.SizeOf<Label>());
+            Marshal.StructureToPtr(new Label { Sid = administrators }, disabled, false);
+            if (!CreateRestrictedToken(token, 1, 1, disabled, 0, IntPtr.Zero, 0, IntPtr.Zero, out filtered))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Filter runner token");
             if (!ConvertStringSidToSidW("S-1-16-8192", out sid)) throw new Win32Exception(Marshal.GetLastWin32Error());
             var integrity = new Label { Sid = sid, Attributes = 0x20 };
             label = Marshal.AllocHGlobal(Marshal.SizeOf<Label>());
             Marshal.StructureToPtr(integrity, label, false);
             if (!SetTokenInformation(filtered, 25, label, Marshal.SizeOf<Label>() + (int)GetLengthSid(sid)))
-                throw new Win32Exception(Marshal.GetLastWin32Error());
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Set medium integrity");
             var startup = new Startup { Size = Marshal.SizeOf<Startup>(), Flags = 1, Show = 0 };
             Process child;
             var command = new StringBuilder("\"" + executable + "\" -NoProfile -NonInteractive -EncodedCommand " + encoded);
             if (!CreateProcessWithTokenW(filtered, 0, executable, command, 0x08000000, IntPtr.Zero, directory, ref startup, out child))
-                throw new Win32Exception(Marshal.GetLastWin32Error());
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Start standard-user checks");
             try
             {
                 if (WaitForSingleObject(child.Handle, 900000) != 0) throw new TimeoutException("Installer checks timed out.");
@@ -64,6 +70,8 @@ public static class IslandStandardUserCheck
         finally
         {
             if (label != IntPtr.Zero) Marshal.FreeHGlobal(label);
+            if (disabled != IntPtr.Zero) Marshal.FreeHGlobal(disabled);
+            if (administrators != IntPtr.Zero) LocalFree(administrators);
             if (sid != IntPtr.Zero) LocalFree(sid);
             if (filtered != IntPtr.Zero) CloseHandle(filtered);
             if (token != IntPtr.Zero) CloseHandle(token);
