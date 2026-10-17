@@ -46,7 +46,8 @@ internal static class UpdateScriptChecks
             await fixture.StartAsync();
             var result = await fixture.ResultAsync();
             check(result.Success && !Directory.Exists(fixture.Payload)
-                && File.ReadAllText(fixture.Installed("a-library.dll")) == "new MSI library",
+                && File.ReadAllText(fixture.Installed("a-library.dll")) == "new MSI library"
+                && File.Exists(fixture.MsiSource),
                 "A GUI application without redirected console streams hands MSI updates to the real helper");
             check((await fixture.RestartArgumentsAsync()).Contains("--restore-registration", StringComparison.Ordinal),
                 "MSI update handoff preserves registered activation after installation");
@@ -62,7 +63,8 @@ internal static class UpdateScriptChecks
             var result = await fixture.ResultAsync();
             var job = JsonSerializer.Deserialize<UpdateJob>(await File.ReadAllTextAsync(Path.Combine(fixture.PhysicalJob, "job.json")))!;
             check(result.Success && job.PayloadDirectory == Path.Combine(fixture.PhysicalJob, "payload")
-                && job.InstallerPath == (msi ? Path.Combine(fixture.PhysicalJob, "update.msi") : null)
+                && job.InstallerPath == (msi ? Path.Combine(fixture.PhysicalJob, fixture.MsiName) : null)
+                && job.InstallerSourcePath == (msi ? fixture.MsiSource : null)
                 && File.Exists(Path.Combine(fixture.PhysicalJob, "ready"))
                 && File.Exists(Path.Combine(fixture.PhysicalJob, "commit")),
                 "A GUI application hands physically resolved junction job paths to the real helper: " + (msi ? "MSI" : "ZIP"));
@@ -115,7 +117,8 @@ internal static class UpdateScriptChecks
             var arguments = File.ReadAllText(fixture.Installed("msi.args"));
             var success = code is 0 or 3010;
             check(result.Success == success && !Directory.Exists(fixture.Payload)
-                && arguments.Contains(Path.Combine(fixture.Job, "update.msi"), StringComparison.Ordinal)
+                && arguments.Contains(fixture.MsiSource, StringComparison.Ordinal)
+                && File.Exists(fixture.MsiSource)
                 && arguments.Contains("/qn /norestart", StringComparison.Ordinal)
                 && arguments.Contains("INSTALLFOLDER=" + Path.GetDirectoryName(fixture.Installed("WindowsIsland.exe")), StringComparison.Ordinal),
                 "The real MSI helper hands off without ZIP payload or inventory and invokes the simulated installer: " + code);
@@ -130,7 +133,8 @@ internal static class UpdateScriptChecks
             File.WriteAllText(Path.Combine(fixture.Job, "expected-version.txt"), "99.0.0");
             await fixture.StartAsync();
             var result = await fixture.ResultAsync();
-            check(!result.Success && result.MessageKey == "UpdateFailed" && File.Exists(Path.Combine(fixture.Job, "update.msi")),
+            check(!result.Success && result.MessageKey == "UpdateFailed" && File.Exists(Path.Combine(fixture.Job, fixture.MsiName))
+                && File.Exists(fixture.MsiSource),
                 "MSI success codes cannot claim success when installed binaries retain the old version: " + code);
             check((await fixture.RestartArgumentsAsync()).Contains("--after-update", StringComparison.Ordinal),
                 "MSI version mismatch still restores notification registration on restart: " + code);
@@ -178,6 +182,8 @@ internal static class UpdateScriptChecks
         public string Work => _work;
         public string PhysicalWork { get; }
         public string PhysicalJob => Path.Combine(PhysicalWork, Path.GetFileName(Job));
+        public string MsiName => "WindowsIsland-" + ReleaseVersion.Current.Display + "-win-x64.msi";
+        public string MsiSource => Path.Combine(PhysicalWork, MsiName);
         public string FailureLog => Path.Combine(_work, "last-helper-error.log");
 
         public Fixture(string directory, int? installerExitCode = null, bool gui = false, bool junctionWork = false,
@@ -220,7 +226,7 @@ internal static class UpdateScriptChecks
             if (installerExitCode is { } code)
             {
                 Directory.CreateDirectory(Job);
-                File.WriteAllText(Path.Combine(Job, "update.msi"), "simulated verified MSI");
+                File.WriteAllText(Path.Combine(Job, MsiName), "simulated verified MSI");
                 File.Copy(Installed("WindowsIsland.exe"), Installed("msiexec-fixture.exe"));
                 File.WriteAllText(Installed("msi-fixture-exit.txt"), code.ToString());
                 var script = File.ReadAllText(updater)

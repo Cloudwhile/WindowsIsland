@@ -30,6 +30,10 @@ function Child-Path([string]$root, [string]$relative) {
     $path
 }
 
+function Test-InstallerFileName([string]$name) {
+    $name -match '^WindowsIsland-(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?-win-x64\.msi$'
+}
+
 function Copy-Retry([string]$source, [string]$destination) {
     [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destination)) | Out-Null
     for ($attempt = 0; ; $attempt++) {
@@ -134,9 +138,20 @@ try {
     if ($job.InstallerPath) {
         $stage = 'Installer'
         $installer = Full-Path $job.InstallerPath
-        if (!$installer.Equals((Join-Path $jobDirectory 'update.msi'), [StringComparison]::OrdinalIgnoreCase) -or
-            !(Test-Path -LiteralPath $installer -PathType Leaf)) { throw '更新安装包路径无效。' }
+        if (!$job.PSObject.Properties['InstallerSourcePath'] -or
+            [string]::IsNullOrWhiteSpace([string]$job.InstallerSourcePath)) {
+            throw 'Installer source path is missing.'
+        }
+        $installerSource = Full-Path $job.InstallerSourcePath
+        $installerName = [IO.Path]::GetFileName($installer)
+        $sourceName = [IO.Path]::GetFileName($installerSource)
+        if (![IO.Path]::GetDirectoryName($installer).Equals($jobDirectory, [StringComparison]::OrdinalIgnoreCase) -or
+            ![IO.Path]::GetDirectoryName($installerSource).Equals($workRoot, [StringComparison]::OrdinalIgnoreCase) -or
+            $installerName -cne $sourceName -or !(Test-InstallerFileName $installerName) -or
+            !(Test-Path -LiteralPath $installer -PathType Leaf) -or
+            !(Test-Path -LiteralPath $installerSource -PathType Leaf)) { throw 'Installer path is invalid.' }
         Assert-NoLinks $installer
+        Assert-NoLinks $installerSource
         $registrationPath = 'Registry::HKEY_USERS\' + [string]$job.UserSid + '\Software\Cloudwhile\WindowsIsland\Installer'
         $registration = Get-ItemProperty -LiteralPath $registrationPath
         if (!(Full-Path $registration.InstallDirectory).Equals($install, [StringComparison]::OrdinalIgnoreCase)) {
@@ -242,7 +257,7 @@ try {
         $start.UseShellExecute = $false
         $start.CreateNoWindow = $true
         $log = Join-Path $jobDirectory 'msi.log'
-        $start.Arguments = "/i `"$installer`" /qn /norestart INSTALLFOLDER=`"$install`" /L*v `"$log`""
+        $start.Arguments = "/i `"$installerSource`" /qn /norestart INSTALLFOLDER=`"$install`" /L*v `"$log`""
         $installation = [Diagnostics.Process]::Start($start)
         try {
             $installation.WaitForExit()
@@ -326,7 +341,12 @@ if ($success -and !$ElevatedWorker) {
             Remove-Item -LiteralPath $cleanup -Recurse -Force
         }
     }
-    foreach ($name in @('update.zip', 'update.zip.sha256', 'update.msi', 'update.msi.sha256')) {
+    $names = @('update.zip', 'update.zip.sha256')
+    if ($job.InstallerPath) {
+        $installerName = [IO.Path]::GetFileName([string]$job.InstallerPath)
+        $names += @($installerName, $installerName + '.sha256')
+    }
+    foreach ($name in $names) {
         $cleanup = Join-Path $jobDirectory $name
         if (Test-Path -LiteralPath $cleanup -PathType Leaf) { Remove-Item -LiteralPath $cleanup -Force }
     }

@@ -162,7 +162,10 @@ internal static class UpdateChecks
             new InlineProgress(stages.Add), CancellationToken.None, root))
         {
             check(requested.SequenceEqual(new[] { msiRelease.InstallerChecksum!.Name, msiRelease.Installer!.Name })
-                && prepared.InstallerPath is not null && File.ReadAllBytes(prepared.InstallerPath).SequenceEqual(installer),
+                && prepared.InstallerPath is not null
+                && Path.GetFileName(prepared.InstallerPath) == msiRelease.Installer.Name
+                && !File.Exists(Path.Combine(prepared.Directory, "update.msi"))
+                && File.ReadAllBytes(prepared.InstallerPath).SequenceEqual(installer),
                 "MSI updates download only their checksum and verified installer exactly once");
             check(!Directory.Exists(prepared.StagingDirectory) && !File.Exists(Path.Combine(prepared.Directory, "update.zip"))
                 && stages.All(value => value.MessageKey != "UpdateExtracting")

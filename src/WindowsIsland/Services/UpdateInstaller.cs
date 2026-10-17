@@ -8,7 +8,8 @@ using Microsoft.Win32;
 namespace WindowsIsland.Services;
 
 internal sealed record UpdateJob(string InstallDirectory, string PayloadDirectory, string? InstallerPath,
-    int ProcessId, long ProcessStartedUtcTicks, string Version, string MutexName = @"Local\WindowsIsland.Tray",
+    string? InstallerSourcePath, int ProcessId, long ProcessStartedUtcTicks, string Version,
+    string MutexName = @"Local\WindowsIsland.Tray",
     bool RestoreRegistration = false, bool RequiresElevation = false, string UserSid = "");
 internal sealed record UpdateResult(string InstallDirectory, string Version, bool Success, string Message, string? MessageKey = null);
 
@@ -48,9 +49,10 @@ internal static class UpdateInstaller
         var workDirectory = UpdateWorkDirectory.Resolve(update.Directory);
         var payload = UpdateWorkDirectory.Rebase(update.StagingDirectory, update.Directory, workDirectory);
         var installer = update.InstallerPath is { } path ? UpdateWorkDirectory.Rebase(path, update.Directory, workDirectory) : null;
+        var installerSource = installer is null ? null : StageInstallerSource(installer, workDirectory);
         var requiresElevation = RequiresElevation(directory);
         var userSid = OperatingSystem.IsWindows() ? WindowsIdentity.GetCurrent().User?.Value ?? "" : "";
-        var job = new UpdateJob(directory, payload, installer,
+        var job = new UpdateJob(directory, payload, installer, installerSource,
             application.Id, application.StartTime.ToUniversalTime().Ticks, update.Version, mutexName, restoreRegistration,
             requiresElevation, userSid);
         var jobPath = Path.Combine(workDirectory, "job.json");
@@ -118,6 +120,37 @@ internal static class UpdateInstaller
         }
     }
 
+    internal static bool IsInstallerFileName(string? name)
+    {
+        const string prefix = "WindowsIsland-";
+        const string suffix = "-win-x64.msi";
+        if (name is null || !name.StartsWith(prefix, StringComparison.Ordinal)
+            || !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return false;
+        var version = name[prefix.Length..^suffix.Length];
+        return ReleaseVersion.TryParse(version, out _);
+    }
+
+    internal static bool IsInstallerSourcePath(string? path, string workDirectory)
+    {
+        if (path is null) return false;
+        var full = Path.GetFullPath(path);
+        var sourceRoot = Path.GetDirectoryName(Path.GetFullPath(workDirectory));
+        return sourceRoot is not null
+            && SameDirectory(Path.GetDirectoryName(full) ?? "", sourceRoot)
+            && IsInstallerFileName(Path.GetFileName(full));
+    }
+
+    private static string StageInstallerSource(string installer, string workDirectory)
+    {
+        var name = Path.GetFileName(installer);
+        if (!IsInstallerFileName(name)) throw Localization.DataError("UpdateErrorInstallerMissing");
+        var sourceRoot = Path.GetDirectoryName(Path.GetFullPath(workDirectory))
+            ?? throw Localization.IoError("UpdateErrorWorkDir");
+        var source = Path.Combine(sourceRoot, name);
+        if (!SameFile(installer, source)) File.Copy(installer, source, overwrite: true);
+        return source;
+    }
+
     private static async Task ReleaseHelperAsync(Process helper, Task<string> errors)
     {
         using var process = helper;
@@ -164,4 +197,7 @@ internal static class UpdateInstaller
     private static bool SameDirectory(string left, string right) => string.Equals(
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
         StringComparison.OrdinalIgnoreCase);
+
+    private static bool SameFile(string left, string right) => string.Equals(
+        Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
 }

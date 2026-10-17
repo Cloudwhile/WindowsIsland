@@ -18,7 +18,7 @@ if (args.FirstOrDefault() == "--update-fixture")
     var noConsole = args.Contains("--no-console", StringComparer.Ordinal);
     if (noConsole) UpdateFixtureConsole.Detach();
     var directory = args[1];
-    var installer = Path.Combine(directory, "update.msi");
+    var installer = Path.Combine(directory, "WindowsIsland-" + ReleaseVersion.Current.Display + "-win-x64.msi");
     using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), File.Exists(installer) ? installer : null,
         File.Exists(Path.Combine(directory, "expected-version.txt")) ? File.ReadAllText(Path.Combine(directory, "expected-version.txt"))
             : ReleaseVersion.Current.Display, Path.GetDirectoryName(directory)!);

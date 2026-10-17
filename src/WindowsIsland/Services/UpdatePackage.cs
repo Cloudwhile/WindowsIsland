@@ -44,7 +44,8 @@ internal static class UpdatePackage
     public static async Task<PreparedUpdate> PrepareAsync(GitHubReleaseClient client, GitHubRelease release,
         bool useInstaller, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken, string? workRoot = null)
     {
-        if (useInstaller && (release.Installer is null || release.InstallerChecksum is null))
+        if (useInstaller && (release.Installer is null || release.InstallerChecksum is null
+            || !UpdateInstaller.IsInstallerFileName(release.Installer.Name)))
             throw Localization.DataError("UpdateErrorInstallerMissing");
         var root = Path.GetFullPath(workRoot ?? WorkRoot);
         Directory.CreateDirectory(root);
@@ -57,7 +58,9 @@ internal static class UpdatePackage
             string? installer = null;
             if (useInstaller)
             {
-                installer = Path.Combine(directory, "update.msi");
+                // Keep the release asset name so Windows Installer can identify the
+                // package consistently during later repair or maintenance.
+                installer = Path.Combine(directory, release.Installer!.Name);
                 await DownloadVerifiedAsync(client, release.Installer!, release.InstallerChecksum!, installer, root,
                     progress, cancellationToken).ConfigureAwait(false);
             }

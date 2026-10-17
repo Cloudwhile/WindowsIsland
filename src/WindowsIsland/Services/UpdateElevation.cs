@@ -69,7 +69,7 @@ internal static class UpdateElevation
             var job = JsonSerializer.Deserialize<UpdateJob>(File.ReadAllText(jobPath));
             if (job is null || !job.RequiresElevation || !SameDirectory(job.InstallDirectory, AppContext.BaseDirectory)
                 || !SameDirectory(job.PayloadDirectory, Path.Combine(workDirectory, "payload"))
-                || job.InstallerPath is { } installer && !SameFile(installer, Path.Combine(workDirectory, "update.msi"))) return true;
+                || !ValidInstallerJob(job, workDirectory)) return true;
             using var parent = Process.GetProcessById(job.ProcessId);
             if (parent.Id == Environment.ProcessId || parent.StartTime.ToUniversalTime().Ticks != job.ProcessStartedUtcTicks
                 || !SameFile(parent.MainModule?.FileName, Environment.ProcessPath)) return true;
@@ -113,4 +113,15 @@ internal static class UpdateElevation
         StringComparison.OrdinalIgnoreCase);
     private static bool SameFile(string? left, string? right) => left is not null && right is not null
         && string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), StringComparison.OrdinalIgnoreCase);
+
+    private static bool ValidInstallerJob(UpdateJob job, string workDirectory)
+    {
+        if (job.InstallerPath is not { } installer)
+            return job.InstallerSourcePath is null;
+        if (job.InstallerSourcePath is not { } source) return false;
+        return UpdateInstaller.IsInstallerFileName(Path.GetFileName(installer))
+            && SameFile(installer, Path.Combine(workDirectory, Path.GetFileName(installer)))
+            && UpdateInstaller.IsInstallerSourcePath(source, workDirectory)
+            && string.Equals(Path.GetFileName(installer), Path.GetFileName(source), StringComparison.OrdinalIgnoreCase);
+    }
 }
