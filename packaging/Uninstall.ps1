@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$InstallDirectory)
+param([Parameter(Mandatory)][string]$InstallDirectory, [switch]$PreserveManagedHook)
 $ErrorActionPreference = 'Stop'
 $directory = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 $executable = Join-Path $directory 'WindowsIsland.exe'
@@ -78,4 +78,4 @@ foreach ($package in @(Get-AppxPackage -Name WindowsIsland.Desktop)) {
     }
 }
 Remove-PackageMetadata
-Remove-ManagedHookBinary
+if (!$PreserveManagedHook) { Remove-ManagedHookBinary }
