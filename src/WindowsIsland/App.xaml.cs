@@ -13,6 +13,11 @@ public partial class App : Application
     {
         try
         {
+            if (Environment.GetCommandLineArgs().Contains("--verify-local"))
+            {
+                if (Environment.GetCommandLineArgs().Contains("--verify-light")) RequestedTheme = ApplicationTheme.Light;
+                else if (Environment.GetCommandLineArgs().Contains("--verify-dark")) RequestedTheme = ApplicationTheme.Dark;
+            }
             ApplyLanguage(new SettingsStore(PreferencesPath(Environment.GetCommandLineArgs().Contains("--verify-local"))).Current.Language);
             InitializeComponent();
             UnhandledException += (_, error) =>

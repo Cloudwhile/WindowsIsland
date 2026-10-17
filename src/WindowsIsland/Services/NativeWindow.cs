@@ -19,6 +19,9 @@ internal static class NativeWindow
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")] private static extern nint SetWindowLongPtr(nint hwnd, int index, nint value);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(nint hwnd, nint after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(nint hwnd, uint color, byte alpha, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetClientRect(nint hwnd, out Rect bounds);
+    [DllImport("user32.dll")] private static extern int FillRect(nint dc, ref Rect bounds, nint brush);
+    [DllImport("gdi32.dll")] private static extern nint GetStockObject(int objectId);
     [DllImport("comctl32.dll", SetLastError = true)] private static extern bool SetWindowSubclass(nint hwnd, SubclassProc callback, nuint id, nuint data);
     [DllImport("comctl32.dll")] private static extern bool RemoveWindowSubclass(nint hwnd, SubclassProc callback, nuint id);
     [DllImport("comctl32.dll")] private static extern nint DefSubclassProc(nint hwnd, uint message, nuint wParam, nint lParam);
@@ -57,6 +60,13 @@ internal static class NativeWindow
 
     private static nint BorderlessWindowProc(nint hwnd, uint message, nuint wParam, nint lParam, nuint id, nuint data)
     {
+        if (message == 0x0014) // WM_ERASEBKGND
+        {
+            // DWM's extended glass needs zero RGB/alpha beneath the composition
+            // surface. WinUI's light-theme window brush otherwise paints white.
+            if (GetClientRect(hwnd, out var client)) FillRect((nint)wParam, ref client, GetStockObject(4)); // BLACK_BRUSH
+            return 1;
+        }
         if (message == 0x031E) ExtendGlass(hwnd); // WM_DWMCOMPOSITIONCHANGED
         if (message is 0x0021 or 0x024B) return 3; // MA_NOACTIVATE / PA_NOACTIVATE
         if (message == 0x0084 && HitAreas.TryGetValue(hwnd, out var bounds)) // WM_NCHITTEST
@@ -107,6 +117,7 @@ internal static class NativeWindow
 
     private delegate nint SubclassProc(nint hwnd, uint message, nuint wParam, nint lParam, nuint id, nuint data);
     [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
+    [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [StructLayout(LayoutKind.Sequential)] private struct Margins { public int Left, Right, Top, Bottom; }
     [DllImport("user32.dll")] private static extern bool ScreenToClient(nint hwnd, ref Point point);
     [StructLayout(LayoutKind.Sequential)] private struct WindowStyleChange { public uint OldStyle, NewStyle; }
