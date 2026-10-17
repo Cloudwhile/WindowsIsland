@@ -35,6 +35,7 @@ LicenseFile={#PublishDirectory}\LICENSE
 [Files]
 Source: "{#PublishDirectory}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PackagingDirectory}\Uninstall.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#PackagingDirectory}\UninstallUser.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\WindowsIsland.exe"; IconFilename: "{app}\Assets\Island.ico"
@@ -42,9 +43,10 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\WindowsIsland.exe"; IconFile
 [Run]
 Filename: "{app}\WindowsIsland.exe"; Parameters: "--settings"; Description: "Launch {#AppName}"; Flags: postinstall nowait skipifsilent unchecked runasoriginaluser
 
-[UninstallRun]
-; Cleanup is invoked from CurUninstallStepChanged with ExecAsOriginalUser so
-; an elevated uninstaller cannot accidentally modify the administrator HKCU.
+[UninstallDelete]
+Type: files; Name: "{app}\AppxManifest.xml"
+Type: files; Name: "{app}\resources.pri"
+Type: dirifempty; Name: "{app}"
 
 [Code]
 function GetDefaultDirName(Param: String): String;
@@ -65,7 +67,7 @@ begin
     exit;
   Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File ' +
     '"' + ExpandConstant('{app}\Uninstall.ps1') + '" -InstallDirectory "' +
-    ExpandConstant('{app}') + '"';
+    ExpandConstant('{app}') + '" -PreserveManagedHook';
   Result := ExecAsOriginalUser(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
   if not Result then
@@ -91,7 +93,9 @@ begin
   Parameters := '-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File ' +
     '"' + ExpandConstant('{app}\Uninstall.ps1') + '" -InstallDirectory "' +
     ExpandConstant('{app}') + '"';
-  if not (ExecAsOriginalUser(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+  { ExecAsOriginalUser is only available during Setup. The cleanup script
+    dispatches per-user work to the interactive user's token when elevated. }
+  if not (Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
     Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0)) then
     MsgBox('Windows Island cleanup did not complete. Some registration may remain.', mbError, MB_OK);
 end;

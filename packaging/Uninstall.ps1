@@ -71,21 +71,6 @@ function Remove-ManagedHookBinary {
         catch [UnauthorizedAccessException] { if ($attempt -eq 49) { throw 'Telegram hook DLL could not be removed.' }; Start-Sleep -Milliseconds 100 }
     }
 }
-$startupKey = 'Software\Microsoft\Windows\CurrentVersion\Run'
-$approvalKey = 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run'
-$startup = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($startupKey, $true)
-try {
-    if ($startup -and $startup.GetValue('WindowsIsland') -eq ('"' + $executable + '" --startup')) {
-        $startup.DeleteValue('WindowsIsland', $false)
-        $approval = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($approvalKey, $true)
-        try { if ($approval) { $approval.DeleteValue('WindowsIsland', $false) } }
-        finally { if ($approval) { $approval.Dispose() } }
-    }
-} finally { if ($startup) { $startup.Dispose() } }
-foreach ($package in @(Get-AppxPackage -Name WindowsIsland.Desktop)) {
-    if ($package.InstallLocation.TrimEnd('\') -eq $directory) {
-        Remove-AppxPackage -Package $package.PackageFullName -PreserveApplicationData
-    }
-}
+& (Join-Path $PSScriptRoot 'UninstallUser.ps1') -InstallDirectory $directory
 Remove-PackageMetadata
 if (!$PreserveManagedHook) { Remove-ManagedHookBinary }

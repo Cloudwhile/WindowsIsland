@@ -26,10 +26,12 @@ $build = $build.Replace('WindowsIsland/x64/perUser/', "WindowsIsland/UpgradeVeri
 $build = $build.Replace('Software\Cloudwhile\WindowsIsland\Installer', "$scope\Installer")
 [IO.File]::WriteAllText("$work/packaging/Build-Msi.ps1", $build)
 $uninstall = Get-Content (Join-Path $PSScriptRoot 'Uninstall.ps1') -Raw -Encoding UTF8
+[IO.File]::WriteAllText("$work/packaging/Uninstall.ps1", $uninstall, [Text.UTF8Encoding]::new($true))
+$uninstall = Get-Content (Join-Path $PSScriptRoot 'UninstallUser.ps1') -Raw -Encoding UTF8
 $uninstall = $uninstall.Replace('Software\Microsoft\Windows\CurrentVersion\Run', $runKey)
 $uninstall = $uninstall.Replace('Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', $approvalKey)
 $uninstall = $uninstall.Replace('WindowsIsland.Desktop', "WindowsIsland.UpgradeVerification$id")
-[IO.File]::WriteAllText("$work/packaging/Uninstall.ps1", $uninstall, [Text.UTF8Encoding]::new($true))
+[IO.File]::WriteAllText("$work/packaging/UninstallUser.ps1", $uninstall, [Text.UTF8Encoding]::new($true))
 $source = Get-Content (Join-Path $repository 'native/installer/startup.cpp') -Raw -Encoding UTF8
 $source = $source.Replace('Software\\Microsoft\\Windows\\CurrentVersion\\Run', $runKey.Replace('\', '\\'))
 $source = $source.Replace('Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run', $approvalKey.Replace('\', '\\'))

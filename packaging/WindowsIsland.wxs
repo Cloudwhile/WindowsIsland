@@ -23,6 +23,7 @@
             <RegistryValue Root="HKCU" Key="Software\Cloudwhile\WindowsIsland\Installer"
                            Name="InstallDirectory" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
             <File Id="UninstallScript" Source="$(PackagingDirectory)\Uninstall.ps1" />
+            <File Id="UninstallUserScript" Source="$(PackagingDirectory)\UninstallUser.ps1" />
             <RemoveFile Id="GeneratedManifest" Name="AppxManifest.xml" On="uninstall" />
             <RemoveFile Id="GeneratedResources" Name="resources.pri" On="uninstall" />
             <RemoveFile Id="GeneratedUpdateInventory" Name=".update-files.json" On="uninstall" />
