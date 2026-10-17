@@ -57,9 +57,11 @@ public static class IslandStandardUserCheck
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Set medium integrity");
             var startup = new Startup { Size = Marshal.SizeOf<Startup>(), Flags = 1, Show = 0 };
             Process child;
-            // CreateProcessWithTokenW limits its command line to 1024 characters.
+            // A restricted copy of our own primary token needs no alternate logon.
             var command = new StringBuilder("\"" + executable + "\" -NoProfile -NonInteractive -File \"" + script + "\"");
-            if (!CreateProcessWithTokenW(filtered, 0, executable, command, 0x08000000, IntPtr.Zero, directory, ref startup, out child))
+            SetErrorMode(0x8003);
+            if (!CreateProcessAsUserW(filtered, executable, command, IntPtr.Zero, IntPtr.Zero, false,
+                0x08000000, IntPtr.Zero, directory, ref startup, out child))
             {
                 int error = Marshal.GetLastWin32Error();
                 throw new Win32Exception(error, "Start standard-user checks: " + error);
@@ -97,7 +99,8 @@ public static class IslandStandardUserCheck
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool ConvertStringSidToSidW(string text, out IntPtr sid);
     [DllImport("advapi32.dll")] static extern uint GetLengthSid(IntPtr sid);
     [DllImport("advapi32.dll", SetLastError = true)] static extern bool SetTokenInformation(IntPtr token, int information, IntPtr value, int size);
-    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CreateProcessWithTokenW(IntPtr token, uint logon, string application, StringBuilder command, uint flags, IntPtr environment, string directory, ref Startup startup, out Process process);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CreateProcessAsUserW(IntPtr token, string application, StringBuilder command, IntPtr processAttributes, IntPtr threadAttributes, bool inherit, uint flags, IntPtr environment, string directory, ref Startup startup, out Process process);
+    [DllImport("kernel32.dll")] static extern uint SetErrorMode(uint mode);
     [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
