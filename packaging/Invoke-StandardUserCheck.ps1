@@ -32,6 +32,8 @@ Add-Type -TypeDefinition @'
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Text;
 public static class IslandStandardUserCheck
 {
@@ -39,6 +41,7 @@ public static class IslandStandardUserCheck
     {
         IntPtr token = IntPtr.Zero, filtered = IntPtr.Zero, sid = IntPtr.Zero, label = IntPtr.Zero;
         IntPtr administrators = IntPtr.Zero, disabled = IntPtr.Zero;
+        Action restoreDesktop = null, restoreStation = null;
         try
         {
             if (!OpenProcessToken(GetCurrentProcess(), 0x018B, out token))
@@ -56,6 +59,10 @@ public static class IslandStandardUserCheck
             if (!SetTokenInformation(filtered, 25, label, Marshal.SizeOf<Label>() + (int)GetLengthSid(sid)))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Set medium integrity");
             var startup = new Startup { Size = Marshal.SizeOf<Startup>(), Flags = 1, Show = 0 };
+            // Hosted runner desktops can grant access only to Administrators.
+            // Let this same user initialize GUI libraries, then restore both ACLs.
+            restoreStation = AllowUser(GetProcessWindowStation(), 0xF037F);
+            restoreDesktop = AllowUser(GetThreadDesktop(GetCurrentThreadId()), 0xF01FF);
             Process child;
             // A restricted copy of our own primary token needs no alternate logon.
             var command = new StringBuilder("\"" + executable + "\" -NoProfile -NonInteractive -File \"" + script + "\"");
@@ -77,6 +84,8 @@ public static class IslandStandardUserCheck
         }
         finally
         {
+            try { restoreDesktop?.Invoke(); }
+            finally { restoreStation?.Invoke(); }
             if (label != IntPtr.Zero) Marshal.FreeHGlobal(label);
             if (disabled != IntPtr.Zero) Marshal.FreeHGlobal(disabled);
             if (administrators != IntPtr.Zero) LocalFree(administrators);
@@ -84,6 +93,26 @@ public static class IslandStandardUserCheck
             if (filtered != IntPtr.Zero) CloseHandle(filtered);
             if (token != IntPtr.Zero) CloseHandle(token);
         }
+    }
+    static Action AllowUser(IntPtr handle, int access)
+    {
+        uint information = 4, required;
+        GetUserObjectSecurity(handle, ref information, null, 0, out required);
+        var original = new byte[required];
+        if (!GetUserObjectSecurity(handle, ref information, original, required, out required))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Read runner desktop ACL");
+        var descriptor = new RawSecurityDescriptor(original, 0);
+        using (var identity = WindowsIdentity.GetCurrent())
+            descriptor.DiscretionaryAcl.InsertAce(descriptor.DiscretionaryAcl.Count,
+                new CommonAce(AceFlags.None, AceQualifier.AccessAllowed, access, identity.User, false, null));
+        var updated = new byte[descriptor.BinaryLength];
+        descriptor.GetBinaryForm(updated, 0);
+        if (!SetUserObjectSecurity(handle, ref information, updated))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Allow runner user desktop access");
+        return () => {
+            if (!SetUserObjectSecurity(handle, ref information, original))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Restore runner desktop ACL");
+        };
     }
     [StructLayout(LayoutKind.Sequential)] struct Label { public IntPtr Sid; public uint Attributes; }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] struct Startup
@@ -101,6 +130,11 @@ public static class IslandStandardUserCheck
     [DllImport("advapi32.dll", SetLastError = true)] static extern bool SetTokenInformation(IntPtr token, int information, IntPtr value, int size);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CreateProcessAsUserW(IntPtr token, string application, StringBuilder command, IntPtr processAttributes, IntPtr threadAttributes, bool inherit, uint flags, IntPtr environment, string directory, ref Startup startup, out Process process);
     [DllImport("kernel32.dll")] static extern uint SetErrorMode(uint mode);
+    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")] static extern IntPtr GetProcessWindowStation();
+    [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint thread);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool GetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor, uint size, out uint required);
+    [DllImport("user32.dll", SetLastError = true)] static extern bool SetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor);
     [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
