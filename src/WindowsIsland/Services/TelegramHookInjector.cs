@@ -28,21 +28,10 @@ internal static class TelegramHookInjector
         }
 
         using var dll = File.OpenRead(hookPath);
-        var hash = Convert.ToHexString(SHA256.HashData(dll));
-        var cache = fixture ? Path.GetDirectoryName(hookPath)! : Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsIsland");
-        if (!fixture)
-        {
-            Directory.CreateDirectory(cache);
-            cache = UpdateWorkDirectory.Resolve(cache);
-        }
-        var directory = Path.Combine(cache, "Hooks", hash);
-        Directory.CreateDirectory(directory);
-        var runtimePath = Path.Combine(directory, "WindowsIsland.TelegramHook.dll");
-        if (!File.Exists(runtimePath)) File.Copy(hookPath, runtimePath);
+        var runtimePath = ResolveFilePath(dll.SafeFileHandle);
         if (process.Modules.Cast<ProcessModule>().Any(module =>
             module.ModuleName.Equals("WindowsIsland.TelegramHook.dll", StringComparison.OrdinalIgnoreCase)
-            && !module.FileName.Equals(runtimePath, StringComparison.OrdinalIgnoreCase)))
+            && !ModulePathMatches(module, runtimePath)))
             throw new InvalidOperationException("Another Telegram bridge is still attached.");
         using var target = OpenProcess(0x043A, false, processId);
         if (target.IsInvalid) throw new Win32Exception();
@@ -83,7 +72,29 @@ internal static class TelegramHookInjector
     private static nint FindModule(Process process, string path)
     {
         process.Refresh();
-        return process.Modules.Cast<ProcessModule>().FirstOrDefault(module => module.FileName.Equals(path, StringComparison.OrdinalIgnoreCase))?.BaseAddress ?? 0;
+        return process.Modules.Cast<ProcessModule>().FirstOrDefault(module => ModulePathMatches(module, path))?.BaseAddress ?? 0;
+    }
+
+    private static bool ModulePathMatches(ProcessModule module, string path)
+    {
+        return NormalizePath(module.FileName).Equals(NormalizePath(path), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizePath(string path)
+    {
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return @"\\" + path[8..];
+        return path.StartsWith(@"\\?\", StringComparison.Ordinal) ? path[4..] : path;
+    }
+
+    private static string ResolveFilePath(SafeFileHandle file)
+    {
+        var path = new StringBuilder(32768);
+        var length = GetFinalPathNameByHandle(file, path, (uint)path.Capacity, 0);
+        if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+        if (length >= path.Capacity) throw new PathTooLongException();
+        var resolved = path.ToString();
+        if (resolved.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) return @"\\" + resolved[8..];
+        return resolved.StartsWith(@"\\?\", StringComparison.Ordinal) ? resolved[4..] : resolved;
     }
 
     private static nint RemoteSystemFunction(Process process, string function)
@@ -127,6 +138,8 @@ internal static class TelegramHookInjector
     [DllImport("kernel32.dll", CharSet = CharSet.Ansi)] private static extern nint GetProcAddress(nint module, string name);
     [DllImport("kernel32.dll", EntryPoint = "GetModuleHandleExW", SetLastError = true)] private static extern bool GetModuleHandleEx(uint flags, nint address, out nint module);
     [DllImport("kernel32.dll", EntryPoint = "GetModuleFileNameW", CharSet = CharSet.Unicode)] private static extern int GetModuleFileName(nint module, StringBuilder path, int size);
+    [DllImport("kernel32.dll", EntryPoint = "GetFinalPathNameByHandleW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(SafeFileHandle file, StringBuilder path, uint length, uint flags);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern nint VirtualAllocEx(SafeProcessHandle process, nint address, nuint size, uint type, uint protection);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool VirtualFreeEx(SafeProcessHandle process, nint address, nuint size, uint type);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool WriteProcessMemory(SafeProcessHandle process, nint address, byte[] bytes, nuint size, out nuint written);

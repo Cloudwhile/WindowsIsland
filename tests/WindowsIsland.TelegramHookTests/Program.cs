@@ -7,6 +7,10 @@ using WindowsIsland.Services;
 var workspace = Path.GetFullPath(args.FirstOrDefault() ?? Environment.CurrentDirectory);
 var fixture = Path.GetFullPath(Path.Combine(workspace, "artifacts/native/Release/WindowsIsland.TelegramFixture.exe"));
 var dll = Path.Combine(workspace, "artifacts/native/Release/WindowsIsland.TelegramHook.dll");
+var hookRoot = Path.Combine(workspace, "artifacts", $"telegram-hook-test-{Guid.NewGuid():N}");
+Directory.CreateDirectory(hookRoot);
+var isolatedDll = Path.Combine(hookRoot, "WindowsIsland.TelegramHook.dll");
+File.Copy(dll, isolatedDll);
 void Check(bool result, string text) { if (!result) throw new InvalidOperationException(text); Console.WriteLine("PASS: " + text); }
 bool Reject(Action action) { try { action(); return false; } catch (InvalidDataException) { return true; } }
 
@@ -26,7 +30,7 @@ Check(Reject(() => TelegramHookProtocol.ReadText(packet, [])), "Truncated payloa
 
 if (args.Contains("--live"))
 {
-    await LiveCapture.RunAsync(dll);
+    await LiveCapture.RunAsync(isolatedDll);
     return;
 }
 
@@ -41,8 +45,15 @@ try
         if (received.Count >= 2) first.TrySetResult();
     }))
     {
-        await session.AttachAsync(dll, fixture: true);
+        await session.AttachAsync(isolatedDll, fixture: true);
         Check(session.IsConnected, "The DLL loads in the separate test process and completes the pipe handshake");
+        child.Refresh();
+        var loadedModule = child.Modules.Cast<ProcessModule>().Single(module =>
+            module.ModuleName.Equals("WindowsIsland.TelegramHook.dll", StringComparison.OrdinalIgnoreCase));
+        Check(Path.GetFullPath(loadedModule.FileName).Equals(Path.GetFullPath(isolatedDll), StringComparison.OrdinalIgnoreCase),
+            "The fixture loads the Telegram hook from the supplied installation path");
+        Check(!Directory.Exists(Path.Combine(hookRoot, "Hooks")),
+            "Attaching the Telegram hook does not create a LocalAppData Hooks cache");
         await first.Task.WaitAsync(TimeSpan.FromSeconds(8));
         var messages = received.ToArray();
         Check(messages.All(message => message.Title == "DLL 消息测试" && message.Body == "你好，Telegram 原始正文。🚀"),
@@ -64,13 +75,26 @@ try
     }
     while (Loaded() && deadline.Elapsed.TotalSeconds < 4) await Task.Delay(50);
     Check(!Loaded() && !child.HasExited, "Disconnect removes both detours and unloads the DLL while the target stays alive");
+    var renamedDll = Path.Combine(hookRoot, "WindowsIsland.TelegramHook.renamed.dll");
+    File.Move(isolatedDll, renamedDll);
+    Check(File.Exists(renamedDll), "The installation DLL can be renamed after the bridge disconnects");
     var resumed = new TaskCompletionSource<IslandNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
     using (var session = new TelegramHookSession(child.Id, notification => resumed.TrySetResult(notification)))
     {
-        await session.AttachAsync(dll, fixture: true);
+        await session.AttachAsync(renamedDll, fixture: true);
         Check((await resumed.Task.WaitAsync(TimeSpan.FromSeconds(3))).Body == "你好，Telegram 原始正文。🚀",
             "The same client process can reattach after a tray-listener restart");
     }
+    deadline.Restart();
+    while (Loaded() && deadline.Elapsed.TotalSeconds < 4) await Task.Delay(50);
+    Check(!Loaded() && !child.HasExited, "The reattached bridge also releases its installation DLL");
+    for (var attempt = 0; attempt < 80; attempt++)
+    {
+        try { File.Delete(renamedDll); break; }
+        catch (IOException) when (attempt < 79) { await Task.Delay(50); }
+        catch (UnauthorizedAccessException) when (attempt < 79) { await Task.Delay(50); }
+    }
+    Check(!File.Exists(renamedDll), "The Telegram hook DLL can be deleted after disconnect");
 }
 finally
 {
@@ -81,4 +105,6 @@ finally
         child.Kill();
         await child.WaitForExitAsync();
     }
+    try { if (Directory.Exists(hookRoot)) Directory.Delete(hookRoot, true); }
+    catch { }
 }
