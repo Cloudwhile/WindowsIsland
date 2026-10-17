@@ -2,19 +2,19 @@
   "schema_version": 1,
   "releases": [
     {
-      "tag_name": "v0.1.5",
-      "name": "Windows Island v0.1.5",
-      "body": "# Windows Island v0.1.5\n\n## Fixed\n\n- 修复初始化资源写入受保护安装目录时无响应或重复失败的问题，并保留失败原因以便重试。\n- 修复安装、更新和卸载时无法关闭目标安装目录中仍在运行的消息岛的问题；不会影响其他目录实例。\n- 修复弹窗收起期间更新消息造成透明度叠加、收起不平滑的问题。\n- 修复系统高对比度或透明效果不可用时外观设置可能阻止应用启动的问题。\n\n## Improved\n\n- 在“设置 → 外观”提供毛玻璃开关、背景透明度滑块和透明度过渡开关。\n- 背景透明度只影响弹窗背景，正文、应用图标和会话头像保持清晰；偏好逐项校验并在重启后保留。\n- 透明度过渡使用线性动画，关闭过渡不会关闭弹窗形状动画。\n- Inno Setup 安装器允许选择安装路径；只有选定目录需要时才申请管理员权限，并在安装阶段完成侧载策略和首次包注册。\n\n## Upgrade Notes\n\n- v0.1.5 为正式版，默认不接收预发布更新。\n- 更新会下载并校验对应的 Inno Setup 安装器，由安装器关闭正在运行的同目录实例并完成原地升级。\n\n## Downloads\n\n适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。\n\n- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.exe)\n- 对应的 SHA-256 校验文件见下方附件。\n\n## Full Changelog\n\nhttps://github.com/Cloudwhile/WindowsIsland/compare/v0.1.4...v0.1.5\n",
+      "tag_name": "v0.1.6",
+      "name": "Windows Island v0.1.6",
+      "body": "# Windows Island v0.1.6\n\n## Fixed\n\n- 修复 Windows CI 仅依赖已下架的固定 Inno Setup Chocolatey 包版本，导致安装器构建无法开始的问题。\n- 修复完成应用初始化后，部分系统上重启交接迟迟未就绪而导致初始化失败的问题。\n\n## Upgrade Notes\n\n- v0.1.6 为正式版，默认不接收预发布更新。\n- 更新会下载并校验对应的 Inno Setup 安装器，由安装器关闭正在运行的同目录实例并完成原地升级。\n\n## Downloads\n\n适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。\n\n- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.6/WindowsIsland-0.1.6-win-x64.exe)\n- 对应的 SHA-256 校验文件见下方附件。\n\n## Full Changelog\n\nhttps://github.com/Cloudwhile/WindowsIsland/compare/v0.1.5...v0.1.6\n",
       "prerelease": false,
       "assets": [
         {
-          "name": "WindowsIsland-0.1.5-win-x64.exe",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.exe",
-          "size": 81184881
+          "name": "WindowsIsland-0.1.6-win-x64.exe",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.6/WindowsIsland-0.1.6-win-x64.exe",
+          "size": 81084510
         },
         {
-          "name": "WindowsIsland-0.1.5-win-x64.exe.sha256",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.5/WindowsIsland-0.1.5-win-x64.exe.sha256",
+          "name": "WindowsIsland-0.1.6-win-x64.exe.sha256",
+          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.6/WindowsIsland-0.1.6-win-x64.exe.sha256",
           "size": 98
         }
       ]
