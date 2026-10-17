@@ -106,7 +106,7 @@ jobs:
           $distribution = Join-Path $env:GITHUB_WORKSPACE 'artifacts/distribution'
           New-Item -ItemType Directory -Path $distribution -Force | Out-Null
       - name: Set up Inno Setup
-        run: choco install innosetup --version=6.4.2 --no-progress --yes
+        run: choco install innosetup --version=6.4.2 --allow-downgrade --no-progress --yes
 
       - name: Build Inno Setup installer
         env:
