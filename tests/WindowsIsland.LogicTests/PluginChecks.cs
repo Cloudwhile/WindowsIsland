@@ -22,6 +22,14 @@ internal static class PluginChecks
         await host.ApplySettingsAsync(settings with { Animations = false, Language = "en-US", IncludePrereleaseUpdates = true });
         check(weChat.Count == 1 && telegram.Count == 1 && weChat[0].Disposals == 0,
             "Appearance, language and update preferences preserve plugin instances and baselines");
+        foreach (var appearance in new[] { settings with { Acrylic = false }, settings with { OpacityTransitions = false },
+            settings with { BackgroundOpacity = 0.4 } })
+        {
+            await host.ApplySettingsAsync(appearance);
+            check(weChat.Count == 1 && telegram.Count == 1 && weChat[0].Starts == 1 && weChat[0].Disposals == 0
+                && telegram[0].Starts == 1 && telegram[0].Disposals == 0,
+                "Changing popup material or opacity preserves active source instances and baselines");
+        }
         var chatMessage = Message("wechat");
         weChat[0].Emit(chatMessage);
         check(messages.Count == 1, "Plugin messages flow through the host");

@@ -14,7 +14,8 @@ internal sealed class IslandMotion : IDisposable
     private readonly Compositor _compositor;
     private readonly CompositionPropertySet _shape;
     private readonly CubicBezierEasingFunction _expand, _contract;
-    private readonly Func<bool> _animationsEnabled;
+    private readonly CompositionEasingFunction _opacity;
+    private readonly Func<bool> _animationsEnabled, _opacityTransitionsEnabled;
     private readonly float _inset;
     private NotificationPosition _position;
     private Vector2 LineSize => NotificationPlacement.LineSize(_position);
@@ -28,7 +29,8 @@ internal sealed class IslandMotion : IDisposable
     public event Action? Settled;
 
     public IslandMotion(FrameworkElement surface, FrameworkElement content, double inset,
-        Func<bool> animationsEnabled, NotificationPosition position = NotificationPosition.TopCenter)
+        Func<bool> animationsEnabled, Func<bool> opacityTransitionsEnabled,
+        NotificationPosition position = NotificationPosition.TopCenter)
     {
         _surface = ElementCompositionPreview.GetElementVisual(surface);
         _content = ElementCompositionPreview.GetElementVisual(content);
@@ -36,11 +38,13 @@ internal sealed class IslandMotion : IDisposable
         ElementCompositionPreview.SetIsTranslationEnabled(content, true);
         _compositor = _surface.Compositor;
         _animationsEnabled = animationsEnabled;
+        _opacityTransitionsEnabled = opacityTransitionsEnabled;
         _inset = (float)inset;
         _shape = _compositor.CreatePropertySet();
         _shape.InsertVector2("Size", Vector2.One);
         _expand = _compositor.CreateCubicBezierEasingFunction(new Vector2(0.22f, 0.8f), new Vector2(0.18f, 1));
         _contract = _compositor.CreateCubicBezierEasingFunction(new Vector2(0.4f, 0), new Vector2(0.2f, 1));
+        _opacity = _compositor.CreateLinearEasingFunction();
         SetPosition(position);
         Reset();
     }
@@ -65,7 +69,8 @@ internal sealed class IslandMotion : IDisposable
         {
             StopAnimations();
             _shape.InsertVector2("Size", LineSize);
-            _surface.Opacity = _content.Opacity = 0;
+            _surface.Opacity = _opacityTransitionsEnabled() ? 0 : 1;
+            _content.Opacity = 1;
             _surface.Properties.InsertVector3("Translation", LinePosition);
             _content.Properties.InsertVector3("Translation", new Vector3(NotificationPlacement.Outward(_position) * -6, 0));
         }
@@ -78,20 +83,19 @@ internal sealed class IslandMotion : IDisposable
             if (opening)
             {
                 AnimateShape(OpenDuration, _expand, 0, (0.14f, LineSize), (0.26f, Shoulder()), (1, _target));
-                Animate(_surface, nameof(Visual.Opacity), OpenDuration, _expand, (0.08f, 1), (1, 1));
+                AnimateOpacity(_surface, OpenDuration, (1, 1));
                 Animate(_surface, "Translation", OpenDuration, _expand, (0.14f, LinePosition), (1, Vector3.Zero));
-                Animate(_content, nameof(Visual.Opacity), OpenDuration, _expand, (0.35f, 0), (0.90f, 1), (1, 1));
                 Animate(_content, "Translation", Vector3.Zero, OpenDuration, _expand);
             }
             else
             {
                 // StartingValue also covers an arrival during the previous opening or closing motion.
                 AnimateShape(UpdateDuration, _expand, 0, (1, _target));
-                Animate(_surface, nameof(Visual.Opacity), UpdateDuration, _expand, (1, 1));
+                AnimateOpacity(_surface, UpdateDuration, (1, 1));
                 Animate(_surface, "Translation", Vector3.Zero, UpdateDuration, _expand);
                 if (newMessage && settled)
-                    Animate(_content, nameof(Visual.Opacity), UpdateDuration, _expand, (0.16f, 0.45f), (1, 1));
-                else Animate(_content, nameof(Visual.Opacity), UpdateDuration, _expand, (1, 1));
+                    AnimateOpacity(_content, UpdateDuration, (0.16f, 0.45f), (1, 1));
+                else AnimateOpacity(_content, UpdateDuration, (1, 1));
                 Animate(_content, "Translation", Vector3.Zero, UpdateDuration, _expand);
             }
         }, SetVisible);
@@ -103,17 +107,37 @@ internal sealed class IslandMotion : IDisposable
         var settled = _phase == Phase.Visible;
         CancelCompletion();
         if (!_animationsEnabled()) { Reset(); completed(); return; }
+        _content.StopAnimation(nameof(Visual.Opacity));
+        _content.Opacity = 1;
         if (settled) _shape.InsertVector2("Size", _target);
         ScaleSurface();
         _phase = Phase.Closing;
         Begin(() =>
         {
-            Animate(_content, nameof(Visual.Opacity), 70, _contract, (1, 0));
             Animate(_content, "Translation", new Vector3(NotificationPlacement.Outward(_position) * 4, 0), 70, _contract);
             AnimateShape(CloseDuration, _contract, 0.16f, (0.60f, Shoulder()), (0.74f, LineSize), (1, LineSize));
             Animate(_surface, "Translation", CloseDuration, _contract, (0.74f, LinePosition), (1, LinePosition));
-            Animate(_surface, nameof(Visual.Opacity), CloseDuration, _contract, (0.96f, 1), (1, 0));
+            AnimateOpacity(_surface, CloseDuration, (1, 0));
         }, completed);
+    }
+
+    public void RefreshOpacityTransitions()
+    {
+        if (_disposed) return;
+        _surface.StopAnimation(nameof(Visual.Opacity));
+        _content.StopAnimation(nameof(Visual.Opacity));
+        _surface.Opacity = _phase == Phase.Hidden ? 0 : 1;
+        _content.Opacity = 1;
+    }
+
+    private void AnimateOpacity(Visual visual, int milliseconds, params (float At, float Value)[] frames)
+    {
+        if (_opacityTransitionsEnabled()) Animate(visual, nameof(Visual.Opacity), milliseconds, _opacity, frames);
+        else
+        {
+            visual.StopAnimation(nameof(Visual.Opacity));
+            visual.Opacity = 1;
+        }
     }
 
     private Vector2 Shoulder() => NotificationPlacement.Shoulder(_position, _target);
@@ -229,5 +253,6 @@ internal sealed class IslandMotion : IDisposable
         _shape.Dispose();
         _expand.Dispose();
         _contract.Dispose();
+        _opacity.Dispose();
     }
 }

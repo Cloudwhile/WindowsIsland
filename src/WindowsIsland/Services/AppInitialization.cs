@@ -34,8 +34,12 @@ internal static class AppInitialization
         var template = XDocument.Load(Path.Combine(directory, "Initialization", "AppxManifest.xml"));
         var name = PackageName(template);
         var manager = new PackageManager();
-        var installed = manager.FindPackagesForUser(string.Empty).FirstOrDefault(package => package.Id.Name == name);
-        if (!force && installed is not null && SameLocation(installed, directory)) return installed.Id.FamilyName + "!App";
+        // A package with the same identity can remain registered in another
+        // installation directory. It must not supply this directory's version
+        // or short-circuit registration.
+        var installed = manager.FindPackagesForUser(string.Empty)
+            .FirstOrDefault(package => package.Id.Name == name && SameLocation(package, directory));
+        if (!force && installed is not null) return installed.Id.FamilyName + "!App";
         var installedVersion = installed?.Id.Version;
         var version = installedVersion is { } value ? new Version(value.Major, value.Minor, value.Build, value.Revision) : null;
         var systemPrepared = await InitializationPreparation.PrepareAsync(directory, version, InitializationElevation.PrepareAsync);

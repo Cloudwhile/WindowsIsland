@@ -28,6 +28,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly SettingsRow _initializationRow, _permissionRow;
     private readonly SettingsSources _sources;
     private readonly SettingsRow _animationsRow;
+    private readonly SettingsAppearance _appearance;
     private readonly SettingsRow _gameModeRow, _fullScreenRow;
     private readonly SettingsRow _startupRow;
     private readonly ToggleSwitch _startup;
@@ -117,7 +118,12 @@ internal sealed class SettingsPage : Grid, IDisposable
             catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
         };
         _actions.Add(_language.Input);
-        AddSection("appearance", "Appearance", new SettingsRow(Symbol.World, "Language", _language), _positionRow, _animationsRow);
+        _appearance = new SettingsAppearance(store, update =>
+        {
+            try { _store.Save(update(_store.Current)); _failed = false; Refresh(); }
+            catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
+        });
+        AddSection("appearance", "Appearance", new SettingsRow(Symbol.World, "Language", _language), _positionRow, _animationsRow, _appearance);
         _doNotDisturbSettings = new DoNotDisturbSettings(_windowsSettings.DoNotDisturb, (action, message) => RunAsync(action, message));
         _doNotDisturbSettings.OpenSettings.Click += async (_, _) => await RunAsync(async () =>
         {
@@ -280,6 +286,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     {
         if (_disposed) return;
         _diagnostics.Refresh();
+        _appearance.Refresh(!_busy);
         var state = _snapshot();
         var settings = _store.Current;
         _syncing = true;
@@ -408,6 +415,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _updates.Dispose();
         _diagnostics.Dispose();
         _sources.Dispose();
+        _appearance.Dispose();
         _doNotDisturbSettings.Dispose();
         _navigation.Dispose();
     }

@@ -211,7 +211,8 @@ internal sealed class WeChatService : IDisposable
                 }
                 catch (Exception error)
                 {
-                    Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat listener: {error.GetType().Name}");
+                    if (_clients.Values.Any(IsClientRunning)) Diagnostics.Capture(DiagnosticArea.WeChat, error);
+                    Trace.WriteLine($"WeChat listener: {error.GetType().Name}");
                     ClearClients();
                     Volatile.Write(ref _connected, []);
                     Volatile.Write(ref _status, "NotConnected");
@@ -220,7 +221,13 @@ internal sealed class WeChatService : IDisposable
                 }
             }
         }
-        catch (Exception error) { Diagnostics.Capture(DiagnosticArea.WeChat, error); Trace.WriteLine($"WeChat listener: {error.GetType().Name}"); Volatile.Write(ref _status, "WeChatConnectFailed"); }
+        catch (Exception error)
+        {
+            var running = _clients.Values.Any(IsClientRunning);
+            if (running) Diagnostics.Capture(DiagnosticArea.WeChat, error);
+            Trace.WriteLine($"WeChat listener: {error.GetType().Name}");
+            Volatile.Write(ref _status, running ? "WeChatConnectFailed" : "NotRunning");
+        }
         finally { ClearClients(); Volatile.Write(ref _connected, []); _wake.Dispose(); }
     }
 

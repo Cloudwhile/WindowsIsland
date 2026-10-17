@@ -67,6 +67,18 @@
   <data name="Animations" xml:space="preserve">
     <value>弹窗动画</value>
   </data>
+  <data name="Acrylic" xml:space="preserve">
+    <value>毛玻璃</value>
+  </data>
+  <data name="OpacityTransitions" xml:space="preserve">
+    <value>透明度过渡</value>
+  </data>
+  <data name="BackgroundTransparency" xml:space="preserve">
+    <value>背景透明度</value>
+  </data>
+  <data name="TransparencyPercent" xml:space="preserve">
+    <value>{0:0}%</value>
+  </data>
   <data name="NotificationPosition" xml:space="preserve">
     <value>弹窗位置</value>
   </data>

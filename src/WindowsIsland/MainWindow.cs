@@ -57,10 +57,11 @@ public sealed class MainWindow : Window
         _verification = verification;
         _showUpdateResult = showUpdateResult;
         Title = "Windows Island";
-        _root = new IslandSurface(_notificationPanel)
+        _root = new IslandSurface(_notificationPanel, AppWindow.Id)
         {
             Width = _width, Height = _height
         };
+        _root.ApplyAppearance(settings.Current);
         _surfaceLayer = new Grid
         {
             Width = _width, Height = _height, Margin = new Thickness(SurfaceMargin),
@@ -111,7 +112,7 @@ public sealed class MainWindow : Window
         };
 
         _motion = new IslandMotion(_surfaceLayer, _notificationPanel, SurfaceMargin,
-            () => _settings.Current.Animations, _position);
+            () => _settings.Current.Animations, () => _settings.Current.OpacityTransitions, _position);
         _motion.Settled += FinishPresentation;
         _merge = DispatcherQueue.CreateTimer();
         _merge.Interval = TimeSpan.FromMilliseconds(125);
@@ -144,6 +145,7 @@ public sealed class MainWindow : Window
             _updates.Dispose();
             _pulse.Stop();
             _motion.Dispose();
+            _root.Dispose();
             _input.Dispose();
             _expiry.Stop();
             _merge.Stop();
@@ -204,6 +206,9 @@ public sealed class MainWindow : Window
         if (_closed) return;
         var previous = _appliedSettings;
         _appliedSettings = settings;
+        if (previous.Acrylic != settings.Acrylic || previous.BackgroundOpacity != settings.BackgroundOpacity)
+            _root.ApplyAppearance(settings);
+        if (previous.OpacityTransitions != settings.OpacityTransitions) _motion.RefreshOpacityTransitions();
         Diagnostics.Store?.SetEnabled(settings.LocalDiagnostics);
         if (previous.Language != settings.Language)
         {

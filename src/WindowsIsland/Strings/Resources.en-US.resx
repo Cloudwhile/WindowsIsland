@@ -67,6 +67,18 @@
   <data name="Animations" xml:space="preserve">
     <value>Animations</value>
   </data>
+  <data name="Acrylic" xml:space="preserve">
+    <value>Acrylic</value>
+  </data>
+  <data name="OpacityTransitions" xml:space="preserve">
+    <value>Opacity transitions</value>
+  </data>
+  <data name="BackgroundTransparency" xml:space="preserve">
+    <value>Background transparency</value>
+  </data>
+  <data name="TransparencyPercent" xml:space="preserve">
+    <value>{0:0}%</value>
+  </data>
   <data name="NotificationPosition" xml:space="preserve">
     <value>Position</value>
   </data>
