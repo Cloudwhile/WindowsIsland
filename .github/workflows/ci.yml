@@ -106,7 +106,22 @@ jobs:
           $distribution = Join-Path $env:GITHUB_WORKSPACE 'artifacts/distribution'
           New-Item -ItemType Directory -Path $distribution -Force | Out-Null
       - name: Set up Inno Setup
-        run: choco install innosetup --version=6.4.2 --allow-downgrade --no-progress --yes
+        shell: pwsh
+        run: |
+          $isccPath = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
+          if (!$isccPath) {
+            $candidate = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+              $isccPath = $candidate
+            }
+          }
+          if (!$isccPath) {
+            choco install innosetup --no-progress --yes
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $isccPath = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
+          }
+          if (!$isccPath) { throw 'Inno Setup compiler ISCC.exe was not found.' }
+          & $isccPath /?
 
       - name: Build Inno Setup installer
         env:
