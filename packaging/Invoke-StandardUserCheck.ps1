@@ -61,8 +61,11 @@ public static class IslandStandardUserCheck
             var startup = new Startup { Size = Marshal.SizeOf<Startup>(), Flags = 1, Show = 0 };
             // Hosted runner desktops can grant access only to Administrators.
             // Let this same user initialize GUI libraries, then restore both ACLs.
-            restoreStation = AllowUser(GetProcessWindowStation(), 0xF037F);
-            restoreDesktop = AllowUser(GetThreadDesktop(GetCurrentThreadId()), 0xF01FF);
+            var station = GetProcessWindowStation();
+            var desktop = GetThreadDesktop(GetCurrentThreadId());
+            restoreStation = AllowUser(station, 0xF037F);
+            restoreDesktop = AllowUser(desktop, 0xF01FF);
+            startup.Desktop = ObjectName(station) + "\\" + ObjectName(desktop);
             Process child;
             // A restricted copy of our own primary token needs no alternate logon.
             var command = new StringBuilder("\"" + executable + "\" -NoProfile -NonInteractive -File \"" + script + "\"");
@@ -93,6 +96,15 @@ public static class IslandStandardUserCheck
             if (filtered != IntPtr.Zero) CloseHandle(filtered);
             if (token != IntPtr.Zero) CloseHandle(token);
         }
+    }
+    static string ObjectName(IntPtr handle)
+    {
+        uint required;
+        GetUserObjectInformationW(handle, 2, null, 0, out required);
+        var name = new StringBuilder((int)required / 2);
+        if (!GetUserObjectInformationW(handle, 2, name, required, out required))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Read runner desktop name");
+        return name.ToString();
     }
     static Action AllowUser(IntPtr handle, int access)
     {
@@ -135,6 +147,7 @@ public static class IslandStandardUserCheck
     [DllImport("user32.dll")] static extern IntPtr GetThreadDesktop(uint thread);
     [DllImport("user32.dll", SetLastError = true)] static extern bool GetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor, uint size, out uint required);
     [DllImport("user32.dll", SetLastError = true)] static extern bool SetUserObjectSecurity(IntPtr handle, ref uint information, byte[] descriptor);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool GetUserObjectInformationW(IntPtr handle, int index, StringBuilder value, uint size, out uint required);
     [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
     [DllImport("kernel32.dll", SetLastError = true)] static extern bool GetExitCodeProcess(IntPtr process, out uint code);
     [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
