@@ -121,7 +121,7 @@ jobs:
             $isccPath = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
           }
           if (!$isccPath) { throw 'Inno Setup compiler ISCC.exe was not found.' }
-          & $isccPath /?
+          Write-Output "Using Inno Setup compiler: $isccPath"
 
       - name: Build Inno Setup installer
         env:
