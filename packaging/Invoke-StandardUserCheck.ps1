@@ -39,7 +39,7 @@ public static class IslandStandardUserCheck
 {
     public static int Run(string executable, string script, string directory)
     {
-        IntPtr token = IntPtr.Zero, filtered = IntPtr.Zero, sid = IntPtr.Zero, label = IntPtr.Zero;
+        IntPtr token = IntPtr.Zero, filtered = IntPtr.Zero;
         IntPtr administrators = IntPtr.Zero, disabled = IntPtr.Zero;
         Action restoreDesktop = null, restoreStation = null;
         try
@@ -52,12 +52,6 @@ public static class IslandStandardUserCheck
             Marshal.StructureToPtr(new Label { Sid = administrators }, disabled, false);
             if (!CreateRestrictedToken(token, 1, 1, disabled, 0, IntPtr.Zero, 0, IntPtr.Zero, out filtered))
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Filter runner token");
-            if (!ConvertStringSidToSidW("S-1-16-8192", out sid)) throw new Win32Exception(Marshal.GetLastWin32Error());
-            var integrity = new Label { Sid = sid, Attributes = 0x20 };
-            label = Marshal.AllocHGlobal(Marshal.SizeOf<Label>());
-            Marshal.StructureToPtr(integrity, label, false);
-            if (!SetTokenInformation(filtered, 25, label, Marshal.SizeOf<Label>() + (int)GetLengthSid(sid)))
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Set medium integrity");
             var startup = new Startup { Size = Marshal.SizeOf<Startup>(), Flags = 1, Show = 0 };
             // Hosted runner desktops can grant access only to Administrators.
             // Let this same user initialize GUI libraries, then restore both ACLs.
@@ -89,10 +83,8 @@ public static class IslandStandardUserCheck
         {
             try { restoreDesktop?.Invoke(); }
             finally { restoreStation?.Invoke(); }
-            if (label != IntPtr.Zero) Marshal.FreeHGlobal(label);
             if (disabled != IntPtr.Zero) Marshal.FreeHGlobal(disabled);
             if (administrators != IntPtr.Zero) LocalFree(administrators);
-            if (sid != IntPtr.Zero) LocalFree(sid);
             if (filtered != IntPtr.Zero) CloseHandle(filtered);
             if (token != IntPtr.Zero) CloseHandle(token);
         }
@@ -138,8 +130,6 @@ public static class IslandStandardUserCheck
     [DllImport("advapi32.dll", SetLastError = true)] static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
     [DllImport("advapi32.dll", SetLastError = true)] static extern bool CreateRestrictedToken(IntPtr token, uint flags, uint disableCount, IntPtr disable, uint deleteCount, IntPtr delete, uint restrictCount, IntPtr restrict, out IntPtr filtered);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool ConvertStringSidToSidW(string text, out IntPtr sid);
-    [DllImport("advapi32.dll")] static extern uint GetLengthSid(IntPtr sid);
-    [DllImport("advapi32.dll", SetLastError = true)] static extern bool SetTokenInformation(IntPtr token, int information, IntPtr value, int size);
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)] static extern bool CreateProcessAsUserW(IntPtr token, string application, StringBuilder command, IntPtr processAttributes, IntPtr threadAttributes, bool inherit, uint flags, IntPtr environment, string directory, ref Startup startup, out Process process);
     [DllImport("kernel32.dll")] static extern uint SetErrorMode(uint mode);
     [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
