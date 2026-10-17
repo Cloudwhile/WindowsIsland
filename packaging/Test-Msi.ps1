@@ -53,7 +53,7 @@ if (!($customActions | Where-Object { $_[0] -eq 'CloseApplication' })) {
     throw 'The MSI does not contain the running-application shutdown action.'
 }
 $executeSequence = @(Get-MsiTable 'InstallExecuteSequence')
-if (!($executeSequence | Where-Object { $_[0] -eq 'CloseApplication' -and [int]$_[2] -lt 1400 })) {
+if (!($executeSequence | Where-Object { $_[0] -eq 'CloseApplication' -and $_[1] -eq '1' -and [int]$_[2] -lt 1400 })) {
     throw 'The MSI does not close the running application before validating file replacement.'
 }
 $installer = New-Object -ComObject WindowsInstaller.Installer

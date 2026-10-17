@@ -9,6 +9,12 @@ internal static class AppActivation
 
     public static void ShowSettings() => PostMessage((nint)0xFFFF, SettingsMessage, 0, 0);
 
+    public static void AllowMaintenanceExit(nint window)
+    {
+        if (!ChangeWindowMessageFilterEx(window, ExitMessage, 1, 0))
+            System.Diagnostics.Trace.WriteLine(new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error()));
+    }
+
     public static void LaunchRegistered(string appId, bool showSettings = true, bool showUpdateResult = false) =>
         Launch(appId, (showSettings ? "--settings" : "") + (showUpdateResult ? " --show-update-result" : ""));
 
@@ -29,4 +35,5 @@ internal static class AppActivation
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint RegisterWindowMessage(string message);
     [DllImport("user32.dll")] private static extern bool PostMessage(nint window, uint message, nuint wParam, nint lParam);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool ChangeWindowMessageFilterEx(nint window, uint message, uint action, nint filter);
 }

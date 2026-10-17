@@ -38,7 +38,14 @@ internal static class AppInitialization
         if (!force && installed is not null && SameLocation(installed, directory)) return installed.Id.FamilyName + "!App";
         var installedVersion = installed?.Id.Version;
         var version = installedVersion is { } value ? new Version(value.Major, value.Minor, value.Build, value.Revision) : null;
-        await InitializationPreparation.PrepareAsync(directory, version, InitializationElevation.PrepareAsync);
+        var systemPrepared = await InitializationPreparation.PrepareAsync(directory, version, InitializationElevation.PrepareAsync);
+        return await InitializationRegistration.RegisterAsync(
+            () => RegisterCurrentUserAsync(manager, directory, name),
+            () => InitializationElevation.PrepareAsync(version), systemPrepared);
+    }
+
+    private static async Task<string> RegisterCurrentUserAsync(PackageManager manager, string directory, string name)
+    {
         var manifestPath = Path.Combine(directory, "AppxManifest.xml");
         var operation = manager.RegisterPackageAsync(new Uri(manifestPath), null, DeploymentOptions.DevelopmentMode);
         DeploymentResult result;

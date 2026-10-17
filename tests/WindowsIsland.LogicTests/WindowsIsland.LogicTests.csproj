@@ -10,6 +10,7 @@
     <Compile Include="../../src/WindowsIsland/Services/RegisteredRestart.cs" Link="RegisteredRestart.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationResources.cs" Link="InitializationResources.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationPreparation.cs" Link="InitializationPreparation.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InitializationRegistration.cs" Link="InitializationRegistration.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationElevation.cs" Link="InitializationElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPluginHost.cs" Link="Plugins/NotificationPluginHost.cs" />

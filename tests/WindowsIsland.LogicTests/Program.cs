@@ -251,6 +251,7 @@ await DiagnosticChecks.RunAsync(Check);
 await DiagnosticReportCacheChecks.RunAsync(Check);
 await PluginChecks.RunAsync(Check);
 await RegisteredRestartChecks.RunAsync(Check);
+await InitializationRegistrationChecks.RunAsync(Check);
 await UpdateChecks.RunAsync(Check);
 await UpdateCheckServiceChecks.RunAsync(Check);
 await UpdateScriptChecks.RunAsync(Check);

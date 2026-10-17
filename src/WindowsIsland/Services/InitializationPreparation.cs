@@ -4,18 +4,21 @@ namespace WindowsIsland.Services;
 
 internal static class InitializationPreparation
 {
-    public static async Task PrepareAsync(string directory, Version? version, Func<Version?, Task> elevate)
+    public static async Task<bool> PrepareAsync(string directory, Version? version, Func<Version?, Task> elevate)
     {
         try { Prepare(directory, version); }
         catch (UnauthorizedAccessException)
         {
-            // Only the registration files need access to the installation.
-            // Register the package later in the requesting user's context.
+            // Prepare the fixed registration resources and the directory Windows
+            // uses for package metadata. Registration stays with the requesting user.
             await elevate(version);
             if (!XNode.DeepEquals(Manifest(directory, version), XDocument.Load(Path.Combine(directory, "AppxManifest.xml")))
-                || !InitializationResources.Matches(Path.Combine(directory, "WindowsIsland.pri"), Path.Combine(directory, "resources.pri")))
+                || !InitializationResources.Matches(Path.Combine(directory, "WindowsIsland.pri"), Path.Combine(directory, "resources.pri"))
+                || !Directory.Exists(Path.Combine(directory, "microsoft.system.package.metadata")))
                 throw new IOException("Initialization files were not prepared correctly.");
+            return true;
         }
+        return false;
     }
 
     public static void Prepare(string directory, Version? version)
@@ -30,6 +33,10 @@ internal static class InitializationPreparation
             File.Move(temporary, destination, overwrite: true);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        // A normal user can register a loose package in Program Files only after
+        // this directory exists. Inherit its existing protection; do not grant
+        // the user write access to package metadata or application binaries.
+        Directory.CreateDirectory(Path.Combine(directory, "microsoft.system.package.metadata"));
     }
 
     private static XDocument Manifest(string directory, Version? version) => InitializationManifest.Build(

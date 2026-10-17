@@ -109,8 +109,9 @@ internal static class WindowsPreferencesChecks
                 return Task.CompletedTask;
             }).GetAwaiter().GetResult();
             check(preparedByHelper && File.Exists(Path.Combine(directory, "AppxManifest.xml"))
+                && Directory.Exists(Path.Combine(directory, "microsoft.system.package.metadata"))
                 && InitializationResources.Matches(Path.Combine(directory, "WindowsIsland.pri"), Path.Combine(directory, "resources.pri")),
-                "Protected initialization requests only a preparation helper, then leaves registration files ready for the original user");
+                "Protected initialization prepares resources and the package metadata directory before original-user registration");
         }
         finally { installation.SetAccessControl(original); }
     }

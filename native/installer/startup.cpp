@@ -132,7 +132,7 @@ std::vector<ApplicationProcess> FindApplicationProcesses(const std::wstring& exe
     }
     do {
         if (_wcsicmp(entry.szExeFile, L"WindowsIsland.exe") != 0) continue;
-        Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE | PROCESS_TERMINATE,
+        Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE,
             FALSE, entry.th32ProcessID));
         if (!process.value) continue;
         std::wstring path(32768, L'\0');
@@ -159,12 +159,27 @@ bool WaitForExit(const std::vector<ApplicationProcess>& processes, DWORD timeout
     auto deadline = GetTickCount64() + timeout;
     for (;;) {
         auto running = std::ranges::any_of(processes, [](const auto& process) {
-            return WaitForSingleObject(process.handle.value, 0) == WAIT_TIMEOUT;
+            auto state = WaitForSingleObject(process.handle.value, 0);
+            Require(state == WAIT_OBJECT_0 || state == WAIT_TIMEOUT);
+            return state == WAIT_TIMEOUT;
         });
         if (!running) return true;
         if (GetTickCount64() >= deadline) return false;
         Sleep(100);
     }
+}
+
+bool TerminateApplication(const ApplicationProcess& application) {
+    if (WaitForSingleObject(application.handle.value, 0) == WAIT_OBJECT_0) return true;
+    Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE, FALSE, application.id));
+    if (!process.value) return WaitForSingleObject(application.handle.value, 0) == WAIT_OBJECT_0;
+    FILETIME expected{}, actual{}, exit{}, kernel{}, user{};
+    Require(GetProcessTimes(application.handle.value, &expected, &exit, &kernel, &user)
+        && GetProcessTimes(process.value, &actual, &exit, &kernel, &user));
+    if (CompareFileTime(&expected, &actual) != 0)
+        return WaitForSingleObject(application.handle.value, 0) == WAIT_OBJECT_0;
+    return TerminateProcess(process.value, ERROR_INSTALL_FAILURE)
+        || WaitForSingleObject(application.handle.value, 0) == WAIT_OBJECT_0;
 }
 
 DWORD ProbeWriteAccess(const std::wstring& directory) {
@@ -230,8 +245,7 @@ extern "C" __declspec(dllexport) UINT __stdcall CloseApplication(MSIHANDLE sessi
         EnumWindows(RequestApplicationExit, reinterpret_cast<LPARAM>(&processes));
         if (WaitForExit(processes, 10000)) return ERROR_SUCCESS;
         for (const auto& process : processes) {
-            if (WaitForSingleObject(process.handle.value, 0) == WAIT_TIMEOUT
-                && !TerminateProcess(process.handle.value, ERROR_INSTALL_FAILURE)) return CloseFailed(session);
+            if (!TerminateApplication(process)) return CloseFailed(session);
         }
         return WaitForExit(processes, 5000) ? ERROR_SUCCESS : CloseFailed(session);
     } catch (...) { return CloseFailed(session); }

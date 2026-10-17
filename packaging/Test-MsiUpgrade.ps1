@@ -1,8 +1,8 @@
 param(
     [string]$PublishDirectory = (Join-Path $PSScriptRoot '../artifacts/publish'),
     [string]$Wix = (Join-Path $PSScriptRoot '../artifacts/tools/wix/wix.exe'),
-    [ValidateSet('enabled', 'blocked', 'missing', 'foreign', 'rollback')]
-    [string[]]$Cases = @('enabled', 'blocked', 'missing', 'foreign', 'rollback')
+    [ValidateSet('enabled', 'blocked', 'missing', 'foreign', 'rollback', 'running-install', 'unresponsive')]
+    [string[]]$Cases = @('enabled', 'blocked', 'missing', 'foreign', 'rollback', 'running-install', 'unresponsive')
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -43,9 +43,17 @@ extern "C" __declspec(dllexport) UINT __stdcall FailUpgrade(MSIHANDLE) { return 
 [IO.File]::WriteAllText("$work/native/probe.cpp", 'extern "C" __declspec(dllexport) int PayloadRevision() { return PAYLOAD_REVISION; }')
 [IO.File]::WriteAllText("$work/native/running.cpp", @'
 #include <windows.h>
+#include <sddl.h>
 UINT exitMessage = 0;
+bool FixtureFlag(const wchar_t* name) {
+    wchar_t value[2]{};
+    return GetEnvironmentVariableW(name, value, 2) == 1 && value[0] == L'1';
+}
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
-    if (message == exitMessage) { DestroyWindow(window); return 0; }
+    if (message == exitMessage) {
+        if (!FixtureFlag(L"WINDOWS_ISLAND_FIXTURE_IGNORE_EXIT")) DestroyWindow(window);
+        return 0;
+    }
     if (message == WM_DESTROY) { PostQuitMessage(0); return 0; }
     return DefWindowProcW(window, message, wparam, lparam);
 }
@@ -60,6 +68,19 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     if (!RegisterClassW(&type)) return 3;
     auto window = CreateWindowExW(0, type.lpszClassName, L"", 0, 0, 0, 0, 0, nullptr, nullptr, instance, nullptr);
     if (!window) return 4;
+    if (FixtureFlag(L"WINDOWS_ISLAND_FIXTURE_DENY_TERMINATE")) {
+        PSECURITY_DESCRIPTOR descriptor = nullptr;
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            L"D:(D;;0x0001;;;WD)(A;;0x1fffff;;;OW)(A;;0x1fffff;;;SY)", SDDL_REVISION_1, &descriptor, nullptr)) return 5;
+        auto secured = SetKernelObjectSecurity(GetCurrentProcess(), DACL_SECURITY_INFORMATION, descriptor);
+        LocalFree(descriptor);
+        if (!secured) return 6;
+    }
+    wchar_t readyName[256]{};
+    if (!GetEnvironmentVariableW(L"WINDOWS_ISLAND_FIXTURE_READY", readyName, 256)) return 7;
+    auto ready = OpenEventW(EVENT_MODIFY_STATE, FALSE, readyName);
+    if (!ready || !SetEvent(ready)) return 8;
+    CloseHandle(ready);
     MSG message{};
     while (GetMessageW(&message, nullptr, 0, 0) > 0) DispatchMessageW(&message);
     FreeLibrary(payload);
@@ -100,6 +121,7 @@ target_link_libraries(UpgradeActions PRIVATE msi advapi32)
 add_library(ProbeBefore SHARED probe.cpp probe.rc)
 add_library(ProbeAfter SHARED probe.cpp probe.rc)
 add_executable(RunningApplication WIN32 running.cpp)
+target_link_libraries(RunningApplication PRIVATE advapi32)
 set_target_properties(RunningApplication PROPERTIES OUTPUT_NAME WindowsIsland)
 target_compile_definitions(ProbeBefore PRIVATE PAYLOAD_REVISION=4 PAYLOAD_LABEL="0.1.0-rc.4")
 target_compile_definitions(ProbeAfter PRIVATE PAYLOAD_REVISION=5 PAYLOAD_LABEL="0.1.0-rc.5")
@@ -147,6 +169,68 @@ function Invoke-Msi([string]$mode, [string]$package, [string]$log, [switch]$Fail
     if ($Fail) { if ($process.ExitCode -ne 1603) { throw "Expected rollback failure: $log = $($process.ExitCode)" } }
     elseif ($process.ExitCode -notin @(0, 3010)) { throw "MSI check failed: $log = $($process.ExitCode)" }
 }
+function Start-RunningFixture([string]$directory, [switch]$DenyTerminate, [switch]$IgnoreExit) {
+    $readyName = "Local\WindowsIsland.MsiShutdownVerification.$([Guid]::NewGuid().ToString('N'))"
+    $ready = [Threading.EventWaitHandle]::new($false, [Threading.EventResetMode]::ManualReset, $readyName)
+    $previousReady = $env:WINDOWS_ISLAND_FIXTURE_READY
+    $previousDeny = $env:WINDOWS_ISLAND_FIXTURE_DENY_TERMINATE
+    $previousIgnore = $env:WINDOWS_ISLAND_FIXTURE_IGNORE_EXIT
+    $process = $null
+    try {
+        $env:WINDOWS_ISLAND_FIXTURE_READY = $readyName
+        $env:WINDOWS_ISLAND_FIXTURE_DENY_TERMINATE = if ($DenyTerminate) { '1' } else { '' }
+        $env:WINDOWS_ISLAND_FIXTURE_IGNORE_EXIT = if ($IgnoreExit) { '1' } else { '' }
+        $process = Start-Process (Join-Path $directory 'WindowsIsland.exe') -WorkingDirectory $directory -PassThru -WindowStyle Hidden
+        if (!$ready.WaitOne(10000) -or $process.HasExited) { throw 'The isolated running-application fixture did not become ready.' }
+        if ($DenyTerminate -and ![MsiShutdownFixture]::TerminationDenied($process.Id)) { throw 'The fixture must deny PROCESS_TERMINATE while allowing normal exit.' }
+        return $process
+    } catch {
+        if ($process) { Stop-RunningFixture $process; $process.Dispose() }
+        throw
+    } finally {
+        $env:WINDOWS_ISLAND_FIXTURE_READY = $previousReady
+        $env:WINDOWS_ISLAND_FIXTURE_DENY_TERMINATE = $previousDeny
+        $env:WINDOWS_ISLAND_FIXTURE_IGNORE_EXIT = $previousIgnore
+        $ready.Dispose()
+    }
+}
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public static class MsiShutdownFixture {
+    private delegate bool EnumCallback(IntPtr window, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumCallback callback, IntPtr data);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint RegisterWindowMessage(string message);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, int process);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+    public static bool TerminationDenied(int process) {
+        var handle = OpenProcess(1, false, process);
+        if (handle != IntPtr.Zero) { CloseHandle(handle); return false; }
+        return Marshal.GetLastWin32Error() == 5;
+    }
+    public static void RequestExit(int process) {
+        var message = RegisterWindowMessage("WindowsIsland.ExitForMaintenance");
+        EnumWindows((window, _) => {
+            GetWindowThreadProcessId(window, out var owner);
+            if (owner == process) PostMessage(window, message, IntPtr.Zero, IntPtr.Zero);
+            return true;
+        }, IntPtr.Zero);
+    }
+}
+'@
+function Stop-RunningFixture([Diagnostics.Process]$process) {
+    if (!$process -or $process.HasExited) { return }
+    if (!$process.Path.StartsWith($work + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Refusing to close a process outside the isolated fixture directory.'
+    }
+    [MsiShutdownFixture]::RequestExit($process.Id)
+    if (!$process.WaitForExit(5000)) {
+        Stop-Process -InputObject $process -Force
+        if (!$process.WaitForExit(5000)) { throw 'The isolated running-application fixture did not stop.' }
+    }
+}
 $beforeProbe = "$work/native/build/Release/ProbeBefore.dll"
 $afterProbe = "$work/native/build/Release/ProbeAfter.dll"
 if ([Diagnostics.FileVersionInfo]::GetVersionInfo($beforeProbe).FileVersion -ne [Diagnostics.FileVersionInfo]::GetVersionInfo($afterProbe).FileVersion -or
@@ -158,8 +242,31 @@ $foreign = '"' + (Join-Path $work 'other/WindowsIsland.exe') + '" --startup'
 try {
     foreach ($case in $Cases) {
         $running = $null
+        $otherRunning = $null
         $run.DeleteValue('WindowsIsland', $false)
         $approval.DeleteValue('WindowsIsland', $false)
+        if ($case -eq 'running-install') {
+            $otherDirectory = Join-Path $work 'other running application'
+            New-Item -ItemType Directory -Path $install,$otherDirectory -Force | Out-Null
+            foreach ($target in @($install, $otherDirectory)) {
+                Copy-Item -LiteralPath "$work/native/build/Release/WindowsIsland.exe" -Destination (Join-Path $target 'WindowsIsland.exe') -Force
+                Copy-Item -LiteralPath $beforeProbe -Destination (Join-Path $target 'versioned-payload.dll') -Force
+            }
+            $running = Start-RunningFixture $install -DenyTerminate
+            $otherRunning = Start-RunningFixture $otherDirectory
+            Invoke-Msi '/i' $new "$case-install"
+            if (!$running.HasExited -or $running.ExitCode -ne 0) { throw 'First installation did not gracefully close the exact-directory application without termination rights.' }
+            if ($otherRunning.HasExited) { throw 'First installation closed an application in another directory.' }
+            $running.Dispose()
+            $running = $null
+            Invoke-Msi '/x' $new "$case-uninstall"
+            if ($otherRunning.HasExited) { throw 'Remove closed an application in another directory.' }
+            Stop-RunningFixture $otherRunning
+            $otherRunning.Dispose()
+            $otherRunning = $null
+            'PASS first installation gracefully closes an occupied exact directory without termination rights and preserves another directory.'
+            continue
+        }
         Invoke-Msi '/i' $old "$case-install"
         if ($case -ne 'missing') {
             $run.SetValue('WindowsIsland', $(if ($case -eq 'foreign') { $foreign } else { $command }))
@@ -169,16 +276,16 @@ try {
         }
         $expectedRun = $run.GetValue('WindowsIsland', $null)
         $expectedApproval = $approval.GetValue('WindowsIsland', $null)
-        if ($case -eq 'enabled') {
-            $running = Start-Process (Join-Path $install 'WindowsIsland.exe') -WorkingDirectory $install -PassThru -WindowStyle Hidden
-            Start-Sleep -Milliseconds 500
-            if ($running.HasExited) { throw 'The isolated running-application fixture exited before upgrade.' }
+        if ($case -in @('enabled', 'unresponsive')) {
+            $running = Start-RunningFixture $install -DenyTerminate:($case -eq 'enabled') -IgnoreExit:($case -eq 'unresponsive')
         }
         if ($case -eq 'rollback') { Invoke-Msi '/i' $broken "$case-upgrade" -Fail }
         else { Invoke-Msi '/i' $new "$case-upgrade" }
         if ($running) {
             $running.Refresh()
             if (!$running.HasExited) { throw 'The MSI upgrade did not close the application that occupied installed files.' }
+            $expectedExit = if ($case -eq 'unresponsive') { 1603 } else { 0 }
+            if ($running.ExitCode -ne $expectedExit) { throw 'The MSI upgrade did not use the expected graceful or bounded forced exit.' }
             $running.Dispose()
             $running = $null
         }
@@ -202,17 +309,16 @@ try {
         }
         if ($case -eq 'enabled') {
             $legacyHook = Join-Path $install ('Hooks/' + ('A' * 64))
-            New-Item -ItemType Directory -Path $legacyHook -Force | Out-Null
+            New-Item -ItemType Directory -Path $legacyHook,(Join-Path $install 'microsoft.system.package.metadata') -Force | Out-Null
             [IO.File]::WriteAllText((Join-Path $legacyHook 'WindowsIsland.TelegramHook.dll'), 'legacy runtime copy')
             [IO.File]::WriteAllText((Join-Path $install '.update-files.json'), '[]')
-            $running = Start-Process (Join-Path $install 'WindowsIsland.exe') -WorkingDirectory $install -PassThru -WindowStyle Hidden
-            Start-Sleep -Milliseconds 500
-            if ($running.HasExited) { throw 'The isolated running-application fixture exited before Remove.' }
+            $running = Start-RunningFixture $install -DenyTerminate
         }
         Invoke-Msi '/x' $(if ($case -eq 'rollback') { $old } else { $new }) "$case-uninstall"
         if ($running) {
             $running.Refresh()
             if (!$running.HasExited) { throw 'MSI Remove did not close the running application.' }
+            if ($running.ExitCode -ne 0) { throw 'MSI Remove terminated the application instead of requesting a graceful exit.' }
             $running.Dispose()
             $running = $null
         }
@@ -223,12 +329,17 @@ try {
         if ($case -eq 'enabled' -and (Test-Path -LiteralPath $install)) { throw 'MSI Remove retained its managed installation directory.' }
         "PASS isolated MSI upgrade preserves startup and installation state: $case"
         if ($case -eq 'enabled') { 'PASS isolated MSI upgrade and Remove close occupied files and remove managed runtime content.' }
+        if ($case -eq 'unresponsive') { 'PASS isolated MSI upgrade terminates only its unresponsive exact-directory fixture after the graceful-exit timeout.' }
     }
 } catch {
     $_ | Out-String | Set-Content (Join-Path $work 'failure.txt')
     throw
 } finally {
-    if ($running -and !$running.HasExited) { Stop-Process -InputObject $running -Force; $running.WaitForExit() }
+    if ($otherRunning) {
+        Stop-RunningFixture $otherRunning
+        $otherRunning.Dispose()
+    }
+    if ($running) { Stop-RunningFixture $running }
     if ($running) { $running.Dispose() }
     foreach ($package in @($old, $new, $broken)) {
         $process = Start-Process msiexec.exe -ArgumentList @('/x', ('"{0}"' -f $package), '/qn', '/norestart', ('INSTALLFOLDER="{0}"' -f $install)) -Wait -PassThru -WindowStyle Hidden
