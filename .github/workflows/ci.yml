@@ -36,12 +36,22 @@ jobs:
       - name: Check standard-user test context
         run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1 -Probe
 
-      - name: Prepare isolated package registration permissions
+      - name: Prepare isolated installer policies
         run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+            throw 'Installer policies may only be prepared on disposable GitHub-hosted runners.'
+          }
           $key = 'HKLM:/SOFTWARE/Microsoft/Windows/CurrentVersion/AppModelUnlock'
           New-Item -Path $key -Force | Out-Null
           New-ItemProperty -Path $key -Name AllowAllTrustedApps -Value 1 -PropertyType DWord -Force | Out-Null
           New-ItemProperty -Path $key -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
+          # Windows Server otherwise blocks non-elevated, unmanaged per-user MSI installs.
+          $installer = 'HKLM:/SOFTWARE/Policies/Microsoft/Windows/Installer'
+          if (!(Test-Path -LiteralPath $installer)) { New-Item -Path $installer -Force | Out-Null }
+          New-ItemProperty -Path $installer -Name DisableMSI -Value 0 -PropertyType DWord -Force | Out-Null
+          if ((Get-ItemPropertyValue -LiteralPath $installer -Name DisableMSI) -ne 0) {
+            throw 'Per-user MSI installation is still disabled on the test runner.'
+          }
 
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6

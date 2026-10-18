@@ -167,9 +167,15 @@ $brokenDefinition = $definition.Replace('<InstallExecuteSequence>', @'
 '@)
 $broken = @(Build-Package '0.1.0-testfailure' $brokenDefinition 'failed')[-1]
 function Invoke-Msi([string]$mode, [string]$package, [string]$log, [switch]$Fail) {
-    $process = Start-Process msiexec.exe -ArgumentList @($mode, ('"{0}"' -f $package), '/qn', '/norestart', ('INSTALLFOLDER="{0}"' -f $install), '/L*v', ('"{0}"' -f (Join-Path $work ($log + '.log')))) -Wait -PassThru -WindowStyle Hidden
-    if ($Fail) { if ($process.ExitCode -ne 1603) { throw "Expected rollback failure: $log = $($process.ExitCode)" } }
-    elseif ($process.ExitCode -notin @(0, 3010)) { throw "MSI check failed: $log = $($process.ExitCode)" }
+    $logPath = Join-Path $work ($log + '.log')
+    $process = Start-Process msiexec.exe -ArgumentList @($mode, ('"{0}"' -f $package), '/qn', '/norestart', ('INSTALLFOLDER="{0}"' -f $install), '/L*v', ('"{0}"' -f $logPath)) -Wait -PassThru -WindowStyle Hidden
+    try {
+        $expected = if ($Fail) { @(1603) } else { @(0, 3010) }
+        if ($process.ExitCode -notin $expected) {
+            if (Test-Path -LiteralPath $logPath) { Get-Content -LiteralPath $logPath -Tail 80 | Out-Host }
+            throw "MSI check failed: $log = $($process.ExitCode); expected $($expected -join ', ')"
+        }
+    } finally { $process.Dispose() }
 }
 function Start-RunningFixture([string]$directory, [switch]$DenyTerminate, [switch]$IgnoreExit) {
     $readyName = "Local\WindowsIsland.MsiShutdownVerification.$([Guid]::NewGuid().ToString('N'))"
