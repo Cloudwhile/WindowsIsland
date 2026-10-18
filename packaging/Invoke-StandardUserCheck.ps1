@@ -20,14 +20,14 @@ $lines = @(
     '$env:TMP = $env:TEMP',
     ('Start-Transcript -LiteralPath ''' + (Join-Path $work 'check.log').Replace("'", "''") + ''' -Force'),
     'try {',
-    '  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()',
-    '  try { if (([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw ''Expected standard user.'' } } finally { $identity.Dispose() }',
+    ('& ''' + (Join-Path $PSScriptRoot 'Initialize-StandardUserEnvironment.ps1').Replace("'", "''") + ''' -ExpectedUser ''' + $user + ''' -WorkDirectory ''' + $work.Replace("'", "''") + ''''),
     $action,
     '} catch { Write-Output ($_ | Out-String); exit 1 } finally { Stop-Transcript }'
 )
 [IO.File]::WriteAllLines($child, $lines)
 try {
     New-LocalUser -Name $user -Password $secure -AccountNeverExpires -PasswordNeverExpires | Out-Null
+    Add-LocalGroupMember -SID 'S-1-5-32-545' -Member $user
     & icacls.exe $root /grant "${user}:(OI)(CI)M" /T /Q | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Cannot grant isolated user workspace access.' }
     $credential = [pscredential]::new("$env:COMPUTERNAME\$user", $secure)
