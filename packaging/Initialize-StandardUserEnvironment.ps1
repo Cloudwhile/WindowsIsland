@@ -37,8 +37,8 @@ public static class CheckUserEnvironment {
             $separator = $entry.IndexOf('=')
             if ($separator -gt 0) { $profileVariables[$entry.Substring(0, $separator)] = $entry.Substring($separator + 1) }
         }
+        if (!$profileVariables['USERPROFILE']) { throw 'Windows did not provide the loaded user profile.' }
         foreach ($name in @('USERPROFILE','USERNAME','USERDOMAIN','HOMEDRIVE','HOMEPATH','APPDATA','LOCALAPPDATA')) {
-            if (!$profileVariables[$name]) { throw "Windows did not provide the user environment variable: $name" }
             [Environment]::SetEnvironmentVariable($name, $profileVariables[$name], 'Process')
         }
     } finally { [void][CheckUserEnvironment]::DestroyEnvironmentBlock($block) }
@@ -47,6 +47,9 @@ public static class CheckUserEnvironment {
     if ($profile -ne [Environment]::ExpandEnvironmentVariables($registeredProfile).TrimEnd('\')) {
         throw 'The process environment does not match the loaded user profile.'
     }
+    # Local accounts without a configured home directory omit these in the environment block.
+    if (!$env:HOMEDRIVE) { $env:HOMEDRIVE = [IO.Path]::GetPathRoot($profile).TrimEnd('\') }
+    if (!$env:HOMEPATH) { $env:HOMEPATH = $profile.Substring([IO.Path]::GetPathRoot($profile).Length - 1) }
     # A new account has not had an Explorer logon to create its shell directories.
     foreach ($folder in @('ApplicationData','LocalApplicationData','StartMenu','Programs','DesktopDirectory')) {
         $path = [Environment]::GetFolderPath([Environment+SpecialFolder]$folder, [Environment+SpecialFolderOption]::Create)
@@ -54,6 +57,8 @@ public static class CheckUserEnvironment {
             throw "The isolated user shell folder is unavailable or outside its profile: $folder ($path)"
         }
     }
+    $env:APPDATA = [Environment]::GetFolderPath('ApplicationData')
+    $env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData')
     $env:TEMP = $WorkDirectory
     $env:TMP = $WorkDirectory
     $programs = [Environment]::GetFolderPath('Programs')

@@ -33,10 +33,16 @@ try {
     $credential = [pscredential]::new("$env:COMPUTERNAME\$user", $secure)
     $process = Start-Process -FilePath (Get-Process -Id $PID).Path -ArgumentList @('-NoProfile','-NonInteractive','-File',('"' + $child + '"')) -Credential $credential -LoadUserProfile -WorkingDirectory $root -WindowStyle Hidden -PassThru
     try {
-        if (!$process.WaitForExit(900000)) { throw 'Installer checks timed out.' }
+        if (!$process.WaitForExit(900000)) {
+            $process.Kill($true)
+            [void]$process.WaitForExit(5000)
+            throw 'Installer checks timed out.'
+        }
         $result = $process.ExitCode
-    } finally { $process.Dispose() }
-    if (Test-Path (Join-Path $work 'check.log')) { Get-Content (Join-Path $work 'check.log') }
+    } finally {
+        $process.Dispose()
+        if (Test-Path (Join-Path $work 'check.log')) { Get-Content (Join-Path $work 'check.log') }
+    }
     if ($result -ne 0) { throw "Isolated-user installer checks failed: $result" }
 } finally {
     & icacls.exe $root /remove:g $user /T /Q | Out-Null
