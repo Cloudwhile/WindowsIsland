@@ -250,6 +250,7 @@ NotificationImageStoreChecks.Run(Check);
 await DiagnosticChecks.RunAsync(Check);
 await DiagnosticReportCacheChecks.RunAsync(Check);
 await PluginChecks.RunAsync(Check);
+await WindowsIsland.LogicTests.PluginManagerChecks.RunAsync(Check);
 await RegisteredRestartChecks.RunAsync(Check);
 await InitializationRegistrationChecks.RunAsync(Check);
 await UpdateChecks.RunAsync(Check);

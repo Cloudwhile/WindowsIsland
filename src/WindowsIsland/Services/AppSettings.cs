@@ -28,8 +28,10 @@ internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotif
     }
 }
 
-internal sealed class SettingsStore
+internal sealed partial class SettingsStore
 {
+    private readonly object _gate = new();
+    private JsonObject _pluginPreferences = new();
     private readonly string _path;
     private AppSettings _current;
     public AppSettings Current => Volatile.Read(ref _current);
@@ -42,6 +44,8 @@ internal sealed class SettingsStore
         try
         {
             var json = JsonNode.Parse(File.ReadAllText(_path));
+            if (json is JsonObject pluginRoot && pluginRoot["Plugins"] is JsonObject pluginPreferences)
+                _pluginPreferences = (JsonObject)pluginPreferences.DeepClone();
             if (json is JsonObject oldPreferences && !oldPreferences.ContainsKey(nameof(AppSettings.MuteDuringFullScreen)))
             {
                 var oldMute = oldPreferences[nameof(AppSettings.MuteDuringGames)];
@@ -80,13 +84,23 @@ internal sealed class SettingsStore
 
     public void Save(AppSettings settings)
     {
-        settings = Normalize(settings);
+        lock (_gate)
+        {
+            settings = Normalize(settings);
+            Persist(settings);
+            Volatile.Write(ref _current, settings);
+        }
+        Changed?.Invoke(Current);
+    }
+
+    private void Persist(AppSettings settings)
+    {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(_path))!);
         var temporary = _path + ".tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        var preferences = JsonSerializer.SerializeToNode(settings)!.AsObject();
+        if (_pluginPreferences.Count > 0) preferences["Plugins"] = _pluginPreferences.DeepClone();
+        File.WriteAllText(temporary, preferences.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         File.Move(temporary, _path, overwrite: true);
-        Volatile.Write(ref _current, settings);
-        Changed?.Invoke(settings);
     }
 
     private static AppSettings Normalize(AppSettings settings) => settings with

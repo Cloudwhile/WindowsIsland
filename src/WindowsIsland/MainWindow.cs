@@ -19,7 +19,7 @@ public sealed class MainWindow : Window
     private readonly IslandSurface _root;
     private readonly Grid _host = new();
     private readonly Grid _surfaceLayer;
-    private readonly NotificationPluginHost _plugins;
+    private readonly PluginManager _plugins;
     private readonly SettingsStore _settings;
     private readonly UpdateCheckService _updates;
     private SettingsWindow? _settingsWindow;
@@ -93,7 +93,7 @@ public sealed class MainWindow : Window
         AppWindow.IsShownInSwitchers = false;
         AppWindow.Hide();
         NativeWindow.ConfigureOverlay(_hwnd);
-        _plugins = BuiltInPlugins.Create(new(DispatcherQueue, _hwnd, verification), settings.Current);
+        _plugins = BuiltInPlugins.Create(new(DispatcherQueue, _hwnd, verification), settings);
         _plugins.Received += ReceiveNotification;
         _tray = new TrayIcon(_hwnd,
             () => DispatcherQueue.TryEnqueue(ExitApplication),
@@ -177,7 +177,7 @@ public sealed class MainWindow : Window
             _settingsWindow = new SettingsWindow(_settings, _updates,
                 () => new SettingsSnapshot(_plugins.Access, AppInitialization.HasIdentity, _plugins.Snapshot(), _gameMode.Reason),
                 InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult, _verification,
-                _plugins.RetryAsync);
+                _plugins.RetryAsync, _plugins.SetEnabledAsync);
             _showUpdateResult = false;
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }

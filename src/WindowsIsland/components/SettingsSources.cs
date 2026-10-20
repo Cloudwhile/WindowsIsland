@@ -12,14 +12,17 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     private readonly SettingsStore _store;
     private readonly Action<Exception> _failed;
     private readonly Func<string, Task> _retry;
+    private readonly Func<string, bool, Task> _setEnabled;
     private readonly Dictionary<string, Controls> _rows = [];
     private bool _syncing, _disposed;
 
-    public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry)
+    public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
+        Func<string, bool, Task>? setEnabled = null)
     {
         _store = store;
         _failed = failed;
         _retry = retry;
+        _setEnabled = setEnabled ?? ((_, _) => Task.CompletedTask);
     }
 
     public void Refresh(IReadOnlyList<NotificationPluginStatus> plugins, bool busy)
@@ -37,10 +40,10 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
                     LocalizedUI.Label(toggle, definition.TitleKey);
                     AutomationProperties.SetAutomationId(toggle, definition.ToggleId);
-                    toggle.Toggled += (_, _) =>
+                    toggle.Toggled += async (_, _) =>
                     {
                         if (_syncing || _disposed) return;
-                        try { _store.Save(definition.SetEnabled(_store.Current, toggle.IsOn)); }
+                        try { await _setEnabled(definition.Id, toggle.IsOn); }
                         catch (Exception error) { _failed(error); }
                         finally
                         {

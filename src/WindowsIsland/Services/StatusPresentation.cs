@@ -53,7 +53,14 @@ internal static class DiagnosticPresentation
     {
         if (entry.Operation.StartsWith("Accessibility.", StringComparison.Ordinal)) return Localization.Get("DiagnosticTitleAccessibilityFailed");
         if (Titles.TryGetValue(entry.Operation, out var key)) return Localization.Get(key);
-        return Localization.Format("DiagnosticTitleFallback", Localization.Get("DiagnosticsArea" + entry.Area), entry.Operation);
+        var area = entry.Area switch
+        {
+            DiagnosticArea.SystemPlugin or DiagnosticArea.PowerPlugin => DiagnosticArea.Notifications,
+            DiagnosticArea.WeChatPlugin => DiagnosticArea.WeChat,
+            DiagnosticArea.TelegramPlugin => DiagnosticArea.Telegram,
+            _ => entry.Area
+        };
+        return Localization.Format("DiagnosticTitleFallback", Localization.Get("DiagnosticsArea" + area), entry.Operation);
     }
 
     public static string Summary(DiagnosticEntry entry) => Localization.Format(
@@ -76,7 +83,7 @@ internal static class DiagnosticPresentation
     }
 
     public static bool CanRetrySource(DiagnosticEntry entry) => Outcome(entry) == DiagnosticOutcome.Failure
-        && entry.Area == DiagnosticArea.WeChat && entry.Operation.StartsWith("Accessibility", StringComparison.Ordinal);
+        && entry.Area is DiagnosticArea.WeChat or DiagnosticArea.WeChatPlugin && entry.Operation.StartsWith("Accessibility", StringComparison.Ordinal);
 
     public static string? Suggestion(DiagnosticEntry entry) => Outcome(entry) == DiagnosticOutcome.Success ? null
         : Localization.Get(CanRetrySource(entry) ? "DiagnosticSuggestionRetry" : "DiagnosticSuggestionReport");

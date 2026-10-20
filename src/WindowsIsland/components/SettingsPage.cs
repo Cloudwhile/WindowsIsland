@@ -63,7 +63,8 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     public SettingsPage(SettingsStore store, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false,
-        Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null)
+        Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null,
+        Func<string, bool, Task>? setSourceEnabled = null)
     {
         _store = store;
         retrySource ??= _ => Task.CompletedTask;
@@ -135,7 +136,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             Diagnostics.Capture(DiagnosticArea.Settings, error, "SaveSourcePreference");
             ShowError("ErrorSettingsSave");
             Refresh();
-        }, async id => { await retrySource(id); Refresh(); });
+        }, async id => { await retrySource(id); Refresh(); }, setSourceEnabled);
         _muteDuringGames = Switch("MuteDuringGames", "MuteDuringGamesToggle", settings => settings.MuteDuringGames,
             (settings, value) => settings with { MuteDuringGames = value });
         _gameModeRow = new SettingsRow(Symbol.Mute, "MuteDuringGames", _muteDuringGames, "GameModeStatus");

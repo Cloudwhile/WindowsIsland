@@ -17,7 +17,14 @@
     <Compile Include="../../src/WindowsIsland/Services/InitializationPolicy.cs" Link="InitializationPolicy.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationElevation.cs" Link="InitializationElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
-    <Compile Include="../../src/WindowsIsland/Plugins/NotificationPluginHost.cs" Link="Plugins/NotificationPluginHost.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.cs" Link="Plugins/PluginManager.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginContext.cs" Link="Plugins/PluginContext.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginNotificationBridge.cs" Link="Plugins/PluginNotificationBridge.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/BuiltInMessageSource.cs" Link="Plugins/BuiltInMessageSource.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PowerPlugin.cs" Link="Plugins/PowerPlugin.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/SystemNotificationPlugin.cs" Link="Plugins/SystemNotificationPlugin.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/TelegramPlugin.cs" Link="Plugins/TelegramPlugin.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/WeChatPlugin.cs" Link="Plugins/WeChatPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginDefinitions.cs" Link="Plugins/BuiltInPluginDefinitions.cs" />
     <Compile Include="../../src/WindowsIsland/Services/Diagnostics.cs" Link="Diagnostics.cs" />
     <Compile Include="../../src/WindowsIsland/Services/DiagnosticStore.cs" Link="DiagnosticStore.cs" />
@@ -39,6 +46,7 @@
     <Compile Include="../../src/WindowsIsland/Services/PowerState.cs" Link="PowerState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessengerPopupRules.cs" Link="MessengerPopupRules.cs" />
     <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/PluginPreferences.cs" Link="PluginPreferences.cs" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationPlacement.cs" Link="NotificationPlacement.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatState.cs" Link="WeChatState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/WeChatConnectionHealth.cs" Link="WeChatConnectionHealth.cs" />

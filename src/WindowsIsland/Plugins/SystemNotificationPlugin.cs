@@ -1,32 +1,29 @@
-using WindowsIsland.Services;
+using WindowsIsland.Contracts;
 
 namespace WindowsIsland.Plugins;
 
-internal sealed class SystemNotificationPlugin(BuiltInPluginContext context) : NotificationPlugin, INotificationAccessPlugin
+internal sealed class SystemNotificationPlugin() : BuiltInMessageSource("system", "System notifications"), IPluginNotificationAccess
 {
-    private NotificationService? _service;
-    public NotificationAccess Access => _service?.Access ?? NotificationAccess.Waiting;
-    public event Action<NotificationAccess>? AccessChanged;
-    public override string StatusKey => Access == NotificationAccess.Allowed ? "On" : "AwaitingPermission";
+    private IPluginNotificationAccess? _access;
+    public PluginNotificationAccess Access => _access?.Access ?? PluginNotificationAccess.Waiting;
+    public event Action<PluginNotificationAccess>? AccessChanged;
 
     public override async Task StartAsync()
     {
-        if (IsDisposed || _service is not null) return;
-        _service = new NotificationService(context.Dispatcher);
-        _service.Received += Publish;
-        _service.AccessChanged += OnAccessChanged;
-        await _service.InitializeAsync(requestAccess: context.Verification);
+        await base.StartAsync();
+        if (ReferenceEquals(_access, Backend)) return;
+        _access = Backend as IPluginNotificationAccess;
+        if (_access is not null) _access.AccessChanged += OnAccessChanged;
     }
 
-    public override Task PollAsync() => IsDisposed ? Task.CompletedTask : _service?.PollAsync() ?? Task.CompletedTask;
-    public Task RequestAccessAsync() => IsDisposed ? Task.CompletedTask : _service?.InitializeAsync() ?? Task.CompletedTask;
-    private void OnAccessChanged(NotificationAccess access) { if (!IsDisposed) AccessChanged?.Invoke(access); }
-    protected override void DisposeCore()
+    public override Task StopAsync()
     {
+        if (_access is not null) _access.AccessChanged -= OnAccessChanged;
+        _access = null;
         AccessChanged = null;
-        if (_service is null) return;
-        _service.Received -= Publish;
-        _service.AccessChanged -= OnAccessChanged;
-        _service.Dispose();
+        return base.StopAsync();
     }
+
+    public Task RequestAccessAsync() => _access?.RequestAccessAsync() ?? Task.CompletedTask;
+    private void OnAccessChanged(PluginNotificationAccess value) => AccessChanged?.Invoke(value);
 }

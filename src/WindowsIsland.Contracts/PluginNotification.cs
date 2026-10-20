@@ -16,7 +16,8 @@ namespace WindowsIsland.Contracts;
 /// <param name="Id">来源内的通知编号。</param>
 /// <param name="Symbol">无图像时可选的符号字形文本，由宿主解释和呈现。</param>
 /// <param name="IsMetadataUpdate">是否仅补全已有通知的图像等元数据，不代表新消息。</param>
+/// <param name="Kind">通知的传递途径，用于保留既有管线的合并优先级。</param>
 public sealed record PluginNotification(string SourceId, string ConversationName, string? Sender, string Body,
     DateTimeOffset CreatedAt, byte[]? AppIcon = null, byte[]? SenderAvatar = null, string? DeduplicationKey = null,
     int? OriginProcessId = null, string? AppName = null, string? AppId = null, uint Id = 0, string? Symbol = null,
-    bool IsMetadataUpdate = false);
+    bool IsMetadataUpdate = false, PluginNotificationKind Kind = PluginNotificationKind.SystemNotification);

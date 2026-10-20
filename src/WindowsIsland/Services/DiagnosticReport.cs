@@ -2,15 +2,25 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using WindowsIsland.Contracts;
+using System.Text.Json.Serialization;
 
 namespace WindowsIsland.Services;
 
-internal enum DiagnosticArea { Application, Settings, Notifications, WeChat, Telegram, Updates, WindowsSettings, Diagnostics }
+internal enum DiagnosticArea
+{
+    Application, Settings, Notifications, WeChat, Telegram, Updates, WindowsSettings, Diagnostics,
+    [JsonStringEnumMemberName("system")] SystemPlugin,
+    [JsonStringEnumMemberName("telegram")] TelegramPlugin,
+    [JsonStringEnumMemberName("power")] PowerPlugin,
+    [JsonStringEnumMemberName("wechat")] WeChatPlugin
+}
 
 internal sealed record DiagnosticFrame(string Method, int Token, int Offset, string Module);
 internal sealed record DiagnosticError(string Type, int HResult, DiagnosticFrame[] Frames);
 internal sealed record DiagnosticEntry(string Id, string Fingerprint, string AppVersion, DateTimeOffset FirstSeen, DateTimeOffset LastSeen,
-    DiagnosticArea Area, string Operation, bool Fatal, int Count, DiagnosticError[] Errors, string? ClientVersion = null);
+    DiagnosticArea Area, string Operation, bool Fatal, int Count, DiagnosticError[] Errors, string? ClientVersion = null,
+    string? PluginId = null);
 internal sealed record DiagnosticReport(int SchemaVersion, string AppVersion, string OperatingSystem, string Architecture,
     string Runtime, DateTimeOffset ExportedAt, DiagnosticEntry[] Events);
 
@@ -23,7 +33,7 @@ internal static class DiagnosticReports
         Environment.Version.ToString(), DateTimeOffset.UtcNow, entries);
 
     public static DiagnosticEntry Capture(DiagnosticArea area, string operation, Exception? error, bool fatal, DateTimeOffset now,
-        string? clientVersion = null)
+        string? clientVersion = null, string? pluginId = null, PluginDiagnosticInfo? information = null)
     {
         var errors = new List<DiagnosticError>();
         var pending = new Queue<Exception>();
@@ -45,11 +55,13 @@ internal static class DiagnosticReports
             else if (current.InnerException is { } inner) pending.Enqueue(inner);
         }
         operation = Identifier(operation, 80);
-        var identity = $"{AppVersion}/{area}/{operation}/{fatal}/" + string.Join('/', errors.Select(item =>
+        if (error is null && information?.ExceptionType is { } type)
+            errors.Add(new(Identifier(type, 160), information.HResult ?? 0, []));
+        var identity = $"{AppVersion}/{area}/{operation}/{fatal}/" + (pluginId is null ? "" : pluginId + "/") + string.Join('/', errors.Select(item =>
             item.Type + ":" + item.HResult + ":" + string.Join(',', item.Frames.Select(frame => frame.Method))));
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)))[..16];
         return new(Guid.NewGuid().ToString("N")[..12], fingerprint, AppVersion, now, now, area, operation, fatal, 1, errors.ToArray(),
-            ClientVersion(clientVersion));
+            ClientVersion(clientVersion ?? information?.ClientVersion), pluginId);
     }
 
     // Third-party client versions are reduced to their numeric form; the merge identity ignores them.
