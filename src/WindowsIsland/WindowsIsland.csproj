@@ -19,6 +19,9 @@
     <NeutralLanguage>zh-CN</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\WindowsIsland.Contracts\WindowsIsland.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.13" />
     <KnownAppHostPack Update="Microsoft.NETCore.App" AppHostPackVersion="10.0.13" />
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="10.0.13" />

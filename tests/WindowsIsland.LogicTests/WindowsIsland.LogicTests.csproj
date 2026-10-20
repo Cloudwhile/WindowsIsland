@@ -7,6 +7,9 @@
     <NeutralLanguage>zh-CN</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <Compile Include="../../src/WindowsIsland/Services/RegisteredRestart.cs" Link="RegisteredRestart.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationResources.cs" Link="InitializationResources.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationPreparation.cs" Link="InitializationPreparation.cs" />

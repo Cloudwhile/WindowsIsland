@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+    <Project Path="src/WindowsIsland/WindowsIsland.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WindowsIsland.HookFixture/WindowsIsland.HookFixture.csproj" />
+    <Project Path="tests/WindowsIsland.InitializationTests/WindowsIsland.InitializationTests.csproj" />
+    <Project Path="tests/WindowsIsland.LogicTests/WindowsIsland.LogicTests.csproj" />
+    <Project Path="tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj" />
+    <Project Path="tests/WindowsIsland.WeChatTests/WindowsIsland.WeChatTests.csproj" />
+  </Folder>
+</Solution>
