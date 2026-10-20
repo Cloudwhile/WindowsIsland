@@ -1,7 +1,9 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 using WindowsIsland.Contracts;
+using WindowsIsland.Plugins;
 
 namespace WindowsIsland.Services;
 
@@ -149,7 +151,15 @@ internal sealed class DiagnosticStore : IDisposable
             if (!File.Exists(_path)) return;
             using var file = File.OpenRead(_path);
             if (file.Length > MaximumBytes) return;
-            var entries = JsonSerializer.Deserialize<DiagnosticEntry[]>(file, Json) ?? [];
+            var document = JsonNode.Parse(file);
+            if (document is JsonArray events)
+                foreach (var item in events.OfType<JsonObject>())
+                {
+                    foreach (var key in new[] { nameof(DiagnosticEntry.Area), nameof(DiagnosticEntry.PluginId) })
+                        if (item[key] is JsonValue value && value.TryGetValue<string>(out var id))
+                            item[key] = BuiltInPluginIds.FromLegacy(id);
+                }
+            var entries = document?.Deserialize<DiagnosticEntry[]>(Json) ?? [];
             // Do not forward arbitrary edited log content through the report export.
             _entries.AddRange(entries.Where(Valid).TakeLast(MaximumEntries));
             Prune(_clock());

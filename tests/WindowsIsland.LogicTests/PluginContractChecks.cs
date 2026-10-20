@@ -19,7 +19,7 @@ internal static class PluginContractChecks
             Console.WriteLine($"PASS {name}");
         }
 
-        var manifest = new PluginManifest("example.wechat", "微信消息来源", "1.2.3-alpha.1", "Example.WeChat.dll",
+        var manifest = new PluginManifest("wini_example_wechat_plugin", "微信消息来源", "1.2.3-alpha.1", "Example.WeChat.dll",
             "Example.WeChat.MessageSource", PluginContract.Version, ["notifications", "settings"], "示例作者", "会话监听与头像补全");
         foreach (var options in new[] { new JsonSerializerOptions(), new JsonSerializerOptions(JsonSerializerDefaults.Web) })
         {
@@ -35,12 +35,19 @@ internal static class PluginContractChecks
             && restoredMinimal with { Permissions = minimal.Permissions } == minimal,
             "Plugin manifest round-trips empty permissions and absent optional metadata");
         var external = JsonSerializer.Deserialize<PluginManifest>("""
-            {"Id":"example.external","Name":"外部来源","Version":"2.0.0","EntryAssembly":"External.dll",
+            {"Id":"wini_example_external_plugin","Name":"外部来源","Version":"2.0.0","EntryAssembly":"External.dll",
              "EntryType":"External.Source","ContractVersion":1,"Permissions":["notifications"]}
             """)!;
-        Check(external.Id == "example.external" && external.ContractVersion == PluginContract.Version
+        Check(external.Id == "wini_example_external_plugin" && external.ContractVersion == PluginContract.Version
             && external.Author is null && external.Description is null && external.Permissions.SequenceEqual(["notifications"]),
             "Plugin manifests authored outside the host deserialize without optional metadata");
+
+        foreach (var id in new[] { "wini_system_plugin", "wini_wechat_plugin", "wini_my_source2_plugin" })
+            Check(PluginId.IsValid(id), "Canonical plugin identifier is accepted: " + id);
+        foreach (var id in new string?[] { null, "", "system", "wini_plugin", "wini__plugin", "wini_WeChat_plugin",
+            "WINI_wechat_plugin", "wini_1chat_plugin", "wini_chat__source_plugin", "wini_chat__plugin",
+            "wini_微信_plugin", "wini_chat plugin", "wini_chat_widget", "wini_chat_plugin.dll", " wini_chat_plugin" })
+            Check(!PluginId.IsValid(id), "Malformed plugin identifier is rejected: " + id);
 
         Check(PluginContract.Version == 1 && PluginContract.IsCompatible(1), "Current plugin contract is version one and compatible");
         foreach (var version in new[] { int.MinValue, -1, 0, 2, int.MaxValue })
@@ -52,7 +59,7 @@ internal static class PluginContractChecks
             && !PluginContract.IsCompatible(1, 0) && !PluginContract.IsCompatible(1, -1),
             "Invalid major versions are incompatible even when equal");
 
-        var notification = new PluginNotification("example.wechat", "测试会话", "发送者", "新消息",
+        var notification = new PluginNotification("wini_example_wechat_plugin", "测试会话", "发送者", "新消息",
             DateTimeOffset.Parse("2026-10-20T08:30:00+08:00"), AppIcon: [1, 2], SenderAvatar: [3, 4],
             DeduplicationKey: "conversation/event-1", OriginProcessId: 1234, AppName: "WeChat", AppId: "wechat", Id: 7,
             Symbol: "消息", IsMetadataUpdate: true);

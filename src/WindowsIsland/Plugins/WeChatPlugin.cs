@@ -2,7 +2,7 @@ using WindowsIsland.Contracts;
 
 namespace WindowsIsland.Plugins;
 
-internal sealed class WeChatPlugin() : BuiltInMessageSource("wechat", "WeChat"), IPluginRetry
+internal sealed class WeChatPlugin() : BuiltInMessageSource(BuiltInPluginIds.WeChat, "WeChat"), IPluginRetry
 {
     private readonly string _session = Guid.NewGuid().ToString("N");
     public bool CanRetry => Backend is IPluginRetry { CanRetry: true };

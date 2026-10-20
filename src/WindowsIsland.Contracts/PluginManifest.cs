@@ -1,7 +1,7 @@
 namespace WindowsIsland.Contracts;
 
 /// <summary>描述可由 System.Text.Json 读写的插件清单，不负责加载程序集或授予权限。</summary>
-/// <param name="Id">插件全局唯一标识。</param>
+/// <param name="Id">插件全局唯一标识，格式为 wini_名称_plugin。</param>
 /// <param name="Name">插件显示名称。</param>
 /// <param name="Version">插件自身的版本字符串。</param>
 /// <param name="EntryAssembly">相对于插件目录的入口程序集文件名。</param>

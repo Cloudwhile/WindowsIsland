@@ -18,10 +18,10 @@ internal sealed partial class PluginManager
         else context.Dispatcher.TryEnqueue(() => action());
     }, id => id switch
     {
-        "power" => new PowerBackend(context),
-        "system" => new SystemBackend(context),
-        "telegram" => new TelegramBackend(context),
-        "wechat" => new WeChatBackend(context),
+        BuiltInPluginIds.Power => new PowerBackend(context),
+        BuiltInPluginIds.System => new SystemBackend(context),
+        BuiltInPluginIds.Telegram => new TelegramBackend(context),
+        BuiltInPluginIds.WeChat => new WeChatBackend(context),
         _ => null
     });
 
@@ -47,7 +47,7 @@ internal sealed partial class PluginManager
         }
     }
 
-    private sealed class PowerBackend(BuiltInPluginContext context) : SourceBackend("power")
+    private sealed class PowerBackend(BuiltInPluginContext context) : SourceBackend(BuiltInPluginIds.Power)
     {
         private PowerService? _service;
         public override PluginStatus Status => new(PluginConnectionState.Connected);
@@ -73,7 +73,7 @@ internal sealed partial class PluginManager
         }
     }
 
-    private sealed class SystemBackend(BuiltInPluginContext context) : SourceBackend("system"), IPluginNotificationAccess
+    private sealed class SystemBackend(BuiltInPluginContext context) : SourceBackend(BuiltInPluginIds.System), IPluginNotificationAccess
     {
         private NotificationService? _service;
         public PluginNotificationAccess Access => (PluginNotificationAccess)(_service?.Access ?? NotificationAccess.Waiting);
@@ -108,7 +108,7 @@ internal sealed partial class PluginManager
         }
     }
 
-    private sealed class TelegramBackend(BuiltInPluginContext context) : SourceBackend("telegram")
+    private sealed class TelegramBackend(BuiltInPluginContext context) : SourceBackend(BuiltInPluginIds.Telegram)
     {
         private TelegramNativeService? _native;
         private MessengerHookService? _popups;
@@ -159,7 +159,7 @@ internal sealed partial class PluginManager
         }
     }
 
-    private sealed class WeChatBackend(BuiltInPluginContext context) : SourceBackend("wechat"), IPluginRetry
+    private sealed class WeChatBackend(BuiltInPluginContext context) : SourceBackend(BuiltInPluginIds.WeChat), IPluginRetry
     {
         private WeChatService? _reader;
         private MessengerHookService? _popups;

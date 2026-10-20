@@ -4,16 +4,17 @@ using System.Security.Cryptography;
 using System.Text;
 using WindowsIsland.Contracts;
 using System.Text.Json.Serialization;
+using WindowsIsland.Plugins;
 
 namespace WindowsIsland.Services;
 
 internal enum DiagnosticArea
 {
     Application, Settings, Notifications, WeChat, Telegram, Updates, WindowsSettings, Diagnostics,
-    [JsonStringEnumMemberName("system")] SystemPlugin,
-    [JsonStringEnumMemberName("telegram")] TelegramPlugin,
-    [JsonStringEnumMemberName("power")] PowerPlugin,
-    [JsonStringEnumMemberName("wechat")] WeChatPlugin
+    [JsonStringEnumMemberName(BuiltInPluginIds.System)] SystemPlugin,
+    [JsonStringEnumMemberName(BuiltInPluginIds.Telegram)] TelegramPlugin,
+    [JsonStringEnumMemberName(BuiltInPluginIds.Power)] PowerPlugin,
+    [JsonStringEnumMemberName(BuiltInPluginIds.WeChat)] WeChatPlugin
 }
 
 internal sealed record DiagnosticFrame(string Method, int Token, int Offset, string Module);

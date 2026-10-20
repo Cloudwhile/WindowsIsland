@@ -46,6 +46,7 @@ internal sealed partial class SettingsStore
             var json = JsonNode.Parse(File.ReadAllText(_path));
             if (json is JsonObject pluginRoot && pluginRoot["Plugins"] is JsonObject pluginPreferences)
                 _pluginPreferences = (JsonObject)pluginPreferences.DeepClone();
+            MigratePluginPreferences();
             if (json is JsonObject oldPreferences && !oldPreferences.ContainsKey(nameof(AppSettings.MuteDuringFullScreen)))
             {
                 var oldMute = oldPreferences[nameof(AppSettings.MuteDuringGames)];

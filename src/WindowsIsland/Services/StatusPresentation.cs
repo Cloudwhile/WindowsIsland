@@ -1,3 +1,5 @@
+using WindowsIsland.Plugins;
+
 namespace WindowsIsland.Services;
 
 internal enum StatusTone { Neutral, Success, Critical }
@@ -18,9 +20,9 @@ internal static class SourceStatus
     // Secondary guidance shown below a source; null when the status needs no explanation.
     public static string? DetailKey(string id, string key) => (id, key) switch
     {
-        ("wechat", "WeChatUnsupported") => "WeChatUnsupportedDetail",
-        ("wechat", "WeChatConnectFailed") => "WeChatConnectFailedDetail",
-        ("telegram", "TelegramNotDetected") => "TelegramNotDetectedDetail",
+        (BuiltInPluginIds.WeChat, "WeChatUnsupported") => "WeChatUnsupportedDetail",
+        (BuiltInPluginIds.WeChat, "WeChatConnectFailed") => "WeChatConnectFailedDetail",
+        (BuiltInPluginIds.Telegram, "TelegramNotDetected") => "TelegramNotDetectedDetail",
         _ => null
     };
 }

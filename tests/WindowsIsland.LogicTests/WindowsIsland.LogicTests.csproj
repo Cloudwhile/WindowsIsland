@@ -26,6 +26,7 @@
     <Compile Include="../../src/WindowsIsland/Plugins/TelegramPlugin.cs" Link="Plugins/TelegramPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/WeChatPlugin.cs" Link="Plugins/WeChatPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginDefinitions.cs" Link="Plugins/BuiltInPluginDefinitions.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginIds.cs" Link="Plugins/BuiltInPluginIds.cs" />
     <Compile Include="../../src/WindowsIsland/Services/Diagnostics.cs" Link="Diagnostics.cs" />
     <Compile Include="../../src/WindowsIsland/Services/DiagnosticStore.cs" Link="DiagnosticStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/DiagnosticReport.cs" Link="DiagnosticReport.cs" />

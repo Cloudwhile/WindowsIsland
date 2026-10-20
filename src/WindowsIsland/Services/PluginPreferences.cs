@@ -1,9 +1,25 @@
 using System.Text.Json.Nodes;
+using WindowsIsland.Plugins;
 
 namespace WindowsIsland.Services;
 
 internal sealed partial class SettingsStore
 {
+    private void MigratePluginPreferences()
+    {
+        foreach (var pair in _pluginPreferences.ToArray())
+        {
+            var id = BuiltInPluginIds.FromLegacy(pair.Key);
+            if (id == pair.Key || pair.Value is not JsonObject legacy) continue;
+            if (_pluginPreferences[id] is not JsonObject current)
+                _pluginPreferences[id] = legacy.DeepClone();
+            else
+                foreach (var setting in legacy)
+                    if (!current.ContainsKey(setting.Key)) current[setting.Key] = setting.Value?.DeepClone();
+            _pluginPreferences.Remove(pair.Key);
+        }
+    }
+
     public string? GetPluginString(string id, string key, string? fallback)
     {
         lock (_gate) return PluginValue(id, key) is JsonValue value && value.TryGetValue<string>(out var text) ? text : fallback;

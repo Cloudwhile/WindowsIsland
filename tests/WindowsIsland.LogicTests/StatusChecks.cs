@@ -1,4 +1,5 @@
 using WindowsIsland.Services;
+using WindowsIsland.Plugins;
 
 internal static class StatusChecks
 {
@@ -30,9 +31,9 @@ internal static class StatusChecks
         check(SourceStatus.Tone("Connected") == StatusTone.Success && SourceStatus.Tone("WeChatUnsupported") == StatusTone.Critical
             && SourceStatus.Tone("NotRunning") == StatusTone.Neutral && SourceStatus.Tone("Off") == StatusTone.Neutral,
             "Source states map to success, failure and neutral tones");
-        check(SourceStatus.DetailKey("wechat", "WeChatUnsupported") == "WeChatUnsupportedDetail"
-            && SourceStatus.DetailKey("telegram", "TelegramNotDetected") == "TelegramNotDetectedDetail"
-            && SourceStatus.DetailKey("wechat", "Connected") is null, "Only failed or missing sources show guidance");
+        check(SourceStatus.DetailKey(BuiltInPluginIds.WeChat, "WeChatUnsupported") == "WeChatUnsupportedDetail"
+            && SourceStatus.DetailKey(BuiltInPluginIds.Telegram, "TelegramNotDetected") == "TelegramNotDetectedDetail"
+            && SourceStatus.DetailKey(BuiltInPluginIds.WeChat, "Connected") is null, "Only failed or missing sources show guidance");
 
         var now = DateTimeOffset.UtcNow;
         DiagnosticEntry Entry(string operation, DiagnosticError[]? errors = null) => new("0123456789ab", "0123456789abcdef",

@@ -1,3 +1,3 @@
 namespace WindowsIsland.Plugins;
 
-internal sealed class TelegramPlugin() : BuiltInMessageSource("telegram", "Telegram");
+internal sealed class TelegramPlugin() : BuiltInMessageSource(BuiltInPluginIds.Telegram, "Telegram");

@@ -2,7 +2,7 @@ using WindowsIsland.Contracts;
 
 namespace WindowsIsland.Plugins;
 
-internal sealed class SystemNotificationPlugin() : BuiltInMessageSource("system", "System notifications"), IPluginNotificationAccess
+internal sealed class SystemNotificationPlugin() : BuiltInMessageSource(BuiltInPluginIds.System, "System notifications"), IPluginNotificationAccess
 {
     private IPluginNotificationAccess? _access;
     public PluginNotificationAccess Access => _access?.Access ?? PluginNotificationAccess.Waiting;

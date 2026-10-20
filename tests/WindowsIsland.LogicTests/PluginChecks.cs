@@ -10,8 +10,8 @@ internal static class PluginChecks
         var weChat = new List<FakePlugin>();
         var telegram = new List<FakePlugin>();
         using var host = new PluginManager([
-            new(BuiltInPluginDefinitions.WeChat, () => Add(weChat, "wechat")),
-            new(BuiltInPluginDefinitions.Telegram, () => Add(telegram, "telegram")),
+            new(BuiltInPluginDefinitions.WeChat, () => Add(weChat, BuiltInPluginIds.WeChat)),
+            new(BuiltInPluginDefinitions.Telegram, () => Add(telegram, BuiltInPluginIds.Telegram)),
             new(BuiltInPluginDefinitions.Power, () => throw new InvalidOperationException("Disabled factory ran"))
         ], Store(settings));
         var messages = new List<IslandNotification>();
@@ -43,7 +43,7 @@ internal static class PluginChecks
         check(host.Allows(toast), "Allowed conversations pass the same cross-source policy");
         var staleCallback = weChat[0].Received;
         await host.ApplySettingsAsync(settings with { WeChat = false });
-        staleCallback?.Invoke(PluginNotificationBridge.ToContract("wechat", chatMessage));
+        staleCallback?.Invoke(PluginNotificationBridge.ToContract(BuiltInPluginIds.WeChat, chatMessage));
         check(weChat[0].Disposals == 1 && weChat[0].Received is null && messages.Count == 1,
             "Disabling a plugin detaches events and rejects already queued callbacks");
         telegram[0].Emit(Message("telegram"));
@@ -61,7 +61,7 @@ internal static class PluginChecks
             check(!definition.IsEnabled(disabled) && definitions.Where(d => d != definition).All(d => d.IsEnabled(disabled)),
                 "Plugin preference remains independent and uses its existing field: " + definition.Id);
         }
-        check(host.Snapshot().Select(s => s.Definition.Id).SequenceEqual(new[] { "wechat", "telegram", "power" })
+        check(host.Snapshot().Select(s => s.Definition.Id).SequenceEqual(new[] { BuiltInPluginIds.WeChat, BuiltInPluginIds.Telegram, BuiltInPluginIds.Power })
             && host.Snapshot()[2].StatusKey == "Off", "Settings consume plugin metadata and current status");
         host.Dispose();
         host.Dispose();
@@ -74,7 +74,7 @@ internal static class PluginChecks
         {
             using var duplicate = new PluginManager([
                 new(BuiltInPluginDefinitions.WeChat, () => new FakePlugin()),
-                new(BuiltInPluginDefinitions.WeChat with { Id = "WECHAT" }, () => new FakePlugin())], Store(settings));
+                new(BuiltInPluginDefinitions.WeChat with { Id = BuiltInPluginIds.WeChat }, () => new FakePlugin())], Store(settings));
         }
         catch (ArgumentException) { duplicateRejected = true; }
         check(duplicateRejected, "Duplicate plugin IDs are rejected before factories run");
@@ -87,7 +87,7 @@ internal static class PluginChecks
     private static async Task CheckFailures(Action<bool, string> check, AppSettings settings)
     {
         var bad = new FakePlugin { FailStart = true, FailDispose = true };
-        var good = new FakePlugin("telegram");
+        var good = new FakePlugin(BuiltInPluginIds.Telegram);
         using var host = new PluginManager([
             new(BuiltInPluginDefinitions.WeChat, () => bad), new(BuiltInPluginDefinitions.Telegram, () => good)], Store(settings));
         await host.StartAsync();
@@ -110,7 +110,7 @@ internal static class PluginChecks
         check(!host.Allows(Message("telegram")) && good.Disposals == 1, "Filter failure fails closed and releases the plugin");
         using var factoryHost = new PluginManager([
             new(BuiltInPluginDefinitions.WeChat, () => throw new InvalidOperationException()),
-            new(BuiltInPluginDefinitions.Telegram, () => new FakePlugin("telegram"))], Store(settings));
+            new(BuiltInPluginDefinitions.Telegram, () => new FakePlugin(BuiltInPluginIds.Telegram))], Store(settings));
         await factoryHost.StartAsync();
         check(factoryHost.Snapshot()[0].StatusKey == "Unavailable" && factoryHost.Snapshot()[1].StatusKey == "Connected",
             "Factory failure is isolated from later plugins");
@@ -129,7 +129,7 @@ internal static class PluginChecks
         host.Received += _ => received++;
         var disable = host.ApplySettingsAsync(settings with { WeChat = false });
         var enable = host.ApplySettingsAsync(settings);
-        stale?.Invoke(PluginNotificationBridge.ToContract("wechat", Message("wechat")));
+        stale?.Invoke(PluginNotificationBridge.ToContract(BuiltInPluginIds.WeChat, Message("wechat")));
         check(slow.Disposals == 1 && received == 0, "Disable invalidates a plugin while its start is awaiting");
         started.SetException(new InvalidOperationException("Old start failed"));
         await Task.WhenAll(start, disable, enable);
@@ -172,7 +172,7 @@ internal static class PluginChecks
     private static IslandNotification Message(string app) => new(1, DateTimeOffset.UtcNow, app, "conversation", "body",
         Source: NotificationSource.ClientAutomation, AppId: app);
 
-    private class FakePlugin(string id = "wechat") : IMessageSource, IPluginPolling, IPluginNotificationFilter, IPluginStatusProvider
+    private class FakePlugin(string id = BuiltInPluginIds.WeChat) : IMessageSource, IPluginPolling, IPluginNotificationFilter, IPluginStatusProvider
     {
         // A field allows capturing a deliberately stale callback to test the host boundary.
         public Action<PluginNotification>? Received;
@@ -191,7 +191,7 @@ internal static class PluginChecks
         public void Dispose() { Disposals++; if (FailDispose) throw new InvalidOperationException(); }
         public void Emit(IslandNotification notification) => Received?.Invoke(PluginNotificationBridge.ToContract(Id, notification));
     }
-    private sealed class AccessPlugin() : FakePlugin("system"), IPluginNotificationAccess
+    private sealed class AccessPlugin() : FakePlugin(BuiltInPluginIds.System), IPluginNotificationAccess
     {
         public PluginNotificationAccess Access { get; private set; } = PluginNotificationAccess.Waiting;
         public int Requests;

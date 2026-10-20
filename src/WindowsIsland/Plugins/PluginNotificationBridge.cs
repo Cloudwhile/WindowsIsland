@@ -42,12 +42,12 @@ internal static class PluginNotificationBridge
 
     public static string StatusKey(string id, PluginStatus status) => status.State switch
     {
-        PluginConnectionState.Connected => id is "power" or "system" ? "On" : "Connected",
+        PluginConnectionState.Connected => id is BuiltInPluginIds.Power or BuiltInPluginIds.System ? "On" : "Connected",
         PluginConnectionState.NotRunning => status.Reason == PluginStatusReason.ClientNotDetected ? "TelegramNotDetected" : "NotRunning",
         _ => status.Reason switch
         {
             PluginStatusReason.VersionNotSupported => "WeChatUnsupported",
-            PluginStatusReason.ConnectionFailed when id == "wechat" => "WeChatConnectFailed",
+            PluginStatusReason.ConnectionFailed when id == BuiltInPluginIds.WeChat => "WeChatConnectFailed",
             PluginStatusReason.PermissionDenied => "Denied",
             PluginStatusReason.Unavailable or PluginStatusReason.ConnectionFailed => "Unavailable",
             _ => "NotConnected"

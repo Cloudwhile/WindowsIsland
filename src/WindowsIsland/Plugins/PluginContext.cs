@@ -31,10 +31,10 @@ internal sealed class PluginDiagnostics(string id, DiagnosticArea area) : IPlugi
 {
     private DiagnosticArea Area => id switch
     {
-        "system" => DiagnosticArea.SystemPlugin,
-        "telegram" => DiagnosticArea.TelegramPlugin,
-        "power" => DiagnosticArea.PowerPlugin,
-        "wechat" => DiagnosticArea.WeChatPlugin,
+        BuiltInPluginIds.System => DiagnosticArea.SystemPlugin,
+        BuiltInPluginIds.Telegram => DiagnosticArea.TelegramPlugin,
+        BuiltInPluginIds.Power => DiagnosticArea.PowerPlugin,
+        BuiltInPluginIds.WeChat => DiagnosticArea.WeChatPlugin,
         _ => area
     };
     public void Write(PluginDiagnostic diagnostic) => WindowsIsland.Services.Diagnostics.Store?.RecordPlugin(id, Area,

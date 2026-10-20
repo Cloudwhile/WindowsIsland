@@ -33,9 +33,9 @@ internal sealed partial class PluginManager : IDisposable
         Action<Action>? dispatch = null, Func<string, IMessageSourceBackend?>? backends = null)
     {
         var items = registrations.ToArray();
-        if (items.Any(item => string.IsNullOrWhiteSpace(item.Definition.Id))
+        if (items.Any(item => !PluginId.IsValid(item.Definition.Id))
             || items.Select(item => item.Definition.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != items.Length)
-            throw new ArgumentException("Plugin identifiers must be nonempty and unique.", nameof(registrations));
+            throw new ArgumentException("Plugin identifiers must follow wini_<name>_plugin and be unique.", nameof(registrations));
         _entries = items.Select(item => new Entry(item)).ToArray();
         _store = store;
         _settings = store.Current;

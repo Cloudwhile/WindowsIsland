@@ -11,6 +11,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+    <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginIds.cs" Link="Plugins/BuiltInPluginIds.cs" />
     <Compile Include="../../src/WindowsIsland/Services/Diagnostics.cs" Link="Diagnostics.cs" />
     <Compile Include="../../src/WindowsIsland/Services/DiagnosticStore.cs" Link="DiagnosticStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/DiagnosticReport.cs" Link="DiagnosticReport.cs" />
