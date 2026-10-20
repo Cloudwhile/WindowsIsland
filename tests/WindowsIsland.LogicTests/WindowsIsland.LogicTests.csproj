@@ -18,6 +18,8 @@
     <Compile Include="../../src/WindowsIsland/Services/InitializationElevation.cs" Link="InitializationElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.cs" Link="Plugins/PluginManager.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Removal.cs" Link="Plugins/PluginManager.Removal.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginMetadata.cs" Link="Plugins/PluginMetadata.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginContext.cs" Link="Plugins/PluginContext.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginNotificationBridge.cs" Link="Plugins/PluginNotificationBridge.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInMessageSource.cs" Link="Plugins/BuiltInMessageSource.cs" />

@@ -47,6 +47,7 @@ internal sealed partial class SettingsStore
             if (json is JsonObject pluginRoot && pluginRoot["Plugins"] is JsonObject pluginPreferences)
                 _pluginPreferences = (JsonObject)pluginPreferences.DeepClone();
             MigratePluginPreferences();
+            ReadPluginRemovals(json as JsonObject);
             if (json is JsonObject oldPreferences && !oldPreferences.ContainsKey(nameof(AppSettings.MuteDuringFullScreen)))
             {
                 var oldMute = oldPreferences[nameof(AppSettings.MuteDuringGames)];
@@ -100,6 +101,7 @@ internal sealed partial class SettingsStore
         var temporary = _path + ".tmp";
         var preferences = JsonSerializer.SerializeToNode(settings)!.AsObject();
         if (_pluginPreferences.Count > 0) preferences["Plugins"] = _pluginPreferences.DeepClone();
+        if (_removedPlugins.Count > 0) preferences["RemovedPlugins"] = JsonSerializer.SerializeToNode(_removedPlugins.Order());
         File.WriteAllText(temporary, preferences.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         File.Move(temporary, _path, overwrite: true);
     }

@@ -15,7 +15,7 @@ internal sealed partial class PluginManager : IDisposable
         public Action<PluginNotification>? Received;
         public Action<PluginNotificationAccess>? AccessChanged;
         public Task Cleanup = Task.CompletedTask;
-        public bool Active, Failed;
+        public bool Active, Failed, Removed;
     }
 
     private readonly Entry[] _entries;
@@ -38,6 +38,8 @@ internal sealed partial class PluginManager : IDisposable
             throw new ArgumentException("Plugin identifiers must follow wini_<name>_plugin and be unique.", nameof(registrations));
         _entries = items.Select(item => new Entry(item)).ToArray();
         _store = store;
+        foreach (var entry in _entries)
+            entry.Removed = entry.Registration.Definition.CanRemove && store.IsPluginRemoved(entry.Registration.Definition.Id);
         _settings = store.Current;
         _dispatch = dispatch ?? (action => action());
         _backends = backends;
@@ -55,6 +57,7 @@ internal sealed partial class PluginManager : IDisposable
         if (_disposed) return;
         var entry = _entries.FirstOrDefault(item => item.Registration.Definition.Id == id)
             ?? throw new ArgumentException("Unknown plugin identifier.", nameof(id));
+        if (entry.Removed) throw new InvalidOperationException("The plugin has been removed.");
         _store.Save(entry.Registration.Definition.SetEnabled(_store.Current, enabled));
         await ApplySettingsAsync(_store.Current);
     }
@@ -80,7 +83,7 @@ internal sealed partial class PluginManager : IDisposable
                 if (_disposed) return;
                 await entry.Cleanup;
                 if (_disposed) return;
-                if (!entry.Registration.Definition.IsEnabled(_settings)) { Stop(entry); entry.Failed = false; continue; }
+                if (entry.Removed || !entry.Registration.Definition.IsEnabled(_settings)) { Stop(entry); entry.Failed = false; continue; }
                 if (entry.Plugin is not null || entry.Failed) continue;
                 IMessageSource? starting = null;
                 var operation = "Create";
@@ -180,7 +183,7 @@ internal sealed partial class PluginManager : IDisposable
         finally { _operations.Release(); }
     }
 
-    public IReadOnlyList<NotificationPluginStatus> Snapshot() => _entries.Select(entry =>
+    public IReadOnlyList<NotificationPluginStatus> Snapshot() => _entries.Where(entry => !entry.Removed).Select(entry =>
     {
         var key = "Off";
         var retry = false;
@@ -207,7 +210,7 @@ internal sealed partial class PluginManager : IDisposable
     {
         if (_disposed) return Task.CompletedTask;
         var entry = _entries.FirstOrDefault(item => item.Registration.Definition.Id == id);
-        if (entry is null || !entry.Registration.Definition.IsEnabled(_settings)) return Task.CompletedTask;
+        if (entry is null || entry.Removed || !entry.Registration.Definition.IsEnabled(_settings)) return Task.CompletedTask;
         if (entry.Failed) { entry.Failed = false; return _started ? ReconcileAsync() : Task.CompletedTask; }
         if (entry.Plugin is IPluginRetry plugin)
         {

@@ -1,10 +1,43 @@
 using System.Text.Json.Nodes;
 using WindowsIsland.Plugins;
+using WindowsIsland.Contracts;
 
 namespace WindowsIsland.Services;
 
 internal sealed partial class SettingsStore
 {
+    private readonly HashSet<string> _removedPlugins = new(StringComparer.Ordinal);
+
+    private void ReadPluginRemovals(JsonObject? root)
+    {
+        if (root?["RemovedPlugins"] is not JsonArray values) return;
+        foreach (var node in values)
+            if (node is JsonValue value && value.TryGetValue<string>(out var id) && PluginId.IsValid(id)
+                && id is not (BuiltInPluginIds.System or BuiltInPluginIds.WeChat or BuiltInPluginIds.Telegram or BuiltInPluginIds.Power))
+                _removedPlugins.Add(id);
+    }
+
+    /// <summary>读取宿主保存的插件删除标记。</summary>
+    public bool IsPluginRemoved(string id) { lock (_gate) return _removedPlugins.Contains(id); }
+
+    /// <summary>原子保存删除标记并清除该插件的设置，失败时恢复原内存状态。</summary>
+    public void RemovePlugin(string id)
+    {
+        lock (_gate)
+        {
+            var previous = _pluginPreferences[id]?.DeepClone();
+            var added = _removedPlugins.Add(id);
+            _pluginPreferences.Remove(id);
+            try { Persist(Current); }
+            catch
+            {
+                if (previous is not null) _pluginPreferences[id] = previous;
+                if (added) _removedPlugins.Remove(id);
+                throw;
+            }
+        }
+    }
+
     private void MigratePluginPreferences()
     {
         foreach (var pair in _pluginPreferences.ToArray())
@@ -41,6 +74,7 @@ internal sealed partial class SettingsStore
         ArgumentException.ThrowIfNullOrWhiteSpace(key);
         lock (_gate)
         {
+            if (_removedPlugins.Contains(id)) return;
             var previous = (JsonObject)_pluginPreferences.DeepClone();
             if (_pluginPreferences[id] is not JsonObject values) _pluginPreferences[id] = values = new();
             if (value is null) values.Remove(key);

@@ -24,7 +24,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     // Page-specific toolbar: preview where notification appearance matters, refresh where status is shown.
     private readonly IconActionButton _previewButton = new(0xE7E7, "ActionPreview", "PreviewNotification");
     private readonly IconActionButton _refreshButton = new(Symbol.Refresh, "ActionRefreshStatus", "RefreshSettings");
-    private static readonly HashSet<string> PreviewSections = ["sources", "appearance"], RefreshSections = ["setup", "sources"];
+    private static readonly HashSet<string> PreviewSections = ["sources", "appearance"], RefreshSections = ["setup", "sources", "plugins"];
     private readonly SettingsRow _initializationRow, _permissionRow;
     private readonly SettingsSources _sources;
     private readonly SettingsRow _animationsRow;
@@ -64,7 +64,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     public SettingsPage(SettingsStore store, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false,
         Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null,
-        Func<string, bool, Task>? setSourceEnabled = null)
+        Func<string, bool, Task>? setSourceEnabled = null, Func<string, Task>? removePlugin = null)
     {
         _store = store;
         retrySource ??= _ => Task.CompletedTask;
@@ -136,14 +136,16 @@ internal sealed class SettingsPage : Grid, IDisposable
             Diagnostics.Capture(DiagnosticArea.Settings, error, "SaveSourcePreference");
             ShowError("ErrorSettingsSave");
             Refresh();
-        }, async id => { await retrySource(id); Refresh(); }, setSourceEnabled);
+        }, async id => { await retrySource(id); Refresh(); }, setSourceEnabled,
+            async id => { if (removePlugin is not null) await removePlugin(id); Refresh(); });
         _muteDuringGames = Switch("MuteDuringGames", "MuteDuringGamesToggle", settings => settings.MuteDuringGames,
             (settings, value) => settings with { MuteDuringGames = value });
         _gameModeRow = new SettingsRow(Symbol.Mute, "MuteDuringGames", _muteDuringGames, "GameModeStatus");
         _muteDuringFullScreen = Switch("MuteDuringFullScreen", "MuteDuringFullScreenToggle", settings => settings.MuteDuringFullScreen,
             (settings, value) => settings with { MuteDuringFullScreen = value });
         _fullScreenRow = new SettingsRow(Symbol.FullScreen, "MuteDuringFullScreen", _muteDuringFullScreen, "FullScreenStatus");
-        AddSection("sources", "Sources", new SettingsSection("Sources", _sources),
+        AddSection("plugins", "PluginList", new SettingsSection("Sources", _sources));
+        AddSection("sources", "Sources",
             new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),
             new SettingsSection("NotificationDisplay", _doNotDisturbSettings));
         _updates = new SettingsUpdates(store, updates, exit);

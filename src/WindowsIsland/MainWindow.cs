@@ -177,7 +177,7 @@ public sealed class MainWindow : Window
             _settingsWindow = new SettingsWindow(_settings, _updates,
                 () => new SettingsSnapshot(_plugins.Access, AppInitialization.HasIdentity, _plugins.Snapshot(), _gameMode.Reason),
                 InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult, _verification,
-                _plugins.RetryAsync, _plugins.SetEnabledAsync);
+                _plugins.RetryAsync, _plugins.SetEnabledAsync, RemovePluginAsync);
             _showUpdateResult = false;
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
@@ -188,6 +188,13 @@ public sealed class MainWindow : Window
     {
         var appId = await AppInitialization.InitializeAsync();
         if (!AppInitialization.HasIdentity) await ((App)Application.Current).RestartRegisteredAsync(appId);
+    }
+
+    private async Task RemovePluginAsync(string id)
+    {
+        var removal = _plugins.RemoveAsync(id);
+        if (_current is not null && !_plugins.Allows(_current)) DismissNotification(animate: false);
+        await removal;
     }
 
     private async void PreviewNotification()

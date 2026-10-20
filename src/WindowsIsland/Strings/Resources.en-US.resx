@@ -22,6 +22,20 @@
   <data name="Sources" xml:space="preserve">
     <value>Sources</value>
   </data>
+  <data name="PluginList" xml:space="preserve">
+    <value>Plugins</value>
+  </data>
+  <data name="PluginVersion" xml:space="preserve"><value>Version</value></data>
+  <data name="PluginType" xml:space="preserve"><value>Type</value></data>
+  <data name="PluginBuiltIn" xml:space="preserve"><value>Built-in</value></data>
+  <data name="PluginInstalled" xml:space="preserve"><value>Installed</value></data>
+  <data name="PluginAuthor" xml:space="preserve"><value>Author</value></data>
+  <data name="PluginIdentifier" xml:space="preserve"><value>Plugin ID</value></data>
+  <data name="PluginLocation" xml:space="preserve"><value>File location</value></data>
+  <data name="PluginFileSize" xml:space="preserve"><value>Assembly size</value></data>
+  <data name="PluginSizeBytes" xml:space="preserve"><value>{0} bytes</value></data>
+  <data name="PluginUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="ActionRemovePlugin" xml:space="preserve"><value>Delete plugin</value></data>
   <data name="Appearance" xml:space="preserve">
     <value>Appearance</value>
   </data>

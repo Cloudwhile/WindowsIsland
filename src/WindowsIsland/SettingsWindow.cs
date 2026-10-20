@@ -15,12 +15,13 @@ internal sealed class SettingsWindow : Window
 
     public SettingsWindow(SettingsStore settings, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false,
-        Func<string, Task>? retrySource = null, Func<string, bool, Task>? setSourceEnabled = null)
+        Func<string, Task>? retrySource = null, Func<string, bool, Task>? setSourceEnabled = null,
+        Func<string, Task>? removePlugin = null)
     {
         Title = Localization.Get("WindowSettingsTitle");
         SystemBackdrop = new MicaBackdrop();
         var page = new SettingsPage(settings, updates, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification,
-            PickDiagnosticFileAsync, retrySource, setSourceEnabled);
+            PickDiagnosticFileAsync, retrySource, setSourceEnabled, removePlugin);
         var titleBar = new TitleBar
         {
             Title = "Windows Island",

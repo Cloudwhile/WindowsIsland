@@ -84,6 +84,7 @@ internal static class PluginManagerChecks
         await CheckFailures(root, check);
         await CheckPending(root, check);
         await CheckBuiltIns(root, check);
+        await PluginCatalogChecks.RunAsync(root, check);
     }
 
     private static void CheckNaming(string root, Action<bool, string> check)

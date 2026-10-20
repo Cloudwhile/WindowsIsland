@@ -1,6 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 
 namespace WindowsIsland.Components;
 
@@ -14,6 +16,8 @@ internal sealed class SettingsExpander : StackPanel
     public SettingsRow Header { get; }
     public UIElementCollection Rows => _content.Children;
     public event Action<bool>? ExpandedChanged;
+    /// <summary>是否允许点击标题区域展开详情，操作控件保持独立响应。</summary>
+    public bool ExpandOnHeaderTap { get; set; }
 
     public bool IsExpanded
     {
@@ -35,6 +39,15 @@ internal sealed class SettingsExpander : StackPanel
         foreach (var action in actions) toolbar.Children.Add(action);
         toolbar.Children.Add(_toggle);
         Header = new SettingsRow(icon, title, toolbar, statusId, localizeTitle);
+        Header.Tapped += (_, args) =>
+        {
+            if (!ExpandOnHeaderTap) return;
+            for (var element = args.OriginalSource as DependencyObject; element is not null && element != Header;
+                element = VisualTreeHelper.GetParent(element))
+                if (element is ButtonBase or ToggleSwitch) return;
+            IsExpanded = !IsExpanded;
+            args.Handled = true;
+        };
         Children.Add(Header);
         Children.Add(_content);
         _toggle.Click += (_, _) => IsExpanded = !IsExpanded;

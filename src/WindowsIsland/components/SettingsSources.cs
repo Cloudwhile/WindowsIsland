@@ -8,21 +8,24 @@ namespace WindowsIsland.Components;
 
 internal sealed class SettingsSources : StackPanel, IDisposable
 {
-    private sealed record Controls(SettingsRow Row, ToggleSwitch Toggle, IconActionButton Retry);
+    private sealed record Controls(SettingsExpander Expander, SettingsPluginDetails Details, ToggleSwitch Toggle,
+        IconActionButton Retry, IconActionButton Delete);
     private readonly SettingsStore _store;
     private readonly Action<Exception> _failed;
     private readonly Func<string, Task> _retry;
     private readonly Func<string, bool, Task> _setEnabled;
+    private readonly Func<string, Task> _remove;
     private readonly Dictionary<string, Controls> _rows = [];
     private bool _syncing, _disposed;
 
     public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
-        Func<string, bool, Task>? setEnabled = null)
+        Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null)
     {
         _store = store;
         _failed = failed;
         _retry = retry;
         _setEnabled = setEnabled ?? ((_, _) => Task.CompletedTask);
+        _remove = remove ?? (_ => Task.CompletedTask);
     }
 
     public void Refresh(IReadOnlyList<NotificationPluginStatus> plugins, bool busy)
@@ -31,6 +34,14 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _syncing = true;
         try
         {
+            var ids = plugins.Select(plugin => plugin.Definition.Id).ToHashSet(StringComparer.Ordinal);
+            foreach (var id in _rows.Keys.Where(id => !ids.Contains(id)).ToArray())
+            {
+                var removed = _rows[id];
+                removed.Details.Dispose();
+                Children.Remove(removed.Expander);
+                _rows.Remove(id);
+            }
             foreach (var plugin in plugins)
             {
                 var definition = plugin.Definition;
@@ -62,25 +73,42 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                         catch (Exception error) { _failed(error); }
                         finally { retry.IsEnabled = true; }
                     };
-                    var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-                    actions.Children.Add(retry);
-                    actions.Children.Add(toggle);
-                    controls = new(new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
-                        definition.TitleKey, actions, "SourceStatus." + definition.Id), toggle, retry);
+                    var delete = new IconActionButton(Symbol.Delete, "ActionRemovePlugin", "RemovePlugin." + definition.Id)
+                    { Visibility = definition.CanRemove ? Visibility.Visible : Visibility.Collapsed };
+                    delete.Click += async (_, _) =>
+                    {
+                        if (_disposed || !definition.CanRemove) return;
+                        delete.IsEnabled = false;
+                        try { await _remove(definition.Id); }
+                        catch (Exception error) { _failed(error); }
+                        finally { if (!_disposed) delete.IsEnabled = true; }
+                    };
+                    var expander = new SettingsExpander(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
+                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, true, retry, toggle, delete)
+                    { ExpandOnHeaderTap = true };
+                    var details = new SettingsPluginDetails(definition);
+                    expander.Rows.Add(details);
+                    expander.ExpandedChanged += async expanded => { if (expanded) await details.ReadSizeAsync(); };
+                    controls = new(expander, details, toggle, retry, delete);
                     _rows.Add(definition.Id, controls);
-                    Children.Add(controls.Row);
+                    Children.Add(controls.Expander);
                 }
                 controls.Toggle.IsOn = definition.IsEnabled(_store.Current);
                 controls.Toggle.IsEnabled = !busy;
                 var key = controls.Toggle.IsOn ? plugin.StatusKey : "Off";
-                controls.Row.Status = Localization.Get(key);
-                controls.Row.Tone = SourceStatus.Tone(key);
-                controls.Row.Detail = SourceStatus.DetailKey(definition.Id, key) is { } detail ? Localization.Get(detail) : "";
+                controls.Expander.Header.Status = Localization.Get(key);
+                controls.Expander.Header.Tone = SourceStatus.Tone(key);
+                controls.Expander.Header.Detail = SourceStatus.DetailKey(definition.Id, key) is { } detail ? Localization.Get(detail) : "";
                 controls.Retry.Visibility = controls.Toggle.IsOn && plugin.CanRetry ? Visibility.Visible : Visibility.Collapsed;
+                controls.Delete.IsEnabled = !busy;
             }
         }
         finally { _syncing = false; }
     }
 
-    public void Dispose() => _disposed = true;
+    public void Dispose()
+    {
+        _disposed = true;
+        foreach (var controls in _rows.Values) controls.Details.Dispose();
+    }
 }

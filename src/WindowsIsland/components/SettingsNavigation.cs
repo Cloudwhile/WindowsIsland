@@ -27,6 +27,7 @@ internal sealed class SettingsNavigation : Grid, IDisposable
         Children.Add(_view);
         Add("setup", "Setup", Symbol.Permissions);
         Add("sources", "Sources", Symbol.Message);
+        Add("plugins", "PluginList", Symbol.AllApps);
         Add("appearance", "Appearance", new FontIcon { Glyph = char.ConvertFromUtf32(0xE790) }); // Color palette
         Add("updates", "Updates", Symbol.Download);
         Add("diagnostics", "DiagnosticsTitle", Symbol.Document);

@@ -22,6 +22,20 @@
   <data name="Sources" xml:space="preserve">
     <value>消息来源</value>
   </data>
+  <data name="PluginList" xml:space="preserve">
+    <value>插件列表</value>
+  </data>
+  <data name="PluginVersion" xml:space="preserve"><value>版本</value></data>
+  <data name="PluginType" xml:space="preserve"><value>类型</value></data>
+  <data name="PluginBuiltIn" xml:space="preserve"><value>内置</value></data>
+  <data name="PluginInstalled" xml:space="preserve"><value>已安装</value></data>
+  <data name="PluginAuthor" xml:space="preserve"><value>作者</value></data>
+  <data name="PluginIdentifier" xml:space="preserve"><value>插件标识</value></data>
+  <data name="PluginLocation" xml:space="preserve"><value>文件位置</value></data>
+  <data name="PluginFileSize" xml:space="preserve"><value>程序集大小</value></data>
+  <data name="PluginSizeBytes" xml:space="preserve"><value>{0} 字节</value></data>
+  <data name="PluginUnknown" xml:space="preserve"><value>未知</value></data>
+  <data name="ActionRemovePlugin" xml:space="preserve"><value>删除插件</value></data>
   <data name="Appearance" xml:space="preserve">
     <value>外观</value>
   </data>
