@@ -112,7 +112,9 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
     {
         var id = manifest.Id;
         var external = new ExternalPlugin(paths, manifest, directory);
-        var metadata = new PluginMetadata(false, manifest.Version, PluginPaths.Relative(directory, manifest.EntryAssembly), manifest.Author, external);
+        var author = manifest.SourceKind == PluginSourceKind.Official && manifest.DeveloperId == PluginCatalogClient.OfficialDeveloperId
+            ? "WINI" : manifest.Author;
+        var metadata = new PluginMetadata(false, manifest.Version, PluginPaths.Relative(directory, manifest.EntryAssembly), author, external);
         var definition = new NotificationPluginDefinition(id, manifest.Name, "PluginToggle." + id, 0xE8A5,
             DiagnosticArea.Application, _ => store.GetPluginBoolean(id, "Host.Enabled", true),
             (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return s; }, _ => false, metadata);

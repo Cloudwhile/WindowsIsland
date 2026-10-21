@@ -10,7 +10,7 @@ internal static class PluginCatalogChecks
     {
         var builtIns = new[] { BuiltInPluginDefinitions.System, BuiltInPluginDefinitions.WeChat,
             BuiltInPluginDefinitions.Telegram, BuiltInPluginDefinitions.Power };
-        check(builtIns.All(d => d.Metadata is { IsBuiltIn: true, Author: "Cloudwhile" } metadata
+        check(builtIns.All(d => d.Metadata is { IsBuiltIn: true, Author: "WINI" } metadata
             && metadata.Version == ReleaseVersion.Current.Tag && File.Exists(metadata.Location) && !d.CanRemove),
             "Built-in metadata reports the actual host version and shared assembly location");
         check(await PluginMetadata.BuiltIn.ReadSizeAsync() == new FileInfo(PluginMetadata.BuiltIn.Location).Length,

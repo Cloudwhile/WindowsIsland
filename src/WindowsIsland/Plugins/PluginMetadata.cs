@@ -11,7 +11,7 @@ internal sealed record PluginMetadata(bool IsBuiltIn, string Version, string Loc
 {
     /// <summary>获取当前应用内置插件共用的程序集信息。</summary>
     public static PluginMetadata BuiltIn { get; } = new(true, ReleaseVersion.Current.Tag,
-        typeof(PluginMetadata).Assembly.Location, "Cloudwhile");
+        typeof(PluginMetadata).Assembly.Location, "WINI");
 
     /// <summary>在后台读取程序集大小，无法读取时返回空值。</summary>
     public Task<long?> ReadSizeAsync() => Task.Run<long?>(() =>
