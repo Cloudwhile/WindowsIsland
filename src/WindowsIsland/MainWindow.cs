@@ -20,6 +20,7 @@ public sealed class MainWindow : Window
     private readonly Grid _host = new();
     private readonly Grid _surfaceLayer;
     private readonly PluginManager _plugins;
+    private readonly PluginLibrary _pluginLibrary;
     private readonly SettingsStore _settings;
     private readonly UpdateCheckService _updates;
     private SettingsWindow? _settingsWindow;
@@ -94,6 +95,10 @@ public sealed class MainWindow : Window
         AppWindow.Hide();
         NativeWindow.ConfigureOverlay(_hwnd);
         _plugins = BuiltInPlugins.Create(new(DispatcherQueue, _hwnd, verification), settings);
+        var pluginPaths = new PluginPaths(verification ? Path.Combine(AppContext.BaseDirectory, "verification-plugins") : null);
+        _plugins.ConfigureDirectories(pluginPaths);
+        _pluginLibrary = new PluginLibrary(_plugins, pluginPaths);
+        _updates.Changed += OnUpdateCheckChanged;
         _plugins.Received += ReceiveNotification;
         _tray = new TrayIcon(_hwnd,
             () => DispatcherQueue.TryEnqueue(ExitApplication),
@@ -143,6 +148,8 @@ public sealed class MainWindow : Window
             _settingsWindow?.Close();
             _settings.Changed -= OnSettingsChanged;
             _updates.Dispose();
+            _updates.Changed -= OnUpdateCheckChanged;
+            _pluginLibrary.Dispose();
             _pulse.Stop();
             _motion.Dispose();
             _root.Dispose();
@@ -162,6 +169,8 @@ public sealed class MainWindow : Window
     {
         if (_started || _closed) return;
         _started = true;
+        await _pluginLibrary.Catalog.LoadAsync();
+        if (_closed) return;
         if (!_verification) _ = _updates.StartOnce();
         await PollGameModeAsync();
         if (_closed) return;
@@ -177,11 +186,16 @@ public sealed class MainWindow : Window
             _settingsWindow = new SettingsWindow(_settings, _updates,
                 () => new SettingsSnapshot(_plugins.Access, AppInitialization.HasIdentity, _plugins.Snapshot(), _gameMode.Reason),
                 InitializeApplicationAsync, RequestNotificationAccessAsync, PreviewNotification, ExitApplication, _showUpdateResult, _verification,
-                _plugins.RetryAsync, _plugins.SetEnabledAsync, RemovePluginAsync);
+                _plugins.RetryAsync, _plugins.SetEnabledAsync, RemovePluginAsync, _pluginLibrary);
             _showUpdateResult = false;
             _settingsWindow.Closed += (_, _) => _settingsWindow = null;
         }
         _settingsWindow.Activate();
+    }
+
+    private void OnUpdateCheckChanged()
+    {
+        if (!_verification && !_closed && _updates.State.Busy) _ = _pluginLibrary.Catalog.RefreshAsync();
     }
 
     private async Task InitializeApplicationAsync()

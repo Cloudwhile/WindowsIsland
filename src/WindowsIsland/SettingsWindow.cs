@@ -16,12 +16,12 @@ internal sealed class SettingsWindow : Window
     public SettingsWindow(SettingsStore settings, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false,
         Func<string, Task>? retrySource = null, Func<string, bool, Task>? setSourceEnabled = null,
-        Func<string, Task>? removePlugin = null)
+        Func<string, Task>? removePlugin = null, Plugins.PluginLibrary? pluginLibrary = null)
     {
         Title = Localization.Get("WindowSettingsTitle");
         SystemBackdrop = new MicaBackdrop();
         var page = new SettingsPage(settings, updates, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification,
-            PickDiagnosticFileAsync, retrySource, setSourceEnabled, removePlugin);
+            PickDiagnosticFileAsync, retrySource, setSourceEnabled, removePlugin, pluginLibrary, PickPluginFileAsync);
         var titleBar = new TitleBar
         {
             Title = "Windows Island",
@@ -60,5 +60,12 @@ internal sealed class SettingsWindow : Window
     {
         var fileType = Localization.Get("DiagnosticsFileType");
         return await DiagnosticSaveDialog.PickAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), fileType, DateTime.Now);
+    }
+
+    private async Task<string?> PickPluginFileAsync()
+    {
+        var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(AppWindow.Id);
+        picker.FileTypeFilter.Add(".zip");
+        return (await picker.PickSingleFileAsync())?.Path;
     }
 }

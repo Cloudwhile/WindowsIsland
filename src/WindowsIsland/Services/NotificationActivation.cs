@@ -10,7 +10,7 @@ internal static class NotificationActivation
 
     private static bool Open(IslandNotification notification)
     {
-        if (notification.Source == NotificationSource.Power) return false;
+        if (!notification.AllowActivation || notification.Source == NotificationSource.Power) return false;
         if (notification.OriginProcessId is > 0 && ShowProcess(notification.OriginProcessId.Value)) return true;
         var identity = MessengerIdentity.FromNotification(notification);
         var names = identity switch

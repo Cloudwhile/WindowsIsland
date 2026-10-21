@@ -20,6 +20,17 @@ internal sealed partial class SettingsStore
     /// <summary>读取宿主保存的插件删除标记。</summary>
     public bool IsPluginRemoved(string id) { lock (_gate) return _removedPlugins.Contains(id); }
 
+    public void MarkExternalRemoved(string id, bool removed)
+    {
+        lock (_gate)
+        {
+            var previous = _removedPlugins.Contains(id);
+            if (removed) _removedPlugins.Add(id); else _removedPlugins.Remove(id);
+            try { Persist(Current); }
+            catch { if (previous) _removedPlugins.Add(id); else _removedPlugins.Remove(id); throw; }
+        }
+    }
+
     /// <summary>原子保存删除标记并清除该插件的设置，失败时恢复原内存状态。</summary>
     public void RemovePlugin(string id)
     {

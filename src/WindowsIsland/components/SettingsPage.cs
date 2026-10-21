@@ -27,6 +27,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private static readonly HashSet<string> PreviewSections = ["sources", "appearance"], RefreshSections = ["setup", "sources", "plugins"];
     private readonly SettingsRow _initializationRow, _permissionRow;
     private readonly SettingsSources _sources;
+    private readonly SettingsPluginLibrary? _pluginLibrary;
     private readonly SettingsRow _animationsRow;
     private readonly SettingsAppearance _appearance;
     private readonly SettingsRow _gameModeRow, _fullScreenRow;
@@ -64,9 +65,11 @@ internal sealed class SettingsPage : Grid, IDisposable
     public SettingsPage(SettingsStore store, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false,
         Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null,
-        Func<string, bool, Task>? setSourceEnabled = null, Func<string, Task>? removePlugin = null)
+        Func<string, bool, Task>? setSourceEnabled = null, Func<string, Task>? removePlugin = null,
+        PluginLibrary? pluginLibrary = null, Func<Task<string?>>? pickPluginFile = null)
     {
         _store = store;
+        AutomationProperties.SetAutomationId(_content, "SettingsContentScroll");
         retrySource ??= _ => Task.CompletedTask;
         _snapshot = snapshot;
         _close = close;
@@ -137,14 +140,15 @@ internal sealed class SettingsPage : Grid, IDisposable
             ShowError("ErrorSettingsSave");
             Refresh();
         }, async id => { await retrySource(id); Refresh(); }, setSourceEnabled,
-            async id => { if (removePlugin is not null) await removePlugin(id); Refresh(); });
+            async id => { if (removePlugin is not null) await removePlugin(id); Refresh(); }, pluginLibrary?.Catalog);
         _muteDuringGames = Switch("MuteDuringGames", "MuteDuringGamesToggle", settings => settings.MuteDuringGames,
             (settings, value) => settings with { MuteDuringGames = value });
         _gameModeRow = new SettingsRow(Symbol.Mute, "MuteDuringGames", _muteDuringGames, "GameModeStatus");
         _muteDuringFullScreen = Switch("MuteDuringFullScreen", "MuteDuringFullScreenToggle", settings => settings.MuteDuringFullScreen,
             (settings, value) => settings with { MuteDuringFullScreen = value });
         _fullScreenRow = new SettingsRow(Symbol.FullScreen, "MuteDuringFullScreen", _muteDuringFullScreen, "FullScreenStatus");
-        AddSection("plugins", "PluginList", new SettingsSection("Sources", _sources));
+        if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (() => Task.FromResult<string?>(null)));
+        AddSection("plugins", "PluginList", _pluginLibrary ?? new StackPanel(), new SettingsSection("Sources", _sources));
         AddSection("sources", "Sources",
             new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),
             new SettingsSection("NotificationDisplay", _doNotDisturbSettings));
@@ -287,6 +291,7 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     public void Refresh()
     {
+        _pluginLibrary?.Refresh();
         if (_disposed) return;
         _diagnostics.Refresh();
         _appearance.Refresh(!_busy);
@@ -418,6 +423,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _updates.Dispose();
         _diagnostics.Dispose();
         _sources.Dispose();
+        _pluginLibrary?.Dispose();
         _appearance.Dispose();
         _doNotDisturbSettings.Dispose();
         _navigation.Dispose();

@@ -10,5 +10,11 @@ namespace WindowsIsland.Contracts;
 /// <param name="Permissions">声明的权限标识数组，不需要权限时使用空数组。</param>
 /// <param name="Author">可选的作者名称。</param>
 /// <param name="Description">可选的插件说明。</param>
+/// <param name="DeveloperId">开发者标识，旧清单默认为空。</param>
+/// <param name="DeveloperName">可选的开发者名称。</param>
+/// <param name="RepositoryUrl">可选的公开 GitHub 仓库地址。</param>
+/// <param name="SourceKind">来源类型，旧清单默认为手动安装。</param>
 public sealed record PluginManifest(string Id, string Name, string Version, string EntryAssembly, string EntryType,
-    int ContractVersion, string[] Permissions, string? Author = null, string? Description = null);
+    int ContractVersion, string[] Permissions, string? Author = null, string? Description = null,
+    string DeveloperId = "", string? DeveloperName = null, string? RepositoryUrl = null,
+    PluginSourceKind SourceKind = PluginSourceKind.Manual);

@@ -554,4 +554,45 @@
   <data name="SystemDoNotDisturb" xml:space="preserve"><value>系统免打扰</value></data>
   <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>未能更改系统免打扰，请重试或打开 Windows 通知设置。</value></data>
   <data name="DoNotDisturbOpenSettings" xml:space="preserve"><value>请在 Windows 通知设置中调整。</value></data>
+  <data name="PluginInstall" xml:space="preserve"><value>安装插件</value></data>
+  <data name="PluginCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="PluginInstalledSuccess" xml:space="preserve"><value>插件已安装</value></data>
+  <data name="PluginInstallCanceled" xml:space="preserve"><value>安装已取消</value></data>
+  <data name="PluginInstallFailed" xml:space="preserve"><value>插件包无效或安装失败，请检查文件后重试。</value></data>
+  <data name="PluginAlreadyInstalled" xml:space="preserve"><value>已安装此版本</value></data>
+  <data name="PluginOverwriteQuestion" xml:space="preserve"><value>是否使用所选插件包覆盖当前版本？</value></data>
+  <data name="PluginOverwrite" xml:space="preserve"><value>覆盖</value></data>
+  <data name="PluginDataPreserved" xml:space="preserve"><value>数据已保留，重新安装同 Id 插件可恢复</value></data>
+  <data name="PluginSource" xml:space="preserve"><value>安装来源</value></data>
+  <data name="PluginManualRestricted" xml:space="preserve"><value>手动安装，权限受限</value></data>
+  <data name="PluginOfficial" xml:space="preserve"><value>官方源</value></data>
+  <data name="PluginDeveloper" xml:space="preserve"><value>开发者</value></data>
+  <data name="PluginRepository" xml:space="preserve"><value>公开仓库</value></data>
+  <data name="PluginPermissionsGranted" xml:space="preserve"><value>已授予权限</value></data>
+  <data name="PluginPermissionsDenied" xml:space="preserve"><value>未授予的高危或未知权限</value></data>
+  <data name="PluginErrorZip" xml:space="preserve"><value>只能安装 ZIP 插件包。</value></data>
+  <data name="PluginErrorManifest" xml:space="preserve"><value>ZIP 根目录必须且只能包含一个 manifest.json。</value></data>
+  <data name="PluginErrorId" xml:space="preserve"><value>插件标识无效或与内置插件冲突。</value></data>
+  <data name="PluginErrorContract" xml:space="preserve"><value>插件合约版本与消息岛不兼容。</value></data>
+  <data name="PluginErrorEntry" xml:space="preserve"><value>插件入口程序集或类型无效。</value></data>
+  <data name="PluginErrorDowngrade" xml:space="preserve"><value>不能安装比当前版本更旧的插件。</value></data>
+  <data name="PluginErrorVersion" xml:space="preserve"><value>插件版本必须符合 SemVer。</value></data>
+  <data name="PluginErrorPath" xml:space="preserve"><value>插件包包含不安全路径、符号链接或特殊文件。</value></data>
+  <data name="PluginErrorSourceConflict" xml:space="preserve"><value>插件已从其他来源安装，请先卸载。</value></data>
+  <data name="PluginErrorStart" xml:space="preserve"><value>插件启动失败，已恢复旧版本。</value></data>
+  <data name="PluginSaveSource" xml:space="preserve"><value>保存官方源地址</value></data>
+  <data name="PluginRefreshCatalog" xml:space="preserve"><value>刷新官方源</value></data>
+  <data name="PluginSourceAddress" xml:space="preserve"><value>官方源地址</value></data>
+  <data name="PluginCatalogEmpty" xml:space="preserve"><value>官方源暂无插件</value></data>
+  <data name="PluginCatalogUnavailable" xml:space="preserve"><value>官方源暂时不可用，已保留缓存</value></data>
+  <data name="PluginCatalogReady" xml:space="preserve"><value>已同步官方源</value></data>
+  <data name="PluginUpdate" xml:space="preserve"><value>更新插件</value></data>
+  <data name="PluginOfficialAuthor" xml:space="preserve"><value>官方自研插件</value></data>
+  <data name="PluginThirdParty" xml:space="preserve"><value>官方源收录的第三方插件，请逐项确认所需权限</value></data>
+  <data name="PluginDelisted" xml:space="preserve"><value>该插件已从官方源下架，建议卸载</value></data>
+  <data name="PluginUpdateAvailable" xml:space="preserve"><value>有新版本：{0}</value></data>
+  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>请输入有效的官方源地址</value></data>
+  <data name="PluginErrorHash" xml:space="preserve"><value>插件 SHA256 校验失败，下载已清理</value></data>
+  <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>插件包与官方索引不一致，安装已中止</value></data>
+  <data name="PluginErrorNotListed" xml:space="preserve"><value>该插件已不在当前官方索引中，请刷新后重试</value></data>
 </root>

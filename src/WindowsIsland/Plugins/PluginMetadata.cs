@@ -7,7 +7,7 @@ namespace WindowsIsland.Plugins;
 /// <param name="Version">插件的完整版本。</param>
 /// <param name="Location">插件所属程序集的文件位置。</param>
 /// <param name="Author">可选的插件作者。</param>
-internal sealed record PluginMetadata(bool IsBuiltIn, string Version, string Location, string? Author = null)
+internal sealed record PluginMetadata(bool IsBuiltIn, string Version, string Location, string? Author = null, ExternalPlugin? External = null)
 {
     /// <summary>获取当前应用内置插件共用的程序集信息。</summary>
     public static PluginMetadata BuiltIn { get; } = new(true, ReleaseVersion.Current.Tag,

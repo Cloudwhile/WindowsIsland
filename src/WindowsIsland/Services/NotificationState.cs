@@ -7,7 +7,7 @@ internal enum NotificationSource { SystemNotification, ClientHook, Power, Client
 internal sealed record IslandNotification(uint Id, DateTimeOffset CreatedAt, string AppName, string Title, string Body,
     byte[]? AppIcon = null, NotificationSource Source = NotificationSource.SystemNotification,
     string? AppId = null, string? EventId = null, string? Symbol = null, byte[]? SenderAvatar = null, int? OriginProcessId = null,
-    bool IsMetadataUpdate = false);
+    bool IsMetadataUpdate = false, bool AllowActivation = true);
 
 internal sealed class NotificationTracker
 {

@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+    <ProjectReference Include="../WindowsIsland.PluginFixture/WindowsIsland.PluginFixture.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../src/WindowsIsland/Services/RegisteredRestart.cs" Link="RegisteredRestart.cs" />
@@ -19,6 +20,18 @@
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.cs" Link="Plugins/PluginManager.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Removal.cs" Link="Plugins/PluginManager.Removal.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Directories.cs" Link="Plugins/PluginManager.Directories.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginPaths.cs" Link="Plugins/PluginPaths.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginFiles.cs" Link="Plugins/PluginFiles.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginTrust.cs" Link="Plugins/PluginTrust.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginAssemblyValidator.cs" Link="Plugins/PluginAssemblyValidator.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginInstaller.cs" Link="Plugins/PluginInstaller.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginLibrary.cs" Link="Plugins/PluginLibrary.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogClient.cs" Link="Plugins/PluginCatalogClient.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogService.cs" Link="Plugins/PluginCatalogService.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Installation.cs" Link="Plugins/PluginManager.Installation.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManifestReader.cs" Link="Plugins/PluginManifestReader.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginDirectoryLoader.cs" Link="Plugins/PluginDirectoryLoader.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginMetadata.cs" Link="Plugins/PluginMetadata.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginContext.cs" Link="Plugins/PluginContext.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginNotificationBridge.cs" Link="Plugins/PluginNotificationBridge.cs" />
@@ -64,4 +77,7 @@
     <Compile Include="../../src/WindowsIsland/Services/UpdateElevation.cs" Link="UpdateElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateWorkDirectory.cs" Link="UpdateWorkDirectory.cs" />
   </ItemGroup>
+  <Target Name="CopyPluginFixture" AfterTargets="Build">
+    <Copy SourceFiles="../../artifacts/bin/WindowsIsland.PluginFixture/$(Configuration)/net10.0/WindowsIsland.PluginFixture.dll" DestinationFolder="$(TargetDir)fixture" />
+  </Target>
 </Project>

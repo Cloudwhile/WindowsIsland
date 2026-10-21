@@ -15,11 +15,13 @@ internal sealed partial class PluginManager : IDisposable
         public Action<PluginNotification>? Received;
         public Action<PluginNotificationAccess>? AccessChanged;
         public Task Cleanup = Task.CompletedTask;
+        public PluginTrust? Trust;
         public bool Active, Failed, Removed;
     }
 
-    private readonly Entry[] _entries;
+    private readonly List<Entry> _entries;
     private readonly SemaphoreSlim _operations = new(1, 1);
+    private readonly SemaphoreSlim _mutations = new(1, 1);
     private readonly SettingsStore _store;
     private readonly Action<Action> _dispatch;
     private readonly Func<string, IMessageSourceBackend?>? _backends;
@@ -36,7 +38,7 @@ internal sealed partial class PluginManager : IDisposable
         if (items.Any(item => !PluginId.IsValid(item.Definition.Id))
             || items.Select(item => item.Definition.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != items.Length)
             throw new ArgumentException("Plugin identifiers must follow wini_<name>_plugin and be unique.", nameof(registrations));
-        _entries = items.Select(item => new Entry(item)).ToArray();
+        _entries = items.Select(item => new Entry(item)).ToList();
         _store = store;
         foreach (var entry in _entries)
             entry.Removed = entry.Registration.Definition.CanRemove && store.IsPluginRemoved(entry.Registration.Definition.Id);
@@ -45,11 +47,12 @@ internal sealed partial class PluginManager : IDisposable
         _backends = backends;
     }
 
-    public Task StartAsync()
+    public async Task StartAsync()
     {
-        if (_disposed) return Task.CompletedTask;
+        if (_disposed) return;
+        await DiscoverAsync();
         _started = true;
-        return ReconcileAsync();
+        await ReconcileAsync();
     }
 
     public async Task SetEnabledAsync(string id, bool enabled)
@@ -93,10 +96,16 @@ internal sealed partial class PluginManager : IDisposable
                     starting = plugin;
                     entry.Plugin = plugin;
                     if (plugin.Id != entry.Registration.Definition.Id) throw new InvalidOperationException("Plugin identity mismatch.");
-                    entry.Context = new PluginContext(plugin.Id, new PluginSettings(_store, plugin.Id),
+                    var external = entry.Registration.Definition.Metadata?.External;
+                    entry.Trust = external?.Trust;
+                    var pluginStore = external is null ? _store : new SettingsStore(Path.Combine(external.DataDirectory, "settings.json"));
+                    entry.Context = new PluginContext(plugin.Id, new PluginSettings(pluginStore, plugin.Id),
                         Diagnostic(entry), notification => DispatchNotification(entry, plugin, notification), type =>
                         {
-                            if (type != typeof(IMessageSourceBackend) || _disposed || !ReferenceEquals(entry.Plugin, plugin)) return null;
+                            if (_disposed || !ReferenceEquals(entry.Plugin, plugin)) return null;
+                            if (external is not null) return type == typeof(IPluginPermissions) ? entry.Trust
+                                : type == typeof(IPluginStorage) && entry.Trust?.IsGranted(PluginPermissions.Settings) == true ? new PluginStorage(external.DataDirectory) : null;
+                            if (type != typeof(IMessageSourceBackend)) return null;
                             return entry.Backend ??= _backends?.Invoke(plugin.Id);
                         });
                     if (plugin is not BuiltInMessageSource)
@@ -104,7 +113,7 @@ internal sealed partial class PluginManager : IDisposable
                         entry.Received = notification => DispatchNotification(entry, plugin, notification);
                         plugin.NotificationReceived += entry.Received;
                     }
-                    if (plugin is IPluginNotificationAccess access)
+                    if (plugin is IPluginNotificationAccess access && external is null)
                     {
                         entry.AccessChanged = value => Dispatch(entry, plugin, () => SetAccess((NotificationAccess)value));
                         access.AccessChanged += entry.AccessChanged;
@@ -116,7 +125,7 @@ internal sealed partial class PluginManager : IDisposable
                     await plugin.StartAsync();
                     if (_disposed || !ReferenceEquals(entry.Plugin, plugin)) continue;
                     entry.Active = true;
-                    if (plugin is IPluginNotificationAccess initialized) SetAccess((NotificationAccess)initialized.Access);
+                    if (plugin is IPluginNotificationAccess initialized && external is null) SetAccess((NotificationAccess)initialized.Access);
                 }
                 catch (Exception error)
                 {
@@ -130,8 +139,14 @@ internal sealed partial class PluginManager : IDisposable
     private void DispatchNotification(Entry entry, IMessageSource plugin, PluginNotification notification) => Dispatch(entry, plugin, () =>
     {
         if (!entry.Active || !entry.Registration.Definition.IsEnabled(_settings)) return;
+        if (entry.Trust is { } trust)
+        {
+            if (!trust.IsGranted(PluginPermissions.Notifications)) return;
+            if (!trust.IsGranted(PluginPermissions.Process)) notification = notification with { OriginProcessId = null };
+        }
         if (notification.SourceId != entry.Registration.Definition.Id) throw new InvalidOperationException("Notification source identity mismatch.");
-        Received?.Invoke(PluginNotificationBridge.ToHost(notification));
+        Received?.Invoke(PluginNotificationBridge.ToHost(notification) with
+        { AllowActivation = entry.Trust?.IsGranted(PluginPermissions.Process) ?? true });
     });
 
     private void Dispatch(Entry entry, IMessageSource plugin, Action action)
@@ -174,7 +189,7 @@ internal sealed partial class PluginManager : IDisposable
         {
             if (_disposed) return;
             foreach (var entry in _entries)
-                if (entry.Plugin is IPluginNotificationAccess access)
+                if (entry.Plugin is IPluginNotificationAccess access && entry.Registration.Definition.Metadata?.External is null)
                 {
                     try { await access.RequestAccessAsync(); }
                     catch (Exception error) { if (ReferenceEquals(entry.Plugin, access)) Fail(entry, error, "RequestAccess"); }
@@ -242,7 +257,7 @@ internal sealed partial class PluginManager : IDisposable
     private void Fail(Entry entry, Exception error, string operation)
     {
         Diagnostic(entry).Capture(error, operation);
-        var access = entry.Plugin is IPluginNotificationAccess;
+        var access = entry.Plugin is IPluginNotificationAccess && entry.Registration.Definition.Metadata?.External is null;
         entry.Failed = true;
         Stop(entry);
         if (access && !_disposed) SetAccess(NotificationAccess.Unavailable);
@@ -284,13 +299,14 @@ internal sealed partial class PluginManager : IDisposable
         catch (Exception error) { Diagnostic(entry).Capture(error, "Dispose"); }
         try { backend?.Dispose(); }
         catch (Exception error) { Diagnostic(entry).Capture(error, "DisposeBackend"); }
+        entry.Registration.Definition.Metadata?.External?.Unload();
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        foreach (var entry in _entries.Reverse()) Stop(entry);
+        foreach (var entry in _entries.AsEnumerable().Reverse()) Stop(entry);
         Received = null;
         AccessChanged = null;
     }
@@ -299,5 +315,10 @@ internal sealed partial class PluginManager : IDisposable
     {
         Dispose();
         await Task.WhenAll(_entries.Select(entry => entry.Cleanup));
+        foreach (var entry in _entries)
+        {
+            entry.Cleanup = Task.CompletedTask;
+            if (entry.Registration.Definition.Metadata?.External is { } external) await external.VerifyUnloadAsync();
+        }
     }
 }

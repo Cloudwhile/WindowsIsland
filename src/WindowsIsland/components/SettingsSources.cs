@@ -15,17 +15,24 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     private readonly Func<string, Task> _retry;
     private readonly Func<string, bool, Task> _setEnabled;
     private readonly Func<string, Task> _remove;
+    private readonly PluginCatalogService? _catalog;
     private readonly Dictionary<string, Controls> _rows = [];
+    private readonly TextBlock _retained = LocalizedUI.Text("PluginDataPreserved", 12, secondary: true);
     private bool _syncing, _disposed;
 
     public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
-        Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null)
+        Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null, PluginCatalogService? catalog = null)
     {
         _store = store;
         _failed = failed;
         _retry = retry;
         _setEnabled = setEnabled ?? ((_, _) => Task.CompletedTask);
         _remove = remove ?? (_ => Task.CompletedTask);
+        _catalog = catalog;
+        _retained.TextWrapping = TextWrapping.Wrap;
+        _retained.Margin = new Thickness(12);
+        _retained.Visibility = Visibility.Collapsed;
+        Children.Add(_retained);
     }
 
     public void Refresh(IReadOnlyList<NotificationPluginStatus> plugins, bool busy)
@@ -45,11 +52,18 @@ internal sealed class SettingsSources : StackPanel, IDisposable
             foreach (var plugin in plugins)
             {
                 var definition = plugin.Definition;
+                if (_rows.TryGetValue(definition.Id, out var old) && !old.Details.Matches(definition))
+                {
+                    old.Details.Dispose();
+                    Children.Remove(old.Expander);
+                    _rows.Remove(definition.Id);
+                }
                 if (!_rows.TryGetValue(definition.Id, out var controls))
                 {
                     var toggle = new ToggleSwitch { OnContent = null, OffContent = null, MinWidth = 0,
                         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
-                    LocalizedUI.Label(toggle, definition.TitleKey);
+                    if (definition.Metadata?.External is null) LocalizedUI.Label(toggle, definition.TitleKey);
+                    else AutomationProperties.SetName(toggle, definition.TitleKey);
                     AutomationProperties.SetAutomationId(toggle, definition.ToggleId);
                     toggle.Toggled += async (_, _) =>
                     {
@@ -79,14 +93,14 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     {
                         if (_disposed || !definition.CanRemove) return;
                         delete.IsEnabled = false;
-                        try { await _remove(definition.Id); }
+                        try { await _remove(definition.Id); if (definition.Metadata?.External is not null) _retained.Visibility = Visibility.Visible; }
                         catch (Exception error) { _failed(error); }
                         finally { if (!_disposed) delete.IsEnabled = true; }
                     };
                     var expander = new SettingsExpander(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
-                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, true, retry, toggle, delete)
+                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle, delete)
                     { ExpandOnHeaderTap = true };
-                    var details = new SettingsPluginDetails(definition);
+                    var details = new SettingsPluginDetails(definition, _catalog);
                     expander.Rows.Add(details);
                     expander.ExpandedChanged += async expanded => { if (expanded) await details.ReadSizeAsync(); };
                     controls = new(expander, details, toggle, retry, delete);
@@ -94,6 +108,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     Children.Add(controls.Expander);
                 }
                 controls.Toggle.IsOn = definition.IsEnabled(_store.Current);
+                controls.Details.RefreshCatalog();
                 controls.Toggle.IsEnabled = !busy;
                 var key = controls.Toggle.IsOn ? plugin.StatusKey : "Off";
                 controls.Expander.Header.Status = Localization.Get(key);
