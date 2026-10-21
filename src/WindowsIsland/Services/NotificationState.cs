@@ -26,20 +26,3 @@ internal sealed class NotificationTracker
 
     public void Reset() { _known.Clear(); _initialized = false; }
 }
-
-internal sealed class NotificationPresentation(TimeProvider? time = null)
-{
-    private readonly TimeProvider _time = time ?? TimeProvider.System;
-    private long _shownAt;
-    public bool Active { get; private set; }
-    public static TimeSpan DisplayDuration => TimeSpan.FromSeconds(5);
-
-    public void Show()
-    {
-        Active = true;
-        _shownAt = _time.GetTimestamp();
-    }
-
-    public bool Expired => Active && _time.GetElapsedTime(_shownAt) >= DisplayDuration;
-    public void Clear() => Active = false;
-}

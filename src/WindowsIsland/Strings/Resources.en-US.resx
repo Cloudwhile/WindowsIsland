@@ -595,4 +595,9 @@
   <data name="PluginErrorHash" xml:space="preserve"><value>Plugin SHA256 verification failed. The download was removed</value></data>
   <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>The package does not match the catalog. Installation stopped</value></data>
   <data name="PluginErrorNotListed" xml:space="preserve"><value>The plugin is no longer in the current catalog. Refresh and retry</value></data>
+  <data name="Countdown" xml:space="preserve"><value>Countdown</value></data>
+  <data name="ActionRestartCountdown" xml:space="preserve"><value>Restart countdown</value></data>
+  <data name="CountdownPause" xml:space="preserve"><value>Pause</value></data>
+  <data name="CountdownDuration" xml:space="preserve"><value>Duration (seconds)</value></data>
+  <data name="ActionClose" xml:space="preserve"><value>Close</value></data>
 </root>

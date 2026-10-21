@@ -76,25 +76,25 @@ tracker.Update([]);
 Check(tracker.Update([newest, next]).SequenceEqual(new[] { next, newest }), "Bursts sorted chronologically");
 
 var time = new ManualTime();
-var presentation = new NotificationPresentation(time);
-Check(!presentation.Active && !presentation.Expired, "Startup has no active notification");
-presentation.Show();
+var presentation = new IslandScheduler(time);
+Check(presentation.Message is null && !presentation.MessageIsExpired, "Startup has no active notification");
+presentation.MessageArrived(next);
 time.Advance(4.9);
-Check(!presentation.Expired, "Popup stays visible before deadline");
+Check(!presentation.MessageIsExpired, "Popup stays visible before deadline");
 time.Advance(0.1);
-Check(presentation.Expired, "Popup closes after five seconds");
-presentation.Show();
-Check(presentation.Active && !presentation.Expired, "New notification resets deadline");
+Check(presentation.MessageIsExpired, "Popup closes after five seconds");
+presentation.MessageArrived(next);
+Check(presentation.Message is not null && !presentation.MessageIsExpired, "New notification resets deadline");
 time.Advance(5);
-Check(presentation.Expired, "Replacement notification gets a fresh five seconds");
-presentation.Clear();
-Check(!presentation.Active && !presentation.Expired, "Clearing a notification cancels deadline");
-presentation.Show();
+Check(presentation.MessageIsExpired, "Replacement notification gets a fresh five seconds");
+presentation.MessageDismissed();
+Check(presentation.Message is null && !presentation.MessageIsExpired, "Clearing a notification cancels deadline");
+presentation.MessageArrived(next);
 time.Advance(5);
-Check(presentation.Expired, "Each new notification returns to idle after its deadline");
-presentation.Clear();
+Check(presentation.MessageIsExpired, "Each new notification returns to idle after its deadline");
+presentation.MessageDismissed();
 time.Advance(100);
-Check(!presentation.Expired, "Cleared notification stays idle");
+Check(!presentation.MessageIsExpired, "Cleared notification stays idle");
 
 var instanceName = $"WindowsIsland.Tests.{Guid.NewGuid():N}";
 using (var primary = SingleInstance.TryAcquire(instanceName))
@@ -239,6 +239,8 @@ Check(!MessengerPopupRules.IsMessagePopup("#32768", 0x80000000, 0x88, 320, 160, 
 Check(!MessengerPopupRules.IsMessagePopup("QtNotification", 0x80000000, 0x88, 1100, 750, false), "Main client windows are excluded");
 LocalizationChecks.Run(Check);
 MarkdownChecks.Run(Check);
+await IslandSchedulerChecks.RunAsync(Check);
+await PinnedPanelChecks.RunAsync(Check);
 GameModeChecks.Run(Check);
 DoNotDisturbChecks.Run(Check);
 WindowsPreferencesChecks.Run(Check);

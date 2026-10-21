@@ -4,6 +4,9 @@ using Windows.Graphics;
 
 namespace WindowsIsland.Services;
 
+internal enum NotificationPointerKind { Pressed, Moved, Released, Wheel, RightClick }
+internal readonly record struct NotificationPointer(NotificationPointerKind Kind, int X, int Y, int Delta = 0);
+
 internal sealed class NotificationInput : IDisposable
 {
     private readonly nint _window;
@@ -12,6 +15,8 @@ internal sealed class NotificationInput : IDisposable
     private RectInt32? _bounds;
     private int _radius;
     private bool _disposed;
+    private bool _dragging;
+    public Action<NotificationPointer>? PointerInput { get; set; }
 
     public NotificationInput(nint owner, Action<bool> clicked)
     {
@@ -48,12 +53,28 @@ internal sealed class NotificationInput : IDisposable
         ShowWindow(_window, 8);
     }
 
-    public void Hide() { if (!_disposed) ShowWindow(_window, 0); }
+    public void Hide()
+    {
+        if (_disposed) return;
+        if (_dragging) ReleaseCapture();
+        _dragging = false;
+        ShowWindow(_window, 0);
+    }
 
     private nint WindowProc(nint window, uint message, nuint wParam, nint lParam, nuint id, nuint data)
     {
         if (message == 0x0084) return 1;
         if (message is 0x0021 or 0x024B) return 3;
+        if (!_disposed && PointerInput is { } pointer && _bounds is { } bounds)
+        {
+            var x = unchecked((short)lParam.ToInt64());
+            var y = unchecked((short)(lParam.ToInt64() >> 16));
+            if (message == 0x0201) { _dragging = true; SetCapture(_window); pointer(new(NotificationPointerKind.Pressed, bounds.X + x, bounds.Y + y)); return 0; }
+            if (message == 0x0200 && _dragging) { pointer(new(NotificationPointerKind.Moved, bounds.X + x, bounds.Y + y)); return 0; }
+            if (message == 0x0202) { _dragging = false; ReleaseCapture(); pointer(new(NotificationPointerKind.Released, bounds.X + x, bounds.Y + y)); return 0; }
+            if (message == 0x0205) { pointer(new(NotificationPointerKind.RightClick, bounds.X + x, bounds.Y + y)); return 0; }
+            if (message == 0x020A) { pointer(new(NotificationPointerKind.Wheel, x, y, unchecked((short)(wParam >> 16)))); return 0; }
+        }
         if (message is 0x0202 or 0x0205 && !_disposed) { _clicked(message == 0x0205); return 0; }
         return DefSubclassProc(window, message, wParam, lParam);
     }
@@ -62,11 +83,15 @@ internal sealed class NotificationInput : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        if (_dragging) ReleaseCapture();
+        PointerInput = null;
         RemoveWindowSubclass(_window, _callback, 1);
         DestroyWindow(_window);
     }
 
     private delegate nint SubclassProc(nint window, uint message, nuint wParam, nint lParam, nuint id, nuint data);
+    [DllImport("user32.dll")] private static extern nint SetCapture(nint window);
+    [DllImport("user32.dll")] private static extern bool ReleaseCapture();
     [DllImport("user32.dll", EntryPoint = "CreateWindowExW", CharSet = CharSet.Unicode, SetLastError = true)] private static extern nint CreateWindowEx(uint extended, string type, string title, uint style, int x, int y, int width, int height, nint owner, nint menu, nint module, nint data);
     [DllImport("comctl32.dll", SetLastError = true)] private static extern bool SetWindowSubclass(nint window, SubclassProc callback, nuint id, nuint data);
     [DllImport("comctl32.dll")] private static extern bool RemoveWindowSubclass(nint window, SubclassProc callback, nuint id);

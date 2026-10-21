@@ -77,7 +77,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                             finally { _syncing = false; }
                         }
                     };
-                    var retry = new IconActionButton(Symbol.Refresh, "ActionRetrySource", "SourceRetry." + definition.Id)
+                    var retry = new IconActionButton(Symbol.Refresh, definition.RetryLabelKey, "SourceRetry." + definition.Id)
                     { Visibility = Visibility.Collapsed };
                     retry.Click += async (_, _) =>
                     {

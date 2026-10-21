@@ -42,7 +42,7 @@ internal static class PluginNotificationBridge
 
     public static string StatusKey(string id, PluginStatus status) => status.State switch
     {
-        PluginConnectionState.Connected => id is BuiltInPluginIds.Power or BuiltInPluginIds.System ? "On" : "Connected",
+        PluginConnectionState.Connected => id is BuiltInPluginIds.Power or BuiltInPluginIds.System or BuiltInPluginIds.Countdown ? "On" : "Connected",
         PluginConnectionState.NotRunning => status.Reason == PluginStatusReason.ClientNotDetected ? "TelegramNotDetected" : "NotRunning",
         _ => status.Reason switch
         {

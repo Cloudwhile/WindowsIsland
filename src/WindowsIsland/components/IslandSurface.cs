@@ -41,6 +41,7 @@ internal sealed class IslandSurface : FlyoutPresenter, IDisposable
         UseLayoutRounding = true;
         MaxWidth = NotificationLayout.MaxWidth;
         MaxHeight = NotificationLayout.MaxHeight;
+        MinWidth = MinHeight = 0;
         CornerRadius = new CornerRadius(NotificationLayout.CornerRadius);
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
         VerticalContentAlignment = VerticalAlignment.Stretch;

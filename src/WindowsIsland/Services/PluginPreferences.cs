@@ -13,7 +13,7 @@ internal sealed partial class SettingsStore
         if (root?["RemovedPlugins"] is not JsonArray values) return;
         foreach (var node in values)
             if (node is JsonValue value && value.TryGetValue<string>(out var id) && PluginId.IsValid(id)
-                && id is not (BuiltInPluginIds.System or BuiltInPluginIds.WeChat or BuiltInPluginIds.Telegram or BuiltInPluginIds.Power))
+                && !BuiltInPluginIds.IsReserved(id))
                 _removedPlugins.Add(id);
     }
 

@@ -16,6 +16,8 @@ internal sealed partial class PluginManager : IDisposable
         public Action<PluginNotificationAccess>? AccessChanged;
         public Task Cleanup = Task.CompletedTask;
         public PluginTrust? Trust;
+        public PinnedContent? Pinned;
+        public readonly SemaphoreSlim Interactions = new(1, 1);
         public bool Active, Failed, Removed;
     }
 
@@ -107,7 +109,7 @@ internal sealed partial class PluginManager : IDisposable
                                 : type == typeof(IPluginStorage) && entry.Trust?.IsGranted(PluginPermissions.Settings) == true ? new PluginStorage(external.DataDirectory) : null;
                             if (type != typeof(IMessageSourceBackend)) return null;
                             return entry.Backend ??= _backends?.Invoke(plugin.Id);
-                        });
+                        }, change => DispatchPinned(entry, plugin, change));
                     if (plugin is not BuiltInMessageSource)
                     {
                         entry.Received = notification => DispatchNotification(entry, plugin, notification);
@@ -125,6 +127,7 @@ internal sealed partial class PluginManager : IDisposable
                     await plugin.StartAsync();
                     if (_disposed || !ReferenceEquals(entry.Plugin, plugin)) continue;
                     entry.Active = true;
+                    if (entry.Pinned is { } pinned) PinnedChanged?.Invoke(new(PinnedChangeKind.Added, plugin.Id, pinned.Id, pinned));
                     if (plugin is IPluginNotificationAccess initialized && external is null) SetAccess((NotificationAccess)initialized.Access);
                 }
                 catch (Exception error)
@@ -279,6 +282,7 @@ internal sealed partial class PluginManager : IDisposable
         entry.Backend = null;
         entry.Context?.Dispose();
         entry.Context = null;
+        ClearPinned(entry);
         if (plugin is null) return;
         try
         {
@@ -293,13 +297,19 @@ internal sealed partial class PluginManager : IDisposable
 
     private async Task CleanupAsync(Entry entry, IMessageSource plugin, IMessageSourceBackend? backend)
     {
-        try { await plugin.StopAsync(); }
-        catch (Exception error) { Diagnostic(entry).Capture(error, "Stop"); }
-        try { plugin.Dispose(); }
-        catch (Exception error) { Diagnostic(entry).Capture(error, "Dispose"); }
-        try { backend?.Dispose(); }
-        catch (Exception error) { Diagnostic(entry).Capture(error, "DisposeBackend"); }
-        entry.Registration.Definition.Metadata?.External?.Unload();
+        // 已开始的后台交互退出后才释放插件；上下文与界面内容已在 Stop 中同步撤销。
+        await entry.Interactions.WaitAsync();
+        try
+        {
+            try { await plugin.StopAsync(); }
+            catch (Exception error) { Diagnostic(entry).Capture(error, "Stop"); }
+            try { plugin.Dispose(); }
+            catch (Exception error) { Diagnostic(entry).Capture(error, "Dispose"); }
+            try { backend?.Dispose(); }
+            catch (Exception error) { Diagnostic(entry).Capture(error, "DisposeBackend"); }
+            entry.Registration.Definition.Metadata?.External?.Unload();
+        }
+        finally { entry.Interactions.Release(); }
     }
 
     public void Dispose()
@@ -309,6 +319,7 @@ internal sealed partial class PluginManager : IDisposable
         foreach (var entry in _entries.AsEnumerable().Reverse()) Stop(entry);
         Received = null;
         AccessChanged = null;
+        PinnedChanged = null;
     }
 
     public async Task ShutdownAsync()

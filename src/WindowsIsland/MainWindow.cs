@@ -1,11 +1,8 @@
-using System.Numerics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Windows.Foundation;
 using Windows.Graphics;
 using WindowsIsland.Components;
 using WindowsIsland.Plugins;
@@ -13,9 +10,9 @@ using WindowsIsland.Services;
 
 namespace WindowsIsland;
 
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
-    private const double CompactWidth = 120, CompactHeight = 32, SurfaceMargin = 12;
+    private const double MinimalWidth = 120, MinimalHeight = 32, SurfaceMargin = 12;
     private readonly IslandSurface _root;
     private readonly Grid _host = new();
     private readonly Grid _surfaceLayer;
@@ -27,7 +24,8 @@ public sealed class MainWindow : Window
     private readonly MessageRouter _router = new();
     private readonly GameModePolicy _gameMode = new();
     private readonly TrayIcon _tray;
-    private readonly NotificationPresentation _notification = new();
+    private readonly IslandScheduler _scheduler = new();
+    private readonly IslandContent _islandContent;
     private readonly NotificationPanel _notificationPanel = new()
     {
         Visibility = Visibility.Collapsed
@@ -35,15 +33,15 @@ public sealed class MainWindow : Window
     private readonly DispatcherQueueTimer _pulse, _expiry, _merge;
     private readonly IslandMotion _motion;
     private readonly NotificationInput _input;
+    private readonly PanelDismissMonitor _panelDismiss;
     private readonly nint _hwnd;
-    private bool _isExpanded, _closed, _polling, _started, _exiting, _openingSource;
-    private double _width = CompactWidth, _height = CompactHeight;
-    private double _notificationWidth = NotificationLayout.MinWidth, _notificationHeight = NotificationLayout.MinHeight;
+    private bool _surfaceVisible, _closed, _polling, _started, _exiting, _openingSource;
+    private double _width = MinimalWidth, _height = MinimalHeight;
     private double _scale = 1;
     private RectInt32 _workArea;
     private RectInt32? _lastBounds;
     private int _gameModeRevision;
-    private IslandNotification? _current;
+    private IslandNotification? _current => _scheduler.Message;
     private readonly bool _verification;
     private bool _showUpdateResult;
     private NotificationPosition _position;
@@ -58,7 +56,8 @@ public sealed class MainWindow : Window
         _verification = verification;
         _showUpdateResult = showUpdateResult;
         Title = "Windows Island";
-        _root = new IslandSurface(_notificationPanel, AppWindow.Id)
+        _islandContent = new IslandContent(_notificationPanel);
+        _root = new IslandSurface(_islandContent, AppWindow.Id)
         {
             Width = _width, Height = _height
         };
@@ -77,12 +76,11 @@ public sealed class MainWindow : Window
         AutomationProperties.SetAutomationId(_root, "IslandSurface");
         AutomationProperties.SetAutomationId(_notificationPanel, "NotificationContent");
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
-        _input = new NotificationInput(_hwnd, right => DispatcherQueue.TryEnqueue(() =>
-        {
-            if (_closed || !_notification.Active) return;
-            if (right) DismissNotification();
-            else _ = OpenNotificationSourceAsync();
-        }));
+        _input = new NotificationInput(_hwnd, right => DispatcherQueue.TryEnqueue(() => HandleIslandInput(right)));
+        _panelDismiss = new PanelDismissMonitor(() => DispatcherQueue.TryEnqueue(DismissPinnedPanel),
+            delta => DispatcherQueue.TryEnqueue(() => ScrollPinnedPanel(delta)));
+        _islandContent.Panel.Dismissed += DismissPinnedPanel;
+        _islandContent.Panel.Interacted += HandlePinnedInteraction;
         var presenter = OverlappedPresenter.Create();
         presenter.SetBorderAndTitleBar(false, false);
         presenter.IsResizable = false;
@@ -100,6 +98,7 @@ public sealed class MainWindow : Window
         _pluginLibrary = new PluginLibrary(_plugins, pluginPaths);
         _updates.Changed += OnUpdateCheckChanged;
         _plugins.Received += ReceiveNotification;
+        _plugins.PinnedChanged += ReceivePinned;
         _tray = new TrayIcon(_hwnd,
             () => DispatcherQueue.TryEnqueue(ExitApplication),
             () => DispatcherQueue.TryEnqueue(OpenSettings),
@@ -116,7 +115,7 @@ public sealed class MainWindow : Window
             }
         };
 
-        _motion = new IslandMotion(_surfaceLayer, _notificationPanel, SurfaceMargin,
+        _motion = new IslandMotion(_surfaceLayer, _islandContent, SurfaceMargin,
             () => _settings.Current.Animations, () => _settings.Current.OpacityTransitions, _position);
         _motion.Settled += FinishPresentation;
         _merge = DispatcherQueue.CreateTimer();
@@ -130,8 +129,10 @@ public sealed class MainWindow : Window
         _expiry.Interval = TimeSpan.FromMilliseconds(250);
         _expiry.Tick += (_, _) =>
         {
-            if (!_closed && _notification.Expired) DismissNotification();
-            else if (!_closed && _notification.Active && AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
+            if (_closed) return;
+            if (_scheduler.Tick()) PresentSchedule();
+            if (!_scheduler.HasContent) _expiry.Stop();
+            if (AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
         };
         _pulse = DispatcherQueue.CreateTimer();
         _pulse.Interval = TimeSpan.FromSeconds(1);
@@ -154,10 +155,12 @@ public sealed class MainWindow : Window
             _motion.Dispose();
             _root.Dispose();
             _input.Dispose();
+            _panelDismiss.Dispose();
             _expiry.Stop();
             _merge.Stop();
             _router.Clear();
             _plugins.Received -= ReceiveNotification;
+            _plugins.PinnedChanged -= ReceivePinned;
             _plugins.Dispose();
             _tray.Dispose();
         };
@@ -236,15 +239,13 @@ public sealed class MainWindow : Window
             App.ApplyLanguage(settings.Language);
             _root.Language = Localization.Language;
             _tray.UpdateAccess(_plugins.Access, settings.SystemNotifications);
-            if (_notification.Active && _current is not null)
+            if (_current is not null)
             {
                 if (_current is { Id: 0, AppName: "Windows Island", AppId: null })
                 {
-                    _current = _current with { Title = Localization.Get("PreviewTitle"), Body = Localization.Get("PreviewBody") };
-                    _notificationPanel.Show(_current);
+                    _scheduler.MessageUpdated(_current with { Title = Localization.Get("PreviewTitle"), Body = Localization.Get("PreviewBody") });
                 }
-                MeasureNotification();
-                UpdatePresentation(newMessage: false);
+                PresentSchedule(force: true);
             }
         }
         if (previous.MuteDuringGames != settings.MuteDuringGames || previous.MuteDuringFullScreen != settings.MuteDuringFullScreen)
@@ -260,17 +261,11 @@ public sealed class MainWindow : Window
             _motion.Reset();
             _position = settings.Position;
             _motion.SetPosition(_position);
-            if (_notification.Active)
-            {
-                MeasureNotification();
-                UpdatePresentation(newMessage: false);
-            }
-            else HideIsland();
+            PresentSchedule(force: true);
         }
         if (previous.Animations && !settings.Animations)
         {
-            if (_notification.Active) UpdatePresentation(newMessage: false);
-            else HideIsland();
+            PresentSchedule(animate: false, force: true);
         }
     }
 
@@ -296,50 +291,6 @@ public sealed class MainWindow : Window
         catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Notifications, error, "OpenAccessSettings"); _tray.UpdateAccess(NotificationAccess.Unavailable); }
     }
 
-    private void UpdatePresentation(bool newMessage)
-    {
-        _input.Hide();
-        var wasVisible = AppWindow.IsVisible;
-        var previous = new Size(_width, _height);
-        var target = new Size(_notificationWidth, _notificationHeight);
-        _width = target.Width;
-        _height = target.Height;
-        _notificationPanel.Width = Math.Max(1, target.Width - NotificationLayout.HorizontalPadding * 2);
-        _root.Width = _surfaceLayer.Width = Math.Max(_surfaceLayer.Width, target.Width);
-        _root.Height = _surfaceLayer.Height = Math.Max(_surfaceLayer.Height, target.Height);
-        _isExpanded = true;
-        _notificationPanel.Visibility = Visibility.Visible;
-        ApplyBounds();
-        if (!wasVisible)
-        {
-            AppWindow.Show(false);
-            NativeWindow.RemoveSystemBorder(_hwnd);
-        }
-        NativeWindow.ConfigureOverlay(_hwnd);
-        _host.UpdateLayout();
-        _motion.Show(previous, target, wasVisible, newMessage);
-    }
-
-    private void FinishPresentation()
-    {
-        if (_closed || !_isExpanded) return;
-        _root.Width = _surfaceLayer.Width = _width;
-        _root.Height = _surfaceLayer.Height = _height;
-        _host.UpdateLayout();
-        UpdateInputRegion(_width, _height);
-    }
-
-    private void UpdateInputRegion(double width, double height)
-    {
-        if (_closed || !AppWindow.IsVisible || _lastBounds is not { } bounds) return;
-        var contentWidth = (int)Math.Ceiling(width * _scale);
-        var contentHeight = (int)Math.Ceiling(height * _scale);
-        var offset = ContentOffset(bounds.Width, bounds.Height, width, height);
-        _input.Show(new RectInt32(bounds.X + (int)Math.Round(offset.X),
-            bounds.Y + (int)Math.Round(offset.Y), contentWidth, contentHeight),
-            (int)Math.Ceiling(NotificationLayout.CornerRadius * _scale));
-    }
-
     private async Task OpenNotificationSourceAsync()
     {
         if (_closed || _openingSource || _current is not { } notification) return;
@@ -349,44 +300,6 @@ public sealed class MainWindow : Window
             if (await NotificationActivation.OpenAsync(notification) && ReferenceEquals(_current, notification)) DismissNotification();
         }
         finally { _openingSource = false; }
-    }
-
-    private void ApplyBounds()
-    {
-        var anchor = NotificationPlacement.Anchor(_position);
-        _surfaceLayer.HorizontalAlignment = _notificationPanel.HorizontalAlignment = anchor.X switch
-        {
-            0 => HorizontalAlignment.Left, 1 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center
-        };
-        _surfaceLayer.VerticalAlignment = _notificationPanel.VerticalAlignment = anchor.Y switch
-        {
-            0 => VerticalAlignment.Top, 1 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center
-        };
-        var width = Math.Max(1, (int)Math.Round(Math.Min(NotificationLayout.MaxWidth + SurfaceMargin * 2, _workArea.Width / _scale) * _scale));
-        var height = Math.Max(1, (int)Math.Round(Math.Min(NotificationLayout.MaxHeight + SurfaceMargin * 2, _workArea.Height / _scale) * _scale));
-        var origin = NotificationPlacement.Offset(_position, new(_workArea.Width, _workArea.Height), new(width, height));
-        var x = _workArea.X + (int)Math.Round(origin.X);
-        var y = _workArea.Y + (int)Math.Round(origin.Y);
-        var bounds = new RectInt32(x, y, width, height);
-        if (_lastBounds != bounds)
-        {
-            AppWindow.MoveAndResize(bounds);
-            _lastBounds = bounds;
-        }
-        var contentOffset = ContentOffset(width, height, _width, _height);
-        NativeWindow.SetContentBounds(_hwnd, (int)Math.Round(contentOffset.X), (int)Math.Round(contentOffset.Y),
-            (int)Math.Ceiling(_width * _scale), (int)Math.Ceiling(_height * _scale), (int)(NotificationLayout.CornerRadius * _scale));
-        if (AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
-    }
-
-    private Vector2 ContentOffset(int hostWidth, int hostHeight, double width, double height) =>
-        NotificationPlacement.Offset(_position, new(hostWidth, hostHeight),
-            new((float)(width * _scale), (float)(height * _scale)), (float)(SurfaceMargin * _scale));
-
-    private void RefreshDisplayMetrics()
-    {
-        _scale = Math.Max(1, NativeWindow.GetDpiForWindow(_hwnd) / 96d);
-        _workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
     }
 
     private async void Pulse(DispatcherQueueTimer sender, object args)
@@ -400,7 +313,7 @@ public sealed class MainWindow : Window
             await PollGameModeAsync();
             if (_closed) return;
             await _plugins.PollAsync();
-            if (!_closed && _isExpanded && !_motion.IsRunning)
+            if (!_closed && _surfaceVisible && !_motion.IsRunning)
             {
                 RefreshDisplayMetrics();
                 ApplyBounds();
@@ -439,8 +352,9 @@ public sealed class MainWindow : Window
             {
                 _router.DiscardPending();
                 _merge.Stop();
-                DismissNotification(animate: false);
             }
+            _scheduler.SetMuted(_gameMode.IsMuted);
+            PresentSchedule(animate: false);
         }
         return _gameMode.IsMuted;
     }
@@ -475,12 +389,10 @@ public sealed class MainWindow : Window
         if (dispatch.ReplaceCurrent)
         {
             if (RefreshGameMode()) return;
-            if (!_notification.Active || _current is null
+            if (_current is null
                 || !MessageRouter.Matches(_current, dispatch.Notification)) return;
-            _current = dispatch.Notification;
-            _notificationPanel.Show(dispatch.Notification);
-            MeasureNotification();
-            UpdatePresentation(newMessage: false);
+            _scheduler.MessageUpdated(dispatch.Notification);
+            PresentSchedule();
             if (AppWindow.IsVisible) NativeWindow.EnsureTopmost(_hwnd);
             return;
         }
@@ -490,43 +402,8 @@ public sealed class MainWindow : Window
     private void ShowNotification(IslandNotification notification)
     {
         if (RefreshGameMode()) return;
-        _current = notification;
-        _notification.Show();
-        _expiry.Start();
-        _notificationPanel.Show(notification);
-        MeasureNotification();
-        UpdatePresentation(newMessage: true);
+        _scheduler.MessageArrived(notification);
+        PresentSchedule(newMessage: true);
     }
 
-    private void MeasureNotification()
-    {
-        RefreshDisplayMetrics();
-        var size = _notificationPanel.MeasureWindow(_workArea.Width / _scale - 24, _workArea.Height / _scale - 24);
-        _notificationWidth = size.Width;
-        _notificationHeight = size.Height;
-    }
-
-    private void DismissNotification(bool animate = true)
-    {
-        if (_closed) return;
-        _expiry.Stop();
-        _current = null;
-        _input.Hide();
-        _notification.Clear();
-        _isExpanded = false;
-        if (animate && AppWindow.IsVisible) _motion.Hide(HideIsland);
-        else HideIsland();
-    }
-
-    private void HideIsland()
-    {
-        _motion.Reset();
-        _isExpanded = false;
-        _width = CompactWidth;
-        _height = CompactHeight;
-        _notificationPanel.Clear();
-        _notificationPanel.Visibility = Visibility.Collapsed;
-        _input.Hide();
-        AppWindow.Hide();
-    }
 }

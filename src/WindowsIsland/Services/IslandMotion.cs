@@ -58,7 +58,7 @@ internal sealed class IslandMotion : IDisposable
         _surface.StartAnimation(nameof(Visual.CenterPoint), alignment);
     }
 
-    public void Show(Size previous, Size target, bool visible, bool newMessage)
+    public void Show(Size previous, Size target, bool visible, bool newMessage, bool animate = true)
     {
         if (_disposed) return;
         var opening = !visible || _phase == Phase.Hidden;
@@ -75,7 +75,7 @@ internal sealed class IslandMotion : IDisposable
             _content.Properties.InsertVector3("Translation", new Vector3(NotificationPlacement.Outward(_position) * -6, 0));
         }
         else if (settled) _shape.InsertVector2("Size", new Vector2((float)previous.Width, (float)previous.Height));
-        if (!_animationsEnabled()) { SetVisible(); return; }
+        if (!animate || !_animationsEnabled()) { SetVisible(); return; }
         ScaleSurface();
         _phase = Phase.Opening;
         Begin(() =>
@@ -101,12 +101,12 @@ internal sealed class IslandMotion : IDisposable
         }, SetVisible);
     }
 
-    public void Hide(Action completed)
+    public void Hide(Action completed, bool animate = true)
     {
         if (_disposed) return;
         var settled = _phase == Phase.Visible;
         CancelCompletion();
-        if (!_animationsEnabled()) { Reset(); completed(); return; }
+        if (!animate || !_animationsEnabled()) { Reset(); completed(); return; }
         _content.StopAnimation(nameof(Visual.Opacity));
         _content.Opacity = 1;
         if (settled) _shape.InsertVector2("Size", _target);

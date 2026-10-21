@@ -4,20 +4,37 @@ using WindowsIsland.Services;
 namespace WindowsIsland.Plugins;
 
 internal sealed class PluginContext(string id, IPluginSettings settings, IPluginDiagnostics diagnostics,
-    Action<PluginNotification> publish, Func<Type, object?>? services = null) : IPluginContext, IDisposable
+    Action<PluginNotification> publish, Func<Type, object?>? services = null,
+    Action<PinnedContentChange>? pinned = null) : IPluginContext, IPinnedContentSource, IDisposable
 {
     private int _disposed;
+    private Func<PinnedControlInteraction, Task>? _interaction;
     private readonly RevocablePluginSettings _settings = new(settings);
     public string PluginId => id;
     public IPluginSettings Settings => _settings;
     public IPluginDiagnostics Diagnostics => diagnostics;
-    public T? GetService<T>() where T : class => Volatile.Read(ref _disposed) == 0 ? services?.Invoke(typeof(T)) as T : null;
+    public T? GetService<T>() where T : class => Volatile.Read(ref _disposed) != 0 ? null
+        : typeof(T) == typeof(IPinnedContentSource) && pinned is not null ? this as T : services?.Invoke(typeof(T)) as T;
+    public void Submit(PinnedContent content) => PublishPinned(new(PinnedChangeKind.Added, id, content.Id, content));
+    public void Update(PinnedContent content) => PublishPinned(new(PinnedChangeKind.Updated, id, content.Id, content));
+    public void Remove(string contentId) => PublishPinned(new(PinnedChangeKind.Removed, id, contentId));
+    public void SetInteractionHandler(Func<PinnedControlInteraction, Task>? handler)
+    {
+        if (Volatile.Read(ref _disposed) == 0) Volatile.Write(ref _interaction, handler);
+        if (Volatile.Read(ref _disposed) != 0) Interlocked.Exchange(ref _interaction, null);
+    }
+    public Task HandleInteractionAsync(PinnedControlInteraction interaction) => Volatile.Read(ref _disposed) == 0
+        ? Volatile.Read(ref _interaction)?.Invoke(interaction) ?? Task.CompletedTask : Task.CompletedTask;
+    private void PublishPinned(PinnedContentChange change)
+    {
+        if (Volatile.Read(ref _disposed) == 0) pinned?.Invoke(change);
+    }
     public void PublishNotification(PluginNotification notification)
     {
         if (Volatile.Read(ref _disposed) != 0) return;
         publish(notification);
     }
-    public void Dispose() { Interlocked.Exchange(ref _disposed, 1); _settings.Revoke(); }
+    public void Dispose() { Interlocked.Exchange(ref _disposed, 1); Interlocked.Exchange(ref _interaction, null); _settings.Revoke(); }
 }
 
 internal sealed class RevocablePluginSettings(IPluginSettings settings) : IPluginSettings
@@ -46,6 +63,7 @@ internal sealed class PluginDiagnostics(string id, DiagnosticArea area) : IPlugi
         BuiltInPluginIds.Telegram => DiagnosticArea.TelegramPlugin,
         BuiltInPluginIds.Power => DiagnosticArea.PowerPlugin,
         BuiltInPluginIds.WeChat => DiagnosticArea.WeChatPlugin,
+        BuiltInPluginIds.Countdown => DiagnosticArea.CountdownPlugin,
         _ => area
     };
     public void Write(PluginDiagnostic diagnostic) => WindowsIsland.Services.Diagnostics.Store?.RecordPlugin(id, Area,

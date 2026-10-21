@@ -8,7 +8,7 @@ namespace WindowsIsland.Plugins;
 internal static class PluginManifestReader
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-    public static bool Reserved(string id) => id is BuiltInPluginIds.System or BuiltInPluginIds.WeChat or BuiltInPluginIds.Telegram or BuiltInPluginIds.Power;
+    public static bool Reserved(string id) => BuiltInPluginIds.IsReserved(id);
     // 开发者标识采用与插件名称相同的小写字符和单下划线规则，不带插件类型后缀。
     public static bool DeveloperIdValid(string? id) => id is { Length: > 0 and <= 64 } && PluginId.IsValid("wini_" + id + "_plugin");
     public static bool GitHubRepository(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)

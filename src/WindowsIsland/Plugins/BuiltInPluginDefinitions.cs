@@ -4,6 +4,9 @@ namespace WindowsIsland.Plugins;
 
 internal static class BuiltInPluginDefinitions
 {
+    public static readonly NotificationPluginDefinition Countdown = new(BuiltInPluginIds.Countdown, "Countdown", "CountdownToggle", 0xE916,
+        DiagnosticArea.CountdownPlugin, s => s.Countdown, (s, value) => s with { Countdown = value },
+        _ => false, PluginMetadata.BuiltIn, "ActionRestartCountdown");
     // Keep the existing persisted fields, localized titles and automation IDs.
     public static readonly NotificationPluginDefinition System = new(BuiltInPluginIds.System, "SystemNotifications", "SystemNotificationsToggle", 0xE8F2,
         DiagnosticArea.Notifications, s => s.SystemNotifications, (s, value) => s with { SystemNotifications = value },
