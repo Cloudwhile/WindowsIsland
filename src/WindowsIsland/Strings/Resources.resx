@@ -168,9 +168,6 @@
   <data name="AwaitingPermission" xml:space="preserve">
     <value>等待授权</value>
   </data>
-  <data name="Ready" xml:space="preserve">
-    <value>已就绪</value>
-  </data>
   <data name="Off" xml:space="preserve">
     <value>已关闭</value>
   </data>
@@ -418,10 +415,10 @@
     <value>连接失败</value>
   </data>
   <data name="WeChatUnsupportedDetail" xml:space="preserve">
-    <value>当前微信版本暂不支持直连，已回退到系统通知</value>
+    <value>当前微信版本暂不支持直连，已回退到系统通知。请重试连接；仍失败时查看诊断记录。</value>
   </data>
   <data name="WeChatConnectFailedDetail" xml:space="preserve">
-    <value>无法读取微信窗口，已回退到系统通知</value>
+    <value>无法读取微信窗口，已回退到系统通知。请重试连接；仍失败时查看诊断记录。</value>
   </data>
   <data name="TelegramNotDetected" xml:space="preserve">
     <value>未检测到客户端</value>
@@ -445,13 +442,13 @@
     <value>电量 {0}%</value>
   </data>
   <data name="TrayConnecting" xml:space="preserve">
-    <value>正在连接通知</value>
+    <value>未连接</value>
   </data>
   <data name="TrayDisabled" xml:space="preserve">
     <value>系统通知已关闭</value>
   </data>
   <data name="TrayListening" xml:space="preserve">
-    <value>通知监听中</value>
+    <value>已连接</value>
   </data>
   <data name="TrayAllowAccess" xml:space="preserve">
     <value>允许通知访问</value>
@@ -523,7 +520,7 @@
   <data name="SizeKilobytes" xml:space="preserve"><value>{0} KB</value></data>
   <data name="DiagnosticsCopy" xml:space="preserve"><value>复制诊断报告</value></data>
   <data name="DiagnosticsCopied" xml:space="preserve"><value>报告已复制。打开问题反馈后粘贴到对应位置，提交前请检查内容。</value></data>
-  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>已重新尝试连接，结果会显示在消息来源页。</value></data>
+  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>已重新尝试连接，结果会显示在插件列表。</value></data>
   <data name="DiagnosticsRecordCount" xml:space="preserve"><value>{0} 条记录 · {1} 条失败</value></data>
   <data name="DiagnosticFailedCount" xml:space="preserve"><value>失败 · {0} 次</value></data>
   <data name="DiagnosticSucceededCount" xml:space="preserve"><value>成功 · {0} 次</value></data>
@@ -549,7 +546,7 @@
   <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>微信重置了辅助访问开关</value></data>
   <data name="DiagnosticReasonError" xml:space="preserve"><value>{0}（{1}）</value></data>
   <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>未记录具体错误</value></data>
-  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>点击重试；仍失败时，复制报告并提交问题反馈。</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>请到插件列表重试连接；仍失败时，复制报告并提交问题反馈。</value></data>
   <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>问题反复出现时，复制报告并提交问题反馈。</value></data>
   <data name="SystemDoNotDisturb" xml:space="preserve"><value>系统免打扰</value></data>
   <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>未能更改系统免打扰，请重试或打开 Windows 通知设置。</value></data>
@@ -600,4 +597,35 @@
   <data name="CountdownPause" xml:space="preserve"><value>暂停</value></data>
   <data name="CountdownDuration" xml:space="preserve"><value>时长（秒）</value></data>
   <data name="ActionClose" xml:space="preserve"><value>关闭</value></data>
+  <data name="PluginInstallation" xml:space="preserve"><value>安装</value></data>
+  <data name="PluginDescription" xml:space="preserve"><value>说明</value></data>
+  <data name="PluginPermissionsRequested" xml:space="preserve"><value>所需权限</value></data>
+  <data name="PluginPermissionsNone" xml:space="preserve"><value>无</value></data>
+  <data name="WeChatUnsupportedNoFallbackDetail" xml:space="preserve"><value>当前微信版本暂不支持直连。请重试连接，或启用系统通知接收提醒。</value></data>
+  <data name="WeChatConnectFailedNoFallbackDetail" xml:space="preserve"><value>无法读取微信窗口。请重试连接，或启用系统通知接收提醒。</value></data>
+  <data name="SourceUnavailableDetail" xml:space="preserve"><value>来源暂不可用。请刷新状态或重试连接；仍失败时查看诊断记录。</value></data>
+  <data name="SourceDeniedDetail" xml:space="preserve"><value>访问未获授权。请检查应用或系统权限后重试。</value></data>
+  <data name="DiagnosticsEvents" xml:space="preserve"><value>最近记录</value></data>
+  <data name="DiagnosticsAreaPlugins" xml:space="preserve"><value>插件</value></data>
+  <data name="DiagnosticsAreaCountdownPlugin" xml:space="preserve"><value>倒计时</value></data>
+  <data name="DiagnosticTitleOperationFailed" xml:space="preserve"><value>操作失败</value></data>
+  <data name="DiagnosticTitleReadMessages" xml:space="preserve"><value>读取消息失败</value></data>
+  <data name="DiagnosticTitleConnectNotifications" xml:space="preserve"><value>系统通知连接失败</value></data>
+  <data name="DiagnosticTitleRegistration" xml:space="preserve"><value>应用注册未完成</value></data>
+  <data name="DiagnosticTitleInstallPlugin" xml:space="preserve"><value>插件安装失败</value></data>
+  <data name="DiagnosticTitleOfficialPlugin" xml:space="preserve"><value>官方源操作未完成</value></data>
+  <data name="DiagnosticTitlePluginCatalog" xml:space="preserve"><value>读取官方源失败</value></data>
+  <data name="DiagnosticTitleLoadPlugin" xml:space="preserve"><value>插件加载失败</value></data>
+  <data name="DiagnosticTitleStartPlugin" xml:space="preserve"><value>插件启动失败</value></data>
+  <data name="DiagnosticTitleStopPlugin" xml:space="preserve"><value>插件停止失败</value></data>
+  <data name="DiagnosticTitlePluginStatus" xml:space="preserve"><value>获取插件状态失败</value></data>
+  <data name="DiagnosticTitleRetryPlugin" xml:space="preserve"><value>插件重试失败</value></data>
+  <data name="DiagnosticTitlePluginAccess" xml:space="preserve"><value>插件授权未完成</value></data>
+  <data name="DiagnosticTitlePluginNotification" xml:space="preserve"><value>插件消息处理失败</value></data>
+  <data name="DiagnosticTitlePinnedInteraction" xml:space="preserve"><value>固定内容操作失败</value></data>
+  <data name="DiagnosticTitlePinnedPanel" xml:space="preserve"><value>固定内容面板未加载</value></data>
+  <data name="DiagnosticTitlePinnedRemoval" xml:space="preserve"><value>固定内容撤下失败</value></data>
+  <data name="DiagnosticTitlePluginCleanup" xml:space="preserve"><value>插件文件清理失败</value></data>
+  <data name="DiagnosticTitleOpenRepository" xml:space="preserve"><value>仓库链接打开失败</value></data>
+  <data name="DiagnosticTitleSavePreferences" xml:space="preserve"><value>设置保存失败</value></data>
 </root>

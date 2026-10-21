@@ -382,9 +382,9 @@ internal sealed class SettingsPage : Grid, IDisposable
         _header.Status = summary;
         _notice.Visibility = ready ? Visibility.Collapsed : Visibility.Visible;
         _notice.ActionButton = null;
-        _notice.Title = Localization.Get(ready ? "Ready" : "IncompleteSetup");
-        _notice.Message = Localization.Get(ready ? "SettingsSaved" : state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess");
-        _notice.Severity = ready ? InfoBarSeverity.Success : InfoBarSeverity.Informational;
+        _notice.Title = ready ? "" : Localization.Get("IncompleteSetup");
+        _notice.Message = ready ? "" : Localization.Get(state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess");
+        _notice.Severity = InfoBarSeverity.Informational;
     }
 
     private async Task RefreshWindowsAsync()

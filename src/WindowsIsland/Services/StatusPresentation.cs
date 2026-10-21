@@ -18,11 +18,15 @@ internal static class SourceStatus
     public static bool IsRunning(string key) => Tone(key) == StatusTone.Success;
 
     // Secondary guidance shown below a source; null when the status needs no explanation.
-    public static string? DetailKey(string id, string key) => (id, key) switch
+    public static string? DetailKey(string id, string key, bool systemAvailable = true) => (id, key) switch
     {
+        (BuiltInPluginIds.WeChat, "WeChatUnsupported") when !systemAvailable => "WeChatUnsupportedNoFallbackDetail",
+        (BuiltInPluginIds.WeChat, "WeChatConnectFailed") when !systemAvailable => "WeChatConnectFailedNoFallbackDetail",
         (BuiltInPluginIds.WeChat, "WeChatUnsupported") => "WeChatUnsupportedDetail",
         (BuiltInPluginIds.WeChat, "WeChatConnectFailed") => "WeChatConnectFailedDetail",
         (BuiltInPluginIds.Telegram, "TelegramNotDetected") => "TelegramNotDetectedDetail",
+        (_, "Unavailable") => "SourceUnavailableDetail",
+        (_, "Denied") => "SourceDeniedDetail",
         _ => null
     };
 }
@@ -45,7 +49,40 @@ internal static class DiagnosticPresentation
         ["ReadPreferences"] = "DiagnosticTitleReadPreferences",
         ["ReadBanners"] = "DiagnosticTitleReadWindowsSettings",
         ["ReadDoNotDisturb"] = "DiagnosticTitleReadWindowsSettings",
-        ["ReadStartup"] = "DiagnosticTitleReadWindowsSettings"
+        ["ReadStartup"] = "DiagnosticTitleReadWindowsSettings",
+        ["ReadLoop"] = "DiagnosticTitleReadMessages",
+        ["ReadLoopAsync"] = "DiagnosticTitleReadMessages",
+        ["ReadNotification"] = "DiagnosticTitleReadMessages",
+        ["ScanWindows"] = "DiagnosticTitleReadMessages",
+        ["Inspect"] = "DiagnosticTitleReadMessages",
+        ["Subscribe"] = "DiagnosticTitleConnectNotifications",
+        ["RequestAccessAsync"] = "DiagnosticTitleConnectNotifications",
+        ["StartAsync"] = "DiagnosticTitleConnectNotifications",
+        ["RegisterAfterUpdate"] = "DiagnosticTitleRegistration",
+        ["RegisteredActivation"] = "DiagnosticTitleRegistration",
+        ["InstallPlugin"] = "DiagnosticTitleInstallPlugin",
+        ["OfficialPluginOperation"] = "DiagnosticTitleOfficialPlugin",
+        ["ReadPluginSources"] = "DiagnosticTitlePluginCatalog",
+        ["RefreshPluginSources"] = "DiagnosticTitlePluginCatalog",
+        ["ScanPlugins"] = "DiagnosticTitleLoadPlugin",
+        ["Initialize"] = "DiagnosticTitleStartPlugin",
+        ["Start"] = "DiagnosticTitleStartPlugin",
+        ["Stop"] = "DiagnosticTitleStopPlugin",
+        ["Dispose"] = "DiagnosticTitleStopPlugin",
+        ["Poll"] = "DiagnosticTitlePluginStatus",
+        ["Status"] = "DiagnosticTitlePluginStatus",
+        ["Retry"] = "DiagnosticTitleRetryPlugin",
+        ["RequestAccess"] = "DiagnosticTitlePluginAccess",
+        ["Filter"] = "DiagnosticTitlePluginNotification",
+        ["Callback"] = "DiagnosticTitlePluginNotification",
+        ["Dispatch"] = "DiagnosticTitlePluginNotification",
+        ["PinnedInteraction"] = "DiagnosticTitlePinnedInteraction",
+        ["RejectPinnedXaml"] = "DiagnosticTitlePinnedPanel",
+        ["RemovePinned"] = "DiagnosticTitlePinnedRemoval",
+        ["RemovePluginBackup"] = "DiagnosticTitlePluginCleanup",
+        ["OpenPluginRepository"] = "DiagnosticTitleOpenRepository",
+        ["SaveSourcePreference"] = "DiagnosticTitleSavePreferences",
+        ["Complete"] = "DiagnosticTitleSavePreferences"
     };
 
     public static DiagnosticOutcome Outcome(DiagnosticEntry entry) => entry.Errors.Length == 0 && !entry.Fatal
@@ -53,8 +90,15 @@ internal static class DiagnosticPresentation
 
     public static string Title(DiagnosticEntry entry)
     {
+        if (entry.Operation is "AccessibilityEnabled" or "AccessibilityRestored" && Outcome(entry) == DiagnosticOutcome.Failure)
+            return Localization.Get("DiagnosticTitleAccessibilityFailed");
         if (entry.Operation.StartsWith("Accessibility.", StringComparison.Ordinal)) return Localization.Get("DiagnosticTitleAccessibilityFailed");
         if (Titles.TryGetValue(entry.Operation, out var key)) return Localization.Get(key);
+        return Localization.Format("DiagnosticTitleFallback", Area(entry), Localization.Get("DiagnosticTitleOperationFailed"));
+    }
+
+    public static string Area(DiagnosticEntry entry)
+    {
         var area = entry.Area switch
         {
             DiagnosticArea.SystemPlugin or DiagnosticArea.PowerPlugin => DiagnosticArea.Notifications,
@@ -62,7 +106,7 @@ internal static class DiagnosticPresentation
             DiagnosticArea.TelegramPlugin => DiagnosticArea.Telegram,
             _ => entry.Area
         };
-        return Localization.Format("DiagnosticTitleFallback", Localization.Get("DiagnosticsArea" + area), entry.Operation);
+        return Localization.Get(entry.PluginId is not null && area == DiagnosticArea.Application ? "DiagnosticsAreaPlugins" : "DiagnosticsArea" + area);
     }
 
     public static string Summary(DiagnosticEntry entry) => Localization.Format(

@@ -41,6 +41,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _syncing = true;
         try
         {
+            var systemAvailable = plugins.Any(plugin => plugin.Definition.Id == BuiltInPluginIds.System && SourceStatus.IsRunning(plugin.StatusKey));
             var ids = plugins.Select(plugin => plugin.Definition.Id).ToHashSet(StringComparer.Ordinal);
             foreach (var id in _rows.Keys.Where(id => !ids.Contains(id)).ToArray())
             {
@@ -113,7 +114,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                 var key = controls.Toggle.IsOn ? plugin.StatusKey : "Off";
                 controls.Expander.Header.Status = Localization.Get(key);
                 controls.Expander.Header.Tone = SourceStatus.Tone(key);
-                controls.Expander.Header.Detail = SourceStatus.DetailKey(definition.Id, key) is { } detail ? Localization.Get(detail) : "";
+                controls.Expander.Header.Detail = SourceStatus.DetailKey(definition.Id, key, systemAvailable) is { } detail ? Localization.Get(detail) : "";
                 controls.Retry.Visibility = controls.Toggle.IsOn && plugin.CanRetry ? Visibility.Visible : Visibility.Collapsed;
                 controls.Delete.IsEnabled = !busy;
             }

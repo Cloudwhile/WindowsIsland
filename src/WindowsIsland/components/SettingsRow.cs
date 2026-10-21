@@ -17,6 +17,8 @@ internal sealed class SettingsRow : Grid
         [StatusTone.Critical] = IslandTheme.Text("", 12, "SystemFillColorCriticalBrush")
     };
     private readonly TextBlock _detail = IslandTheme.Text("", 12, secondary: true);
+    private readonly TextBlock _name;
+    public string Title { get => _name.Text; set => _name.Text = value; }
     private StatusTone _tone;
     private string _status = "";
 
@@ -56,7 +58,7 @@ internal sealed class SettingsRow : Grid
         icon.VerticalAlignment = VerticalAlignment.Center;
         icon.HorizontalAlignment = HorizontalAlignment.Center;
         Children.Add(icon);
-        var name = localizeTitle ? LocalizedUI.Text(title) : IslandTheme.Text(title);
+        var name = _name = localizeTitle ? LocalizedUI.Text(title) : IslandTheme.Text(title);
         name.TextWrapping = TextWrapping.Wrap;
         name.FontWeight = FontWeights.SemiBold;
         var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };

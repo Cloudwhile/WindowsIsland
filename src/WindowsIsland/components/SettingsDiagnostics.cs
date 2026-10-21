@@ -23,6 +23,8 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
     };
     private readonly InfoBar _status = new() { IsClosable = false, IsOpen = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly SettingsRow _recordRow, _recentRow, _feedbackRow;
+    private readonly SettingsDiagnosticEntries _entries = new();
+    private readonly SettingsSection _events;
     private bool _syncing, _busy, _disposed;
     private string? _statusKey;
 
@@ -46,6 +48,8 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         privacy.Margin = new Thickness(12, 12, 12, 4);
         Children.Add(privacy);
         Children.Add(_status);
+        _events = new SettingsSection("DiagnosticsEvents", _entries);
+        Children.Add(_events);
         AutomationProperties.SetAutomationId(_record, "LocalDiagnosticsToggle");
         AutomationProperties.SetAutomationId(_details, "DiagnosticDetails");
         AutomationProperties.SetAutomationId(_status, "DiagnosticStatus");
@@ -126,6 +130,8 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         var failures = entries.Count(entry => DiagnosticPresentation.Outcome(entry) == DiagnosticOutcome.Failure);
         _recentRow.Status = entries.Length == 0 ? Localization.Get("DiagnosticsEmpty") : Localization.Format("DiagnosticsRecordCount", entries.Length, failures);
         _recentRow.Tone = failures > 0 ? StatusTone.Critical : StatusTone.Neutral;
+        _entries.Refresh(entries.Reverse().ToArray());
+        _events.Visibility = entries.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         _record.IsEnabled = !_busy;
         _generate.IsEnabled = _view.IsEnabled = _export.IsEnabled = _copy.IsEnabled = !_busy && store is not null;
         _clear.IsEnabled = !_busy && entries.Length > 0;

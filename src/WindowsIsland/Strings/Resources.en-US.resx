@@ -168,9 +168,6 @@
   <data name="AwaitingPermission" xml:space="preserve">
     <value>Awaiting permission</value>
   </data>
-  <data name="Ready" xml:space="preserve">
-    <value>Ready</value>
-  </data>
   <data name="Off" xml:space="preserve">
     <value>Off</value>
   </data>
@@ -418,10 +415,10 @@
     <value>Connection failed</value>
   </data>
   <data name="WeChatUnsupportedDetail" xml:space="preserve">
-    <value>This WeChat version can't be connected directly yet. Using system notifications instead.</value>
+    <value>This WeChat version does not support direct access. System notifications remain available. Retry the connection; check diagnostics if the problem persists.</value>
   </data>
   <data name="WeChatConnectFailedDetail" xml:space="preserve">
-    <value>WeChat windows can't be read. Using system notifications instead.</value>
+    <value>The WeChat window could not be read. System notifications remain available. Retry the connection; check diagnostics if the problem persists.</value>
   </data>
   <data name="TelegramNotDetected" xml:space="preserve">
     <value>Client not detected</value>
@@ -445,13 +442,13 @@
     <value>Battery {0}%</value>
   </data>
   <data name="TrayConnecting" xml:space="preserve">
-    <value>Connecting to notifications</value>
+    <value>Not connected</value>
   </data>
   <data name="TrayDisabled" xml:space="preserve">
     <value>System notifications off</value>
   </data>
   <data name="TrayListening" xml:space="preserve">
-    <value>Listening for notifications</value>
+    <value>Connected</value>
   </data>
   <data name="TrayAllowAccess" xml:space="preserve">
     <value>Allow notification access</value>
@@ -523,7 +520,7 @@
   <data name="SizeKilobytes" xml:space="preserve"><value>{0} KB</value></data>
   <data name="DiagnosticsCopy" xml:space="preserve"><value>Copy diagnostic report</value></data>
   <data name="DiagnosticsCopied" xml:space="preserve"><value>Report copied. Paste it into the issue form after reviewing it.</value></data>
-  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>Retrying the connection. The result appears on the Sources page.</value></data>
+  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>Connection retried. Check the plugin list for the result.</value></data>
   <data name="DiagnosticsRecordCount" xml:space="preserve"><value>{0} records · {1} failed</value></data>
   <data name="DiagnosticFailedCount" xml:space="preserve"><value>Failed · {0} times</value></data>
   <data name="DiagnosticSucceededCount" xml:space="preserve"><value>Succeeded · {0} times</value></data>
@@ -549,7 +546,7 @@
   <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>WeChat reset its accessibility switch</value></data>
   <data name="DiagnosticReasonError" xml:space="preserve"><value>{0} ({1})</value></data>
   <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>No specific error was recorded</value></data>
-  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>Retry. If it still fails, copy the report and submit an issue.</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>Retry the connection in the plugin list. If it still fails, copy the report and submit feedback.</value></data>
   <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>If this keeps happening, copy the report and submit an issue.</value></data>
   <data name="SystemDoNotDisturb" xml:space="preserve"><value>Windows do not disturb</value></data>
   <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>Could not change do not disturb. Try again or open Windows notification settings.</value></data>
@@ -600,4 +597,35 @@
   <data name="CountdownPause" xml:space="preserve"><value>Pause</value></data>
   <data name="CountdownDuration" xml:space="preserve"><value>Duration (seconds)</value></data>
   <data name="ActionClose" xml:space="preserve"><value>Close</value></data>
+  <data name="PluginInstallation" xml:space="preserve"><value>Installation</value></data>
+  <data name="PluginDescription" xml:space="preserve"><value>Description</value></data>
+  <data name="PluginPermissionsRequested" xml:space="preserve"><value>Requested permissions</value></data>
+  <data name="PluginPermissionsNone" xml:space="preserve"><value>None</value></data>
+  <data name="WeChatUnsupportedNoFallbackDetail" xml:space="preserve"><value>This WeChat version does not support direct access. Retry the connection, or enable system notifications to receive alerts.</value></data>
+  <data name="WeChatConnectFailedNoFallbackDetail" xml:space="preserve"><value>The WeChat window could not be read. Retry the connection, or enable system notifications to receive alerts.</value></data>
+  <data name="SourceUnavailableDetail" xml:space="preserve"><value>This source is unavailable. Refresh its status or retry the connection; check diagnostics if the problem persists.</value></data>
+  <data name="SourceDeniedDetail" xml:space="preserve"><value>Access has not been granted. Check app or system permissions, then retry.</value></data>
+  <data name="DiagnosticsEvents" xml:space="preserve"><value>Recent events</value></data>
+  <data name="DiagnosticsAreaPlugins" xml:space="preserve"><value>Plugins</value></data>
+  <data name="DiagnosticsAreaCountdownPlugin" xml:space="preserve"><value>Countdown</value></data>
+  <data name="DiagnosticTitleOperationFailed" xml:space="preserve"><value>Operation failed</value></data>
+  <data name="DiagnosticTitleReadMessages" xml:space="preserve"><value>Could not read messages</value></data>
+  <data name="DiagnosticTitleConnectNotifications" xml:space="preserve"><value>System notification connection failed</value></data>
+  <data name="DiagnosticTitleRegistration" xml:space="preserve"><value>App registration did not complete</value></data>
+  <data name="DiagnosticTitleInstallPlugin" xml:space="preserve"><value>Plugin installation failed</value></data>
+  <data name="DiagnosticTitleOfficialPlugin" xml:space="preserve"><value>Catalog operation did not complete</value></data>
+  <data name="DiagnosticTitlePluginCatalog" xml:space="preserve"><value>Could not read the plugin catalog</value></data>
+  <data name="DiagnosticTitleLoadPlugin" xml:space="preserve"><value>Plugin loading failed</value></data>
+  <data name="DiagnosticTitleStartPlugin" xml:space="preserve"><value>Plugin startup failed</value></data>
+  <data name="DiagnosticTitleStopPlugin" xml:space="preserve"><value>Plugin shutdown failed</value></data>
+  <data name="DiagnosticTitlePluginStatus" xml:space="preserve"><value>Could not get plugin status</value></data>
+  <data name="DiagnosticTitleRetryPlugin" xml:space="preserve"><value>Plugin retry failed</value></data>
+  <data name="DiagnosticTitlePluginAccess" xml:space="preserve"><value>Plugin access was not granted</value></data>
+  <data name="DiagnosticTitlePluginNotification" xml:space="preserve"><value>Plugin message handling failed</value></data>
+  <data name="DiagnosticTitlePinnedInteraction" xml:space="preserve"><value>Pinned content action failed</value></data>
+  <data name="DiagnosticTitlePinnedPanel" xml:space="preserve"><value>Pinned content panel was not loaded</value></data>
+  <data name="DiagnosticTitlePinnedRemoval" xml:space="preserve"><value>Could not remove pinned content</value></data>
+  <data name="DiagnosticTitlePluginCleanup" xml:space="preserve"><value>Plugin file cleanup failed</value></data>
+  <data name="DiagnosticTitleOpenRepository" xml:space="preserve"><value>Could not open the repository link</value></data>
+  <data name="DiagnosticTitleSavePreferences" xml:space="preserve"><value>Could not save settings</value></data>
 </root>

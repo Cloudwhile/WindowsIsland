@@ -25,7 +25,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         actions.Children.Add(_install);
         actions.Children.Add(_cancel);
-        Children.Add(new SettingsRow(Symbol.Add, "PluginInstall", actions));
+        Children.Add(new SettingsSection("PluginInstallation", new SettingsRow(Symbol.Add, "PluginInstall", actions)));
         _notice.Margin = new Thickness(12, 8, 12, 8);
         Children.Add(_notice);
         _official = new SettingsOfficialPlugins(library);

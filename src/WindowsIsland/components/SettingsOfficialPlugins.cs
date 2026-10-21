@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -19,6 +18,9 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     private readonly TextBlock _status = LocalizedUI.Text("PluginCatalogEmpty", 12, secondary: true);
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
     private readonly List<IconActionButton> _actions = [];
+    private readonly List<PluginCatalogNotice> _notices = [];
+    private readonly List<SettingsPluginDetails> _details = [];
+    private PluginMetadata[] _installed = [];
     private PluginCatalogState? _rendered;
     private string _lastBase = "";
     private CancellationTokenSource? _operation;
@@ -29,21 +31,19 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     public SettingsOfficialPlugins(PluginLibrary library)
     {
         _library = library;
-        Spacing = 8;
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
         toolbar.Children.Add(_save);
         toolbar.Children.Add(_refresh);
         toolbar.Children.Add(_cancel);
-        Children.Add(new SettingsRow(Symbol.World, "PluginOfficial", toolbar));
         _address.Text = library.Catalog.State.BaseUrl;
-        _address.Margin = new Thickness(12, 0, 12, 0);
         LocalizedUI.Label(_address, "PluginSourceAddress");
         AutomationProperties.SetAutomationId(_address, "PluginSourceAddress");
-        Children.Add(_address);
         _status.TextWrapping = TextWrapping.Wrap;
-        _status.Margin = _notice.Margin = new Thickness(12, 0, 12, 0);
-        Children.Add(_status);
-        Children.Add(_notice);
+        var source = new StackPanel { Spacing = 12, Margin = new Thickness(12, 8, 12, 16) };
+        source.Children.Add(_address);
+        source.Children.Add(_status);
+        source.Children.Add(_notice);
+        Children.Add(new SettingsSection("PluginOfficial", new SettingsRow(Symbol.World, "PluginSourceAddress", toolbar), source));
         Children.Add(_plugins);
         _save.Click += async (_, _) => await RunAsync(async token => { await library.Catalog.ConfigureAsync(_address.Text); await library.Catalog.RefreshAsync(token); });
         _refresh.Click += async (_, _) => await RunAsync(token => library.Catalog.RefreshAsync(token));
@@ -59,22 +59,35 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     {
         if (_disposed) return;
         var state = _library.Catalog.State;
+        var installedPlugins = _library.Manager.Snapshot().Select(plugin => plugin.Definition.Metadata)
+            .OfType<PluginMetadata>().Where(metadata => metadata.External is not null).ToArray();
         if (_lastBase != state.BaseUrl && _operation is null) { _lastBase = state.BaseUrl; _address.Text = state.BaseUrl; }
         _status.Text = Localization.Get(state.Unavailable ? "PluginCatalogUnavailable" : state.Sources.Length == 0 ? "PluginCatalogEmpty" : "PluginCatalogReady");
-        if (!ReferenceEquals(_rendered, state) && _operation is null)
+        if ((!ReferenceEquals(_rendered, state) || !_installed.SequenceEqual(installedPlugins)) && _operation is null)
         {
             _rendered = state;
+            _installed = installedPlugins;
+            foreach (var details in _details) details.Dispose();
+            _details.Clear();
             _plugins.Children.Clear();
             _actions.Clear();
-            foreach (var index in state.Sources)
+            _notices.Clear();
+            var delisted = installedPlugins.Where(metadata => _library.Catalog.IsDelisted(metadata.External!.Manifest)).ToArray();
+            var developers = state.Sources.Select(index => index.Source.DeveloperId)
+                .Concat(delisted.Select(metadata => metadata.External!.Manifest.DeveloperId)).Distinct(StringComparer.Ordinal);
+            foreach (var developerId in developers)
             {
-                var developer = IslandTheme.Text(index.Source.DeveloperName, 16);
-                developer.TextWrapping = TextWrapping.Wrap;
-                developer.Margin = new Thickness(12, 12, 12, 4);
-                _plugins.Children.Add(developer);
-                foreach (var entry in index.Plugins) Add(entry);
+                var index = state.Sources.FirstOrDefault(source => source.Source.DeveloperId == developerId);
+                var removed = delisted.Where(metadata => metadata.External!.Manifest.DeveloperId == developerId).ToArray();
+                var rows = new List<UIElement>();
+                if (index is not null)
+                    foreach (var entry in index.Plugins) rows.Add(CreateEntry(entry, installedPlugins.FirstOrDefault(metadata => metadata.External!.Manifest.Id == entry.Id)));
+                foreach (var metadata in removed) rows.Add(CreateDelisted(metadata));
+                var name = index?.Source.DeveloperName ?? removed[0].External!.Manifest.DeveloperName ?? developerId;
+                _plugins.Children.Add(new SettingsSection(name, false, rows.ToArray()));
             }
         }
+        foreach (var notice in _notices) notice.Refresh();
         foreach (var action in _actions)
         {
             if (action.Tag is not PluginCatalogEntry entry) continue;
@@ -89,7 +102,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         _address.IsEnabled = _operation is null && !state.Busy;
     }
 
-    private void Add(PluginCatalogEntry entry)
+    private UIElement CreateEntry(PluginCatalogEntry entry, PluginMetadata? installed)
     {
         var install = new IconActionButton(Symbol.Download, "PluginInstall", "OfficialInstall." + entry.Id) { Tag = entry };
         install.Click += async (_, _) => await RunAsync(async token =>
@@ -109,17 +122,40 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
             localizeTitle: false, actions: [install, repository]);
         row.Header.Status = entry.Version;
         row.ExpandOnHeaderTap = true;
-        var description = IslandTheme.Text(entry.Description, 14);
-        description.TextWrapping = TextWrapping.Wrap;
-        description.Margin = new Thickness(0, 8, 12, 8);
-        row.Rows.Add(description);
-        var permissions = IslandTheme.Text(string.Join(", ", entry.Permissions), 12);
-        permissions.TextWrapping = TextWrapping.Wrap;
-        row.Rows.Add(permissions);
+        var details = new StackPanel { Spacing = 12, Margin = new Thickness(12, 8, 12, 16) };
+        details.Children.Add(new SettingsField("PluginDescription", entry.Description, "OfficialDescription." + entry.Id));
+        var permissions = new SettingsField("PluginPermissionsRequested", string.Join(", ", entry.Permissions), "OfficialPermissions." + entry.Id, placeholder: false);
+        if (entry.Permissions.Length == 0) LocalizedUI.Bind(permissions, () => permissions.Value.Text = Localization.Get("PluginPermissionsNone"));
+        details.Children.Add(permissions);
         var trust = LocalizedUI.Text(entry.DeveloperId == PluginCatalogClient.OfficialDeveloperId ? "PluginOfficialAuthor" : "PluginThirdParty", 12, secondary: true);
-        trust.Margin = new Thickness(0, 4, 0, 12);
-        row.Rows.Add(trust);
-        _plugins.Children.Add(row);
+        details.Children.Add(trust);
+        row.Rows.Add(details);
+        return WithNotice(row, installed?.External?.Manifest);
+    }
+
+    private UIElement CreateDelisted(PluginMetadata metadata)
+    {
+        var manifest = metadata.External!.Manifest;
+        var row = new SettingsExpander(new SymbolIcon(Symbol.AllApps), manifest.Name, "OfficialPlugin." + manifest.Id,
+            localizeTitle: false) { ExpandOnHeaderTap = true };
+        row.Header.Status = metadata.Version;
+        var details = new SettingsPluginDetails(new(manifest.Id, manifest.Name, "", 0, DiagnosticArea.Application,
+            _ => false, (settings, _) => settings, _ => false, metadata));
+        _details.Add(details);
+        row.Rows.Add(details);
+        row.ExpandedChanged += async expanded => { if (expanded) await details.ReadSizeAsync(); };
+        return WithNotice(row, manifest);
+    }
+
+    private UIElement WithNotice(SettingsExpander row, PluginManifest? manifest)
+    {
+        var container = new StackPanel();
+        container.Children.Add(row);
+        var notice = new PluginCatalogNotice(_library.Catalog, manifest) { Margin = new Thickness(52, 4, 12, 12) };
+        if (manifest is not null) AutomationProperties.SetAutomationId(notice, "OfficialCatalogNotice." + manifest.Id);
+        _notices.Add(notice);
+        container.Children.Add(notice);
+        return container;
     }
 
     private async Task<string[]?> ConfirmPermissionsAsync(PluginCatalogEntry entry)
@@ -186,6 +222,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         _disposed = true;
         _dialog?.Hide();
         _operation?.Cancel();
+        foreach (var details in _details) details.Dispose();
         _library.Catalog.Changed -= OnChanged;
     }
 }
