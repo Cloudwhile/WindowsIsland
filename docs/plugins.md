@@ -1,0 +1,84 @@
+# 插件开发
+
+插件只引用 `WindowsIsland.Contracts`，入口实现 `IIslandPlugin`，通知来源可实现
+`IMessageSource`。宿主负责调度和窗口，插件经 `IPluginContext` 提交通知及固定内容。
+
+## 兼容与能力发现
+
+`PluginContract.IsCompatible` 只接受相同且为正整数的合约大版本。一个大版本内
+不得向现有接口增加必填方法。新的宿主能力通过 `context.GetService<T>()` 查询，
+未提供时返回 `null`，插件应保留无此能力时的降级路径；固定内容服务是现有范例。
+新插件侧扩展采用可选接口，旧插件无需实现。新大版本发布必须附迁移说明，列明
+破坏性变更、替代 API、适用版本及迁移示例。
+
+`context.HostVersion` 是宿主的完整版本字符串；旧宿主默认返回空字符串。
+`context.PreviousVersion` 是安装操作替换的插件版本，首次安装为 `null`。
+这两个属性均提供默认实现，不要求插件实现宿主上下文，也不改变合约大版本。
+
+## 设置界面
+
+入口可实现 `IPluginSettingsSchema`，用 `SettingsSchema` 返回 `PluginSetting` 数据。
+仅支持 `PluginSettingType.String` 和 `Boolean`，与 `IPluginSettings` 一一对应：
+
+```csharp
+public IReadOnlyList<PluginSetting> SettingsSchema =>
+[
+    new("endpoint", PluginSettingType.String, "服务地址", "https://example.com"),
+    new("enabled", PluginSettingType.Boolean, "接收消息", true)
+];
+```
+
+键必须非空白且不超过 128 字符，同一 schema 不得重复。默认值必须是对应的
+string（可为 null）或 bool。标题、默认值、业务校验和迁移归插件负责，宿主不把
+这些内容写进清单。schema 在初始化前即可读取，读取不能依赖监听已启动。
+宿主详情使用原生文本框和开关，设置停用时仍可编辑，变更立即写入
+`IPluginSettings`，运行实例读同一存储，不因编辑重启。无设置页自定义 XAML。
+停用时宿主可能为读取 schema 构造、释放实例，不调用 Initialize/Start。
+
+## 生命周期
+
+入口可实现 `IPluginLifecycleAware`。宿主先调用 `OnStoppingAsync(reason)`，
+再调用 `StopAsync` 和 `Dispose`。原因包括 `Disabled`、`Removed`、`Updating`、
+`Shutdown`、`Failed`。停用先撤销上下文投递及旧代次写入能力，再异步清理；
+插件应在初始化时保留清理所需的资源，不依赖停止后的上下文重新申请服务。
+
+卸载在删除代码前调用可选的 `OnUninstallAsync`。钩子失败记本机诊断，继续删除；
+插件数据仍按现有流程保留。已停用插件会创建并初始化清理实例，但不会启动监听。
+更新时旧实例收到 `Updating`，新实例初始化时可用 `PreviousVersion` 迁移自己的设置；
+初始化应使迁移幂等，支持重试和回滚。
+
+## 权限声明与程序集隔离
+
+权限采用声明、官方源审核、安装时对高危项逐项确认的流程。进程内插件与宿主
+同进程、同系统权限；`AssemblyLoadContext` 解决程序集依赖隔离和卸载，**不是权限沙箱**。
+`network`、`filesystem`、`native`、`automation` 不能由 ALC 实际阻止。
+
+目前宿主实施的门控只有：
+
+- `notifications`：是否允许通过宿主投递消息。
+- `process`：未确认时剥离通知的激活进程号，并禁止宿主执行该通知的进程激活。
+- `settings`：是否提供 `IPluginStorage` 数据目录服务；不阻断直接文件 API，也不关闭插件设置存储。
+
+手动插件不能自行提升为官方来源；高危项未确认仍可运行普通功能。
+权限确认不应被理解为插件运行在隔离的低权限环境。
+
+## 清单与目录发现
+
+清单 `Description` 最多 8000 字符，`Author` 最多 200 字符，与官方目录项一致。
+安装和扫描均校验清单与 PE 元数据，预校验不执行插件入口代码。
+设置页手动刷新重新扫描 Official/Manual 目录，只增加有效的新目录；坏目录独立
+记录诊断。删除标记不会因扫描清除，目录缺失也不会自动删除已注册项。
+重新安装仍走原安装确认及权限流程，可以显式清除删除标记。
+
+## 本地验证
+
+逻辑及外部插件夹具回归：
+
+```powershell
+dotnet run --project tests/WindowsIsland.LogicTests -c Release
+pwsh -NoProfile -File tests/WindowsIsland.SettingsTests/Verify-PluginSettings.ps1
+dotnet build WindowsIsland.slnx -c Release
+```
+
+原生界面验证使用 GUID 隔离目录和替身配置，不扫描正式插件，不启动真实消息来源。
+最后的常规构建恢复普通应用产物。
