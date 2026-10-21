@@ -592,10 +592,6 @@
   <data name="PluginErrorHash" xml:space="preserve"><value>Plugin SHA256 verification failed. The download was removed</value></data>
   <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>The package does not match the catalog. Installation stopped</value></data>
   <data name="PluginErrorNotListed" xml:space="preserve"><value>The plugin is no longer in the current catalog. Refresh and retry</value></data>
-  <data name="Countdown" xml:space="preserve"><value>Countdown</value></data>
-  <data name="ActionRestartCountdown" xml:space="preserve"><value>Restart countdown</value></data>
-  <data name="CountdownPause" xml:space="preserve"><value>Pause</value></data>
-  <data name="CountdownDuration" xml:space="preserve"><value>Duration (seconds)</value></data>
   <data name="ActionClose" xml:space="preserve"><value>Close</value></data>
   <data name="PluginInstallation" xml:space="preserve"><value>Installation</value></data>
   <data name="PluginDescription" xml:space="preserve"><value>Description</value></data>
@@ -607,7 +603,6 @@
   <data name="SourceDeniedDetail" xml:space="preserve"><value>Access has not been granted. Check app or system permissions, then retry.</value></data>
   <data name="DiagnosticsEvents" xml:space="preserve"><value>Recent events</value></data>
   <data name="DiagnosticsAreaPlugins" xml:space="preserve"><value>Plugins</value></data>
-  <data name="DiagnosticsAreaCountdownPlugin" xml:space="preserve"><value>Countdown</value></data>
   <data name="DiagnosticTitleOperationFailed" xml:space="preserve"><value>Operation failed</value></data>
   <data name="DiagnosticTitleReadMessages" xml:space="preserve"><value>Could not read messages</value></data>
   <data name="DiagnosticTitleConnectNotifications" xml:space="preserve"><value>System notification connection failed</value></data>

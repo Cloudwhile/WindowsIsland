@@ -6,9 +6,8 @@ internal static class BuiltInPluginIds
     public const string Telegram = "wini_telegram_plugin";
     public const string Power = "wini_power_plugin";
     public const string WeChat = "wini_wechat_plugin";
-    public const string Countdown = "wini_countdown_plugin";
-
-    public static bool IsReserved(string id) => id is System or Telegram or Power or WeChat or Countdown;
+    // 已停用来源的标识仍禁止外部占用。
+    public static bool IsReserved(string id) => id is System or Telegram or Power or WeChat or "wini_countdown_plugin";
 
     public static string FromLegacy(string id) => id switch
     {

@@ -7,7 +7,7 @@ internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotif
     bool WeChat = true, bool Telegram = true, bool Power = true, bool Animations = true,
     NotificationPosition Position = NotificationPosition.TopCenter, bool IncludePrereleaseUpdates = false,
     string Language = LanguagePreferences.Default, bool MuteDuringGames = true, bool MuteDuringFullScreen = true,
-    bool LocalDiagnostics = true, bool Acrylic = true, bool OpacityTransitions = true, double BackgroundOpacity = 0.9, bool Countdown = false)
+    bool LocalDiagnostics = true, bool Acrylic = true, bool OpacityTransitions = true, double BackgroundOpacity = 0.9)
 {
     public static double NormalizeBackgroundOpacity(double opacity) =>
         double.IsFinite(opacity) && opacity is >= 0.2 and <= 1 ? opacity : 0.9;
@@ -59,7 +59,7 @@ internal sealed partial class SettingsStore
                 foreach (var name in new[] { nameof(AppSettings.SetupCompleted), nameof(AppSettings.SystemNotifications),
                     nameof(AppSettings.WeChat), nameof(AppSettings.Telegram), nameof(AppSettings.Power), nameof(AppSettings.Animations),
                     nameof(AppSettings.IncludePrereleaseUpdates), nameof(AppSettings.MuteDuringGames), nameof(AppSettings.MuteDuringFullScreen),
-                    nameof(AppSettings.LocalDiagnostics), nameof(AppSettings.Acrylic), nameof(AppSettings.OpacityTransitions), nameof(AppSettings.Countdown) })
+                    nameof(AppSettings.LocalDiagnostics), nameof(AppSettings.Acrylic), nameof(AppSettings.OpacityTransitions) })
                     if (preferences.TryGetPropertyValue(name, out var node)
                         && (node is not JsonValue value || !value.TryGetValue<bool>(out _))) preferences.Remove(name);
                 if (preferences.TryGetPropertyValue(nameof(AppSettings.Language), out var language)

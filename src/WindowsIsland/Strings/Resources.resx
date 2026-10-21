@@ -592,10 +592,6 @@
   <data name="PluginErrorHash" xml:space="preserve"><value>插件 SHA256 校验失败，下载已清理</value></data>
   <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>插件包与官方索引不一致，安装已中止</value></data>
   <data name="PluginErrorNotListed" xml:space="preserve"><value>该插件已不在当前官方索引中，请刷新后重试</value></data>
-  <data name="Countdown" xml:space="preserve"><value>倒计时</value></data>
-  <data name="ActionRestartCountdown" xml:space="preserve"><value>重新开始倒计时</value></data>
-  <data name="CountdownPause" xml:space="preserve"><value>暂停</value></data>
-  <data name="CountdownDuration" xml:space="preserve"><value>时长（秒）</value></data>
   <data name="ActionClose" xml:space="preserve"><value>关闭</value></data>
   <data name="PluginInstallation" xml:space="preserve"><value>安装</value></data>
   <data name="PluginDescription" xml:space="preserve"><value>说明</value></data>
@@ -607,7 +603,6 @@
   <data name="SourceDeniedDetail" xml:space="preserve"><value>访问未获授权。请检查应用或系统权限后重试。</value></data>
   <data name="DiagnosticsEvents" xml:space="preserve"><value>最近记录</value></data>
   <data name="DiagnosticsAreaPlugins" xml:space="preserve"><value>插件</value></data>
-  <data name="DiagnosticsAreaCountdownPlugin" xml:space="preserve"><value>倒计时</value></data>
   <data name="DiagnosticTitleOperationFailed" xml:space="preserve"><value>操作失败</value></data>
   <data name="DiagnosticTitleReadMessages" xml:space="preserve"><value>读取消息失败</value></data>
   <data name="DiagnosticTitleConnectNotifications" xml:space="preserve"><value>系统通知连接失败</value></data>

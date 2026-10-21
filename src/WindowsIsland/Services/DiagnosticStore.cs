@@ -159,7 +159,14 @@ internal sealed class DiagnosticStore : IDisposable
                         if (item[key] is JsonValue value && value.TryGetValue<string>(out var id))
                             item[key] = BuiltInPluginIds.FromLegacy(id);
                 }
-            var entries = document?.Deserialize<DiagnosticEntry[]>(Json) ?? [];
+            var entries = new List<DiagnosticEntry>();
+            if (document is JsonArray records)
+                foreach (var item in records)
+                {
+                    // 已停用或未知分区只丢弃自身，不影响仍可读取的记录。
+                    try { if (item?.Deserialize<DiagnosticEntry>(Json) is { } entry) entries.Add(entry); }
+                    catch (JsonException) { }
+                }
             // Do not forward arbitrary edited log content through the report export.
             _entries.AddRange(entries.Where(Valid).TakeLast(MaximumEntries));
             Prune(_clock());

@@ -5,7 +5,7 @@ namespace WindowsIsland.Services;
 internal enum IslandState { Minimal, Compact, Expanded }
 internal enum IslandExpandedKind { None, Message, Pinned }
 
-// 唯一的内容与截止时间所有者；由宿主串行投递事件，不依赖界面或计时器。
+// 唯一的内容与消息截止时间所有者；固定内容由插件及其生命周期撤下。
 internal sealed class IslandScheduler(TimeProvider? time = null)
 {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
@@ -41,7 +41,6 @@ internal sealed class IslandScheduler(TimeProvider? time = null)
 
     public void PinnedAdded(PinnedContent content)
     {
-        if (content.ExpiresAt <= _time.GetUtcNow()) { PinnedRemoved(content.PluginId, content.Id); return; }
         if (!Matches(content.PluginId, content.Id)) _pinnedOpen = false;
         Pinned = content;
         if (!HasDetails(content)) _pinnedOpen = false;
@@ -50,7 +49,7 @@ internal sealed class IslandScheduler(TimeProvider? time = null)
     public void PinnedUpdated(PinnedContent content)
     {
         if (!Matches(content.PluginId, content.Id)) return;
-        Pinned = content.ExpiresAt <= _time.GetUtcNow() ? null : content;
+        Pinned = content;
         if (!HasDetails(Pinned)) _pinnedOpen = false;
     }
 
@@ -72,10 +71,8 @@ internal sealed class IslandScheduler(TimeProvider? time = null)
     public bool Tick()
     {
         var message = Message;
-        var pinned = Pinned;
         MessageExpired();
-        if (Pinned?.ExpiresAt <= _time.GetUtcNow()) { Pinned = null; _pinnedOpen = false; }
-        return message != Message || pinned != Pinned;
+        return message != Message;
     }
 
     public void SetMuted(bool muted)

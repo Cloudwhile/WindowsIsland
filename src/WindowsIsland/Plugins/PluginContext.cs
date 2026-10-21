@@ -63,7 +63,6 @@ internal sealed class PluginDiagnostics(string id, DiagnosticArea area) : IPlugi
         BuiltInPluginIds.Telegram => DiagnosticArea.TelegramPlugin,
         BuiltInPluginIds.Power => DiagnosticArea.PowerPlugin,
         BuiltInPluginIds.WeChat => DiagnosticArea.WeChatPlugin,
-        BuiltInPluginIds.Countdown => DiagnosticArea.CountdownPlugin,
         _ => area
     };
     public void Write(PluginDiagnostic diagnostic) => WindowsIsland.Services.Diagnostics.Store?.RecordPlugin(id, Area,

@@ -14,7 +14,6 @@
     <PackageReference Include="Markdig" Version="1.4.2" />
     <Compile Include="../../src/WindowsIsland/Services/IslandScheduler.cs" Link="IslandScheduler.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PinnedContentPolicy.cs" Link="Plugins/PinnedContentPolicy.cs" />
-    <Compile Include="../../src/WindowsIsland/Plugins/CountdownPlugin.cs" Link="Plugins/CountdownPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Pinned.cs" Link="Plugins/PluginManager.Pinned.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MarkdownContent.cs" Link="MarkdownContent.cs" />
     <Compile Include="../../src/WindowsIsland/Services/RegisteredRestart.cs" Link="RegisteredRestart.cs" />

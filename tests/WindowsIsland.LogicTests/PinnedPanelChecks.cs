@@ -7,7 +7,7 @@ internal static class PinnedPanelChecks
 {
     public static async Task RunAsync(Action<bool, string> check)
     {
-        var pin = new PinnedContent("panel", BuiltInPluginIds.Countdown, "倒计时", "01:00", Body: "详情");
+        var pin = new PinnedContent("panel", PinnedSourceFixture.PluginId, "固定内容", "1", Body: "详情");
         var message = new IslandNotification(1, DateTimeOffset.UtcNow, "Mail", "消息", "正文");
         var scheduler = new IslandScheduler();
         scheduler.PinnedAdded(pin);
@@ -68,23 +68,22 @@ internal static class PinnedPanelChecks
         try
         {
             var store = new SettingsStore(Path.Combine(root, "settings.json"));
-            store.Save(store.Current with { Countdown = true });
             var clock = new Clock();
-            store.SetPluginString(pin.PluginId, "DurationSeconds", "60");
-            using var timer = new PluginManager([new(BuiltInPluginDefinitions.Countdown, () => new CountdownPlugin(clock))], store);
+            using var timer = new PluginManager([new(PinnedSourceFixture.Definition, () => new PinnedSourceFixture(clock, 60))], store);
             PinnedContent? current = null;
             timer.PinnedChanged += change => current = change.Content;
             await timer.StartAsync();
-            await timer.InteractPinnedAsync(current!, new("countdown", "pause", true));
-            check(current?.ExpiresAt is null && current?.Controls?.Single(c => c.Id == "pause").IsOn == true,
-                "Countdown receives the pause interaction through its context callback");
+            await timer.InteractPinnedAsync(current!, new(PinnedSourceFixture.ContentId, "pause", true));
+            check(current?.Controls?.Single(c => c.Id == "pause").IsOn == true,
+                "Test source receives the pause interaction through its context callback");
             clock.Seconds += 20;
             await timer.PollAsync();
-            check(current?.CompactText == "01:00", "Paused countdown keeps its value while elapsed wall time advances");
-            await timer.InteractPinnedAsync(current!, new("countdown", "pause", false));
-            check(current?.ExpiresAt == clock.GetUtcNow().AddSeconds(60), "Resume establishes a new deadline from remaining time");
-            await timer.InteractPinnedAsync(current!, new("countdown", "duration", Value: 90));
-            check(current?.CompactText == "01:30" && store.GetPluginString(pin.PluginId, "DurationSeconds", null) == "90", "Slider interaction changes countdown duration and publishes the updated controls");
+            check(current?.CompactText == "0", "Paused fixed source keeps its value while elapsed wall time advances");
+            await timer.InteractPinnedAsync(current!, new(PinnedSourceFixture.ContentId, "pause", false));
+            await timer.InteractPinnedAsync(current!, new(PinnedSourceFixture.ContentId, "duration", Value: 90));
+            check(current?.Controls?.Single(c => c.Id == "duration").Value == 90
+                && store.GetPluginString(pin.PluginId, "SampleInterval", null) == "90",
+                "Slider interaction changes the sample interval and publishes the updated control snapshot");
 
             var manualId = "wini_manual_panel_plugin";
             var paths = new PluginPaths(root);

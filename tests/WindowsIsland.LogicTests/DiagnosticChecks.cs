@@ -39,6 +39,15 @@ internal static class DiagnosticChecks
         store.Flush();
         using (var reopened = new DiagnosticStore(Path.Combine(root, "records"), false, () => now))
             check(reopened.Snapshot().Length == 2, "Local records survive a restart even when recording has been disabled");
+        var retiredArea = Path.Combine(root, "retired-area");
+        Directory.CreateDirectory(retiredArea);
+        var retiredEntry = JsonSerializer.SerializeToNode(first, DiagnosticStore.Json)!;
+        retiredEntry[nameof(DiagnosticEntry.Area)] = "retired-component";
+        File.WriteAllText(Path.Combine(retiredArea, "diagnostics.json"), new System.Text.Json.Nodes.JsonArray(
+            retiredEntry, JsonSerializer.SerializeToNode(first, DiagnosticStore.Json)).ToJsonString(DiagnosticStore.Json));
+        using (var loaded = new DiagnosticStore(retiredArea, false, () => now))
+            check(!loaded.PersistenceFailed && loaded.Snapshot() is [{ Area: DiagnosticArea.WeChat }],
+                "A retired diagnostic area is skipped without discarding remaining valid records");
         var before = await File.ReadAllTextAsync(export);
         try { await store.ExportAsync(export, new CancellationToken(true)); }
         catch (OperationCanceledException) { }

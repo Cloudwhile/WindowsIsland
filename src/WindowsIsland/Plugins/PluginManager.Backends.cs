@@ -11,8 +11,7 @@ internal sealed partial class PluginManager
         new(BuiltInPluginDefinitions.System, () => new SystemNotificationPlugin()),
         new(BuiltInPluginDefinitions.WeChat, () => new WeChatPlugin()),
         new(BuiltInPluginDefinitions.Telegram, () => new TelegramPlugin()),
-        new(BuiltInPluginDefinitions.Power, () => new PowerPlugin()),
-        new(BuiltInPluginDefinitions.Countdown, () => new CountdownPlugin(title: () => Localization.Get("Countdown"), label: Localization.Get))
+        new(BuiltInPluginDefinitions.Power, () => new PowerPlugin())
     ], settings, action =>
     {
         if (context.Dispatcher.HasThreadAccess) action();

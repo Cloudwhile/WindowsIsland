@@ -14,8 +14,7 @@ internal enum DiagnosticArea
     [JsonStringEnumMemberName(BuiltInPluginIds.System)] SystemPlugin,
     [JsonStringEnumMemberName(BuiltInPluginIds.Telegram)] TelegramPlugin,
     [JsonStringEnumMemberName(BuiltInPluginIds.Power)] PowerPlugin,
-    [JsonStringEnumMemberName(BuiltInPluginIds.WeChat)] WeChatPlugin,
-    [JsonStringEnumMemberName(BuiltInPluginIds.Countdown)] CountdownPlugin
+    [JsonStringEnumMemberName(BuiltInPluginIds.WeChat)] WeChatPlugin
 }
 
 internal sealed record DiagnosticFrame(string Method, int Token, int Offset, string Module);

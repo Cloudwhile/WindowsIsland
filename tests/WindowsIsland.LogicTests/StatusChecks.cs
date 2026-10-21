@@ -64,7 +64,7 @@ internal static class StatusChecks
             check(DiagnosticPresentation.Title(Entry("Start")) == "插件启动失败"
                 && DiagnosticPresentation.Title(Entry("RejectPinnedXaml")) == "固定内容面板未加载",
                 "Plugin lifecycle and pinned panel events have translated titles");
-            check(DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.CountdownPlugin }) == "倒计时"
+            check(DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.PowerPlugin }) == "系统通知"
                 && DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.Application, PluginId = "wini_fixture_plugin" }) == "插件",
                 "Built-in and external plugin diagnostic areas have readable names");
             check(DiagnosticPresentation.Outcome(enabled with { Errors = error.Errors }) == DiagnosticOutcome.Failure
@@ -80,7 +80,7 @@ internal static class StatusChecks
             check(DiagnosticPresentation.Summary(patch) == "Failed · 19 times", "Diagnostic summaries follow the selected language");
             check(DiagnosticPresentation.Title(error) == "Could not read messages"
                 && DiagnosticPresentation.Title(Entry("FutureOperation")) == "WeChat · Operation failed"
-                && DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.CountdownPlugin }) == "Countdown",
+                && DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.PowerPlugin }) == "System notifications",
                 "Diagnostic event names and fallbacks follow the selected language");
         }
         finally { Localization.Configure("zh-CN"); }
