@@ -39,7 +39,7 @@ internal static class PluginDirectoryChecks
         WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_version_plugin"), Manifest with { Id = "wini_version_plugin", ContractVersion = 2 });
         WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_entry_plugin"), Manifest with { Id = "wini_entry_plugin", EntryType = "Missing.Type" });
         var loader = new PluginDirectoryLoader(paths, store);
-        Check(loader.Scan().Count == 2, "Directory discovery isolates corrupt manifests and incompatible contracts");
+        Check(loader.Scan().Count == 1, "Directory discovery isolates corrupt manifests and incompatible contracts");
         using var manager = new PluginManager([], store);
         manager.ConfigureDirectories(paths);
         var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -47,7 +47,7 @@ internal static class PluginDirectoryChecks
         await manager.StartAsync();
         await arrived.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Check(manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).StatusKey == "Connected"
-            && manager.Snapshot().Single(s => s.Definition.Id == "wini_entry_plugin").CanRetry,
+            && manager.Snapshot().All(s => s.Definition.Id != "wini_entry_plugin"),
             "Collectible external source publishes through the existing manager; missing entry fails alone");
         var failures = Diagnostics.Store!.Snapshot();
         Check(new[] { "wini_broken_plugin", "wini_version_plugin", "wini_entry_plugin" }.All(id => failures.Any(f => f.PluginId == id)),

@@ -1,7 +1,8 @@
 namespace WindowsIsland.Contracts;
 
 /// <summary>定义按插件标识隔离、支持并发调用的字符串和布尔设置存储。</summary>
-/// <remarks>宿主绑定存储范围，插件只传入范围内的键，不能选择其他插件的存储。</remarks>
+/// <remarks>宿主绑定存储范围，插件只传入范围内的键，不能选择其他插件的存储。
+/// 所有读写的键必须非空白且最多 128 字符，否则抛出 ArgumentException。</remarks>
 public interface IPluginSettings
 {
     /// <summary>读取字符串设置；键不存在或类型无效时返回指定默认值。</summary>

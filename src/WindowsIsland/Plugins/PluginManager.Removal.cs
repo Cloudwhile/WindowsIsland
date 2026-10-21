@@ -1,3 +1,5 @@
+using WindowsIsland.Contracts;
+
 namespace WindowsIsland.Plugins;
 
 internal sealed partial class PluginManager
@@ -14,7 +16,7 @@ internal sealed partial class PluginManager
     private async Task RemoveCoreAsync(string id)
     {
         if (_disposed) return;
-        var entry = _entries.FirstOrDefault(item => item.Registration.Definition.Id == id)
+        var entry = Entries.FirstOrDefault(item => item.Registration.Definition.Id == id)
             ?? throw new ArgumentException("Unknown plugin identifier.", nameof(id));
         if (!entry.Registration.Definition.CanRemove) throw new InvalidOperationException("Built-in plugins cannot be removed.");
         if (entry.Removed) return;
@@ -26,7 +28,8 @@ internal sealed partial class PluginManager
         // 先持久化；保存失败时继续保留原实例和设置。
         _store.RemovePlugin(id);
         entry.Removed = true;
-        Stop(entry);
+        await PrepareLifecycleAsync(entry);
+        Stop(entry, PluginStopReason.Removed);
         await _operations.WaitAsync();
         try { await entry.Cleanup; }
         finally { _operations.Release(); }
@@ -42,7 +45,8 @@ internal sealed partial class PluginManager
             if (entry.Removed) return;
             _store.MarkExternalRemoved(external.Manifest.Id, true);
             entry.Removed = true;
-            Stop(entry);
+            await PrepareLifecycleAsync(entry);
+            Stop(entry, PluginStopReason.Removed);
             await entry.Cleanup;
             entry.Cleanup = Task.CompletedTask;
             await external.VerifyUnloadAsync();

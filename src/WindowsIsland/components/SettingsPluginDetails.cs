@@ -14,10 +14,15 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
     private readonly PluginCatalogNotice _catalogNotice;
     private bool _reading, _read, _disposed;
     private long? _bytes;
+    private readonly Func<string, Task<PluginSettingsModel?>>? _settings;
+    private readonly string _id;
 
     /// <summary>创建可选择和复制的插件详情。</summary>
-    public SettingsPluginDetails(NotificationPluginDefinition definition, PluginCatalogService? catalog = null) : base(false)
+    public SettingsPluginDetails(NotificationPluginDefinition definition, PluginCatalogService? catalog = null,
+        Func<string, Task<PluginSettingsModel?>>? settings = null) : base(false)
     {
+        _id = definition.Id;
+        _settings = settings;
         _metadata = definition.Metadata;
         Field("PluginVersion", _metadata?.Version, definition.Id + ".Version");
         var type = Field("PluginType", null, definition.Id + ".Type", placeholder: false);
@@ -36,6 +41,9 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
             var permissions = new SettingsColumns(granted, denied);
             AutomationProperties.SetAutomationId(permissions, "PluginPermissions." + definition.Id);
             Children.Add(permissions);
+            var notice = new SettingsField(null, "", placeholder: false);
+            LocalizedUI.Bind(notice, () => notice.Value.Text = Localization.Get("PluginPermissionNotice"));
+            Children.Add(notice);
         }
         Field("PluginLocation", _metadata?.Location, definition.Id + ".Location");
         _size = Field("PluginFileSize", null, definition.Id + ".Size", placeholder: false);
@@ -65,16 +73,19 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
     /// <summary>首次展开时异步读取大小，组件释放后忽略晚到结果。</summary>
     public async Task ReadSizeAsync()
     {
-        if (_disposed || _reading || _read || _metadata is null) return;
+        if (_disposed || _reading || _read) return;
         _reading = true;
         try
         {
-            var bytes = await _metadata.ReadSizeAsync();
+            var bytes = _metadata is null ? null : await _metadata.ReadSizeAsync();
+            var model = _settings is null ? null : await _settings(_id);
             if (_disposed) return;
+            if (model is { Fields.Count: > 0 }) Children.Add(new PluginSettingsEditor(_id, model));
             _bytes = bytes;
             _read = true;
             RefreshSize();
         }
+        catch (Exception error) { new PluginDiagnostics(_id, DiagnosticArea.Application).Capture(error, "SettingsSchema"); }
         finally { _reading = false; }
     }
 

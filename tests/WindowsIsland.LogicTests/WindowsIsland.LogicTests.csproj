@@ -24,6 +24,7 @@
     <Compile Include="../../src/WindowsIsland/Services/InitializationElevation.cs" Link="InitializationElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.cs" Link="Plugins/PluginManager.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Settings.cs" Link="Plugins/PluginManager.Settings.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Removal.cs" Link="Plugins/PluginManager.Removal.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Directories.cs" Link="Plugins/PluginManager.Directories.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginPaths.cs" Link="Plugins/PluginPaths.cs" />

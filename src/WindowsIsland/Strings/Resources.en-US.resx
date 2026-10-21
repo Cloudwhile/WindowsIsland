@@ -561,12 +561,14 @@
   <data name="PluginOverwrite" xml:space="preserve"><value>Replace</value></data>
   <data name="PluginDataPreserved" xml:space="preserve"><value>Data retained. Reinstall the same plugin to restore it.</value></data>
   <data name="PluginSource" xml:space="preserve"><value>Installation source</value></data>
-  <data name="PluginManualRestricted" xml:space="preserve"><value>Manually installed, permissions restricted</value></data>
+  <data name="PluginManualRestricted" xml:space="preserve"><value>Manually installed</value></data>
   <data name="PluginOfficial" xml:space="preserve"><value>Official catalog</value></data>
   <data name="PluginDeveloper" xml:space="preserve"><value>Developer</value></data>
   <data name="PluginRepository" xml:space="preserve"><value>Public repository</value></data>
-  <data name="PluginPermissionsGranted" xml:space="preserve"><value>Granted permissions</value></data>
-  <data name="PluginPermissionsDenied" xml:space="preserve"><value>Denied high risk or unknown permissions</value></data>
+  <data name="PluginPermissionsGranted" xml:space="preserve"><value>Confirmed permission declarations</value></data>
+  <data name="PluginPermissionsDenied" xml:space="preserve"><value>Unconfirmed or unknown declarations</value></data>
+  <data name="PluginPermissionNotice" xml:space="preserve"><value>Plugins share Windows Island’s system permissions. These are permission declarations and confirmations, not a permission sandbox.</value></data>
+  <data name="ErrorRefreshPlugins" xml:space="preserve"><value>Unable to refresh plugins. Please try again.</value></data>
   <data name="PluginErrorZip" xml:space="preserve"><value>Only ZIP plugin packages are supported.</value></data>
   <data name="PluginErrorManifest" xml:space="preserve"><value>The ZIP must contain exactly one manifest.json at its root.</value></data>
   <data name="PluginErrorId" xml:space="preserve"><value>The plugin ID is invalid or reserved for a built-in plugin.</value></data>

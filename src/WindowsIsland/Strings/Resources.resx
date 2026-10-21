@@ -561,12 +561,14 @@
   <data name="PluginOverwrite" xml:space="preserve"><value>覆盖</value></data>
   <data name="PluginDataPreserved" xml:space="preserve"><value>数据已保留，重新安装同 Id 插件可恢复</value></data>
   <data name="PluginSource" xml:space="preserve"><value>安装来源</value></data>
-  <data name="PluginManualRestricted" xml:space="preserve"><value>手动安装，权限受限</value></data>
+  <data name="PluginManualRestricted" xml:space="preserve"><value>手动安装</value></data>
   <data name="PluginOfficial" xml:space="preserve"><value>官方源</value></data>
   <data name="PluginDeveloper" xml:space="preserve"><value>开发者</value></data>
   <data name="PluginRepository" xml:space="preserve"><value>公开仓库</value></data>
-  <data name="PluginPermissionsGranted" xml:space="preserve"><value>已授予权限</value></data>
-  <data name="PluginPermissionsDenied" xml:space="preserve"><value>未授予的高危或未知权限</value></data>
+  <data name="PluginPermissionsGranted" xml:space="preserve"><value>已确认的权限声明</value></data>
+  <data name="PluginPermissionsDenied" xml:space="preserve"><value>未确认或未知的权限声明</value></data>
+  <data name="PluginPermissionNotice" xml:space="preserve"><value>插件与消息岛使用相同的系统权限。此处记录权限声明与确认结果，不提供权限沙箱。</value></data>
+  <data name="ErrorRefreshPlugins" xml:space="preserve"><value>无法刷新插件，请重试。</value></data>
   <data name="PluginErrorZip" xml:space="preserve"><value>只能安装 ZIP 插件包。</value></data>
   <data name="PluginErrorManifest" xml:space="preserve"><value>ZIP 根目录必须且只能包含一个 manifest.json。</value></data>
   <data name="PluginErrorId" xml:space="preserve"><value>插件标识无效或与内置插件冲突。</value></data>

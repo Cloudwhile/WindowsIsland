@@ -8,8 +8,8 @@ namespace WindowsIsland.Contracts;
 /// <param name="EntryType">实现插件生命周期接口的入口类型完整名称。</param>
 /// <param name="ContractVersion">插件要求的合约大版本。</param>
 /// <param name="Permissions">声明的权限标识数组，不需要权限时使用空数组。</param>
-/// <param name="Author">可选的作者名称。</param>
-/// <param name="Description">可选的插件说明。</param>
+/// <param name="Author">可选的作者名称，最多 200 字符。</param>
+/// <param name="Description">可选的插件说明，最多 8000 字符。</param>
 /// <param name="DeveloperId">开发者标识，旧清单默认为空。</param>
 /// <param name="DeveloperName">可选的开发者名称。</param>
 /// <param name="RepositoryUrl">可选的公开 GitHub 仓库地址。</param>

@@ -45,7 +45,7 @@ internal sealed partial class PluginManager
     public async Task InteractPinnedAsync(PinnedContent content, PinnedControlInteraction interaction)
     {
         if (_disposed) return;
-        var entry = _entries.FirstOrDefault(item => item.Registration.Definition.Id == content.PluginId);
+        var entry = Entries.FirstOrDefault(item => item.Registration.Definition.Id == content.PluginId);
         if (entry is null) return;
         var plugin = entry.Plugin;
         var context = entry.Context;

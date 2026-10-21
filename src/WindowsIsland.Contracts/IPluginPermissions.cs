@@ -9,12 +9,14 @@ public interface IPluginPermissions
     bool IsGranted(string permission);
 }
 
-/// <summary>定义宿主识别的插件能力名称，未知名称始终不授予。</summary>
+/// <summary>定义插件权限声明，供官方源审核及安装时高危逐项确认；未知名称始终不授予。</summary>
+/// <remarks>插件与宿主同进程同权限，ALC 仅隔离程序集，不是权限沙箱。
+/// 实际门控仅有通知投递、通知激活进程号和宿主数据目录服务；无法阻止插件直接使用网络、文件、原生或自动化 API。</remarks>
 public static class PluginPermissions
 {
     /// <summary>向宿主提交通知。</summary>
     public const string Notifications = "notifications";
-    /// <summary>访问插件自身的设置和数据。</summary>
+    /// <summary>提供 IPluginStorage 数据目录服务；不限制直接文件访问，也不门控 IPluginSettings。</summary>
     public const string Settings = "settings";
     /// <summary>为通知指定点击时激活的进程。</summary>
     public const string Process = "process";

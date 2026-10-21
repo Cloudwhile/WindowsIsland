@@ -30,6 +30,8 @@ internal static class PluginManifestReader
 
     public static void Validate(PluginManifest manifest)
     {
+        if (manifest.Description?.Length > 8000 || manifest.Author?.Length > 200)
+            throw new InvalidDataException("插件说明或作者名称过长。");
         if (!PluginId.IsValid(manifest.Id) || manifest.Id.Length > 80 || Reserved(manifest.Id)) throw new InvalidDataException("插件标识无效或与内置插件冲突。");
         if (!PluginContract.IsCompatible(manifest.ContractVersion)) throw new InvalidDataException("插件合约版本与消息岛不兼容。");
         if (!ReleaseVersion.TryParse(manifest.Version, out _)) throw new InvalidDataException("插件版本必须符合 SemVer。");

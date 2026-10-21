@@ -3,6 +3,12 @@ namespace WindowsIsland.Contracts;
 /// <summary>提供与当前插件绑定的宿主服务，不暴露界面对象。</summary>
 public interface IPluginContext
 {
+    /// <summary>宿主版本号；旧宿主的默认实现为空字符串。</summary>
+    string HostVersion => "";
+
+    /// <summary>被本次安装替换的版本；首次安装或没有更新交接信息时为 null。</summary>
+    string? PreviousVersion => null;
+
     /// <summary>获取此上下文绑定的插件标识，与插件及清单中的标识一致。</summary>
     string PluginId { get; }
 
@@ -15,6 +21,7 @@ public interface IPluginContext
     /// <summary>获取宿主为当前插件提供的可选服务能力，不返回界面对象。</summary>
     /// <typeparam name="T">服务的合约接口类型。</typeparam>
     /// <returns>绑定到当前插件的服务，未提供该能力时为空引用。</returns>
+    /// <remarks>同一合约大版本的新能力通过可选服务提供，调用方必须容忍 null；不得新增必填接口方法。</remarks>
     T? GetService<T>() where T : class => null;
 
     /// <summary>获取固定内容提交能力；旧宿主未提供时为空引用。</summary>

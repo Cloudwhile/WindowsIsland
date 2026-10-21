@@ -16,13 +16,15 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     private readonly Func<string, bool, Task> _setEnabled;
     private readonly Func<string, Task> _remove;
     private readonly PluginCatalogService? _catalog;
+    private readonly Func<string, Task<PluginSettingsModel?>>? _settings;
     private readonly Dictionary<string, Controls> _rows = [];
     private readonly TextBlock _retained = LocalizedUI.Text("PluginDataPreserved", 12, secondary: true);
     private bool _syncing, _disposed;
     private int _visit;
 
     public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
-        Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null, PluginCatalogService? catalog = null)
+        Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null, PluginCatalogService? catalog = null,
+        Func<string, Task<PluginSettingsModel?>>? settings = null)
     {
         _store = store;
         _failed = failed;
@@ -30,6 +32,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _setEnabled = setEnabled ?? ((_, _) => Task.CompletedTask);
         _remove = remove ?? (_ => Task.CompletedTask);
         _catalog = catalog;
+        _settings = settings;
         _retained.TextWrapping = TextWrapping.Wrap;
         _retained.Visibility = Visibility.Collapsed;
         Children.Add(SettingsContent.Wrap(_retained));
@@ -109,7 +112,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     var expander = new SettingsExpander(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
                         definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle, delete)
                     { ExpandOnHeaderTap = true };
-                    var details = new SettingsPluginDetails(definition, _catalog);
+                    var details = new SettingsPluginDetails(definition, _catalog, _settings);
                     expander.Rows.Add(details);
                     expander.ExpandedChanged += async expanded => { if (expanded) await details.ReadSizeAsync(); };
                     controls = new(expander, details, toggle, retry, delete);

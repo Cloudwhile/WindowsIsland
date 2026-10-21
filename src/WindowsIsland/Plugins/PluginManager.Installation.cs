@@ -32,7 +32,7 @@ internal sealed partial class PluginManager
             ObjectDisposedException.ThrowIf(_disposed, this);
             PluginPaths.CheckLinks(target);
             PluginPaths.CheckLinks(receipt);
-            previous = _entries.FirstOrDefault(e => e.Registration.Definition.Id == manifest.Id);
+            previous = Entries.FirstOrDefault(e => e.Registration.Definition.Id == manifest.Id);
             if (previous is not null && previous.Registration.Definition.Metadata?.External is not { } existing)
                 throw new InvalidDataException("插件标识与现有插件冲突。");
             if (previous?.Registration.Definition.Metadata?.External is { } external && !previous.Removed
@@ -42,9 +42,10 @@ internal sealed partial class PluginManager
                 throw new InvalidDataException("插件开发者与已安装版本不一致。");
             if (Directory.Exists(target)) PluginInstaller.CheckVersion(manifest, PluginManifestReader.Read(target, manifest.Id), overwrite);
             if (File.Exists(receipt)) oldReceipt = await File.ReadAllBytesAsync(receipt, token);
-            if (previous is not null)
+            if (previous is { Removed: false })
             {
-                Stop(previous);
+                await PrepareLifecycleAsync(previous);
+                Stop(previous, PluginStopReason.Updating);
                 await previous.Cleanup;
                 previous.Cleanup = Task.CompletedTask;
                 if (previous.Registration.Definition.Metadata?.External is { } old) await old.VerifyUnloadAsync();
@@ -68,9 +69,9 @@ internal sealed partial class PluginManager
                 manifest.DeveloperId, prepared.Trust.Granted), PluginManifestReader.Json), token);
             File.Move(temporary, receipt, true);
             _store.MarkExternalRemoved(manifest.Id, false);
-            installed = new Entry(_loader.Registration(manifest, target));
-            if (previous is not null) _entries.Remove(previous);
-            _entries.Add(installed);
+            installed = new Entry(_loader.Registration(manifest, target)) { PreviousVersion = previous is { Removed: false } ? previous.Registration.Definition.Metadata?.Version : null };
+            if (previous is not null) RemoveEntry(previous);
+            AddEntry(installed);
         }
         catch (Exception error)
         {
@@ -104,7 +105,7 @@ internal sealed partial class PluginManager
                 Stop(installed);
                 await installed.Cleanup;
                 installed.Cleanup = Task.CompletedTask;
-                _entries.Remove(installed);
+                RemoveEntry(installed);
                 if (installed.Registration.Definition.Metadata?.External is { } failed)
                 {
                     failed.Unload();
@@ -118,7 +119,7 @@ internal sealed partial class PluginManager
             });
             if (oldReceipt is null) File.Delete(receipt); else await File.WriteAllBytesAsync(receipt, oldReceipt);
             _store.MarkExternalRemoved(manifest.Id, wasRemoved);
-            if (previous is not null && !_entries.Contains(previous)) _entries.Add(previous);
+            if (previous is not null && !Entries.Contains(previous)) AddEntry(previous);
             if (previous is not null) previous.Failed = false;
         }
     }

@@ -97,6 +97,7 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
                     {
                         PluginPaths.CheckTree(directory);
                         var manifest = PluginManifestReader.Read(directory, id) with { SourceKind = kind };
+                        PluginAssemblyValidator.Validate(directory, manifest);
                         if (!ids.Add(id)) throw new InvalidDataException("插件标识重复。");
                         result.Add(Registration(manifest, directory));
                     }
@@ -122,8 +123,12 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
     }
 }
 
-internal sealed class LifecycleSource(IIslandPlugin plugin) : IMessageSource, IPluginStatusProvider
+internal sealed class LifecycleSource(IIslandPlugin plugin) : IMessageSource, IPluginStatusProvider, IPluginSettingsSchema, IPluginLifecycleAware
 {
+    public bool HasLifecycleHooks => plugin is IPluginLifecycleAware;
+    public IReadOnlyList<PluginSetting> SettingsSchema => (plugin as IPluginSettingsSchema)?.SettingsSchema ?? [];
+    public Task OnStoppingAsync(PluginStopReason reason) => (plugin as IPluginLifecycleAware)?.OnStoppingAsync(reason) ?? Task.CompletedTask;
+    public Task OnUninstallAsync() => (plugin as IPluginLifecycleAware)?.OnUninstallAsync() ?? Task.CompletedTask;
     public string Id => plugin.Id;
     public string DisplayName => plugin.DisplayName;
     public PluginStatus Status => (plugin as IPluginStatusProvider)?.Status ?? new(PluginConnectionState.Connected);

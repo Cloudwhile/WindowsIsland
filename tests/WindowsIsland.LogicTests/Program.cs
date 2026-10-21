@@ -253,6 +253,7 @@ NotificationImageStoreChecks.Run(Check);
 await DiagnosticChecks.RunAsync(Check);
 await DiagnosticReportCacheChecks.RunAsync(Check);
 await WindowsIsland.LogicTests.PluginDirectoryChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginEvolutionChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginInstallationChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginSourceChecks.RunAsync();
 await PluginChecks.RunAsync(Check);

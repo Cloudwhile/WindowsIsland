@@ -66,11 +66,13 @@ internal sealed partial class SettingsStore
 
     public string? GetPluginString(string id, string key, string? fallback)
     {
+        ValidatePluginKey(key);
         lock (_gate) return PluginValue(id, key) is JsonValue value && value.TryGetValue<string>(out var text) ? text : fallback;
     }
 
     public bool GetPluginBoolean(string id, string key, bool fallback)
     {
+        ValidatePluginKey(key);
         lock (_gate) return PluginValue(id, key) is JsonValue value && value.TryGetValue<bool>(out var enabled) ? enabled : fallback;
     }
 
@@ -82,7 +84,7 @@ internal sealed partial class SettingsStore
     private void SetPluginValue(string id, string key, JsonNode? value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
-        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        ValidatePluginKey(key);
         lock (_gate)
         {
             if (_removedPlugins.Contains(id)) return;
@@ -93,5 +95,11 @@ internal sealed partial class SettingsStore
             try { Persist(Current); }
             catch { _pluginPreferences = previous; throw; }
         }
+    }
+
+    internal static void ValidatePluginKey(string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        if (key.Length > 128) throw new ArgumentException("Plugin setting keys must not exceed 128 characters.", nameof(key));
     }
 }

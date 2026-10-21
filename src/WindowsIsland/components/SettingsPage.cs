@@ -66,7 +66,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false,
         Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null,
         Func<string, bool, Task>? setSourceEnabled = null, Func<string, Task>? removePlugin = null,
-        PluginLibrary? pluginLibrary = null, Func<Task<string?>>? pickPluginFile = null)
+        PluginLibrary? pluginLibrary = null, Func<Task<string?>>? pickPluginFile = null, Func<Task>? rescanPlugins = null,
+        Func<string, Task<PluginSettingsModel?>>? pluginSettings = null)
     {
         _store = store;
         AutomationProperties.SetAutomationId(_content, "SettingsContentScroll");
@@ -78,7 +79,11 @@ internal sealed class SettingsPage : Grid, IDisposable
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition());
-        _refreshButton.Click += (_, _) => { _failed = _cancelled = false; Refresh(); };
+        _refreshButton.Click += async (_, _) =>
+        {
+            if (rescanPlugins is not null) await RunAsync(rescanPlugins, "ErrorRefreshPlugins");
+            else { _failed = _cancelled = false; Refresh(); }
+        };
         _previewButton.Click += (_, _) => preview();
         _header = new SettingsHeader(_progress, _previewButton, _refreshButton, _complete) { MaxWidth = 720 };
         layout.Children.Add(_header);
@@ -140,7 +145,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             ShowError("ErrorSettingsSave");
             Refresh();
         }, async id => { await retrySource(id); Refresh(); }, setSourceEnabled,
-            async id => { if (removePlugin is not null) await removePlugin(id); Refresh(); }, pluginLibrary?.Catalog);
+            async id => { if (removePlugin is not null) await removePlugin(id); Refresh(); }, pluginLibrary?.Catalog, pluginSettings);
         _muteDuringGames = Switch("MuteDuringGames", "MuteDuringGamesToggle", settings => settings.MuteDuringGames,
             (settings, value) => settings with { MuteDuringGames = value });
         _gameModeRow = new SettingsRow(Symbol.Mute, "MuteDuringGames", _muteDuringGames, "GameModeStatus");

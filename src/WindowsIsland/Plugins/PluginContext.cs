@@ -5,12 +5,14 @@ namespace WindowsIsland.Plugins;
 
 internal sealed class PluginContext(string id, IPluginSettings settings, IPluginDiagnostics diagnostics,
     Action<PluginNotification> publish, Func<Type, object?>? services = null,
-    Action<PinnedContentChange>? pinned = null) : IPluginContext, IPinnedContentSource, IDisposable
+    Action<PinnedContentChange>? pinned = null, string? previousVersion = null) : IPluginContext, IPinnedContentSource, IDisposable
 {
     private int _disposed;
     private Func<PinnedControlInteraction, Task>? _interaction;
     private readonly RevocablePluginSettings _settings = new(settings);
     public string PluginId => id;
+    public string HostVersion => ReleaseVersion.Current.Tag;
+    public string? PreviousVersion => previousVersion;
     public IPluginSettings Settings => _settings;
     public IPluginDiagnostics Diagnostics => diagnostics;
     public T? GetService<T>() where T : class => Volatile.Read(ref _disposed) != 0 ? null
@@ -41,10 +43,14 @@ internal sealed class RevocablePluginSettings(IPluginSettings settings) : IPlugi
 {
     private int _revoked;
     public void Revoke() => Interlocked.Exchange(ref _revoked, 1);
-    public string? GetString(string key, string? defaultValue = null) => Volatile.Read(ref _revoked) == 0 ? settings.GetString(key, defaultValue) : defaultValue;
-    public bool GetBoolean(string key, bool defaultValue = false) => Volatile.Read(ref _revoked) == 0 ? settings.GetBoolean(key, defaultValue) : defaultValue;
-    public void SetString(string key, string? value) { if (Volatile.Read(ref _revoked) == 0) settings.SetString(key, value); }
-    public void SetBoolean(string key, bool value) { if (Volatile.Read(ref _revoked) == 0) settings.SetBoolean(key, value); }
+    public string? GetString(string key, string? defaultValue = null)
+    { SettingsStore.ValidatePluginKey(key); return Volatile.Read(ref _revoked) == 0 ? settings.GetString(key, defaultValue) : defaultValue; }
+    public bool GetBoolean(string key, bool defaultValue = false)
+    { SettingsStore.ValidatePluginKey(key); return Volatile.Read(ref _revoked) == 0 ? settings.GetBoolean(key, defaultValue) : defaultValue; }
+    public void SetString(string key, string? value)
+    { SettingsStore.ValidatePluginKey(key); if (Volatile.Read(ref _revoked) == 0) settings.SetString(key, value); }
+    public void SetBoolean(string key, bool value)
+    { SettingsStore.ValidatePluginKey(key); if (Volatile.Read(ref _revoked) == 0) settings.SetBoolean(key, value); }
 }
 
 internal sealed class PluginSettings(SettingsStore store, string pluginId) : IPluginSettings

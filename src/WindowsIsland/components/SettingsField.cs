@@ -10,6 +10,16 @@ internal sealed class SettingsField : StackPanel
 {
     public TextBlock Value { get; }
 
+    public SettingsField(string title, Control editor) : this(null, "", placeholder: false)
+    {
+        Children.Clear();
+        var label = IslandTheme.Text(title, 12, secondary: true);
+        label.TextWrapping = TextWrapping.Wrap;
+        Children.Add(label);
+        AutomationProperties.SetName(editor, title);
+        Children.Add(editor);
+    }
+
     public SettingsField(string? label, string? value, string? automationId = null, bool placeholder = true)
     {
         Spacing = 4;
