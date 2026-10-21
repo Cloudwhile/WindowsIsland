@@ -10,11 +10,11 @@ internal sealed class SettingsField : StackPanel
 {
     public TextBlock Value { get; }
 
-    public SettingsField(string label, string? value, string? automationId = null, bool placeholder = true)
+    public SettingsField(string? label, string? value, string? automationId = null, bool placeholder = true)
     {
         Spacing = 4;
-        Children.Add(LocalizedUI.Text(label, 12, secondary: true));
-        Value = IslandTheme.Text(value ?? "", 14);
+        if (label is not null) Children.Add(LocalizedUI.Text(label, 12, secondary: true));
+        Value = IslandTheme.Text(value ?? "", label is null ? 12 : 14, secondary: label is null);
         Value.TextWrapping = TextWrapping.Wrap;
         Value.IsTextSelectionEnabled = true;
         if (automationId is not null) AutomationProperties.SetAutomationId(Value, automationId);

@@ -12,7 +12,7 @@ internal sealed class SettingsExpander : StackPanel
 {
     private const int ExpandGlyph = 0xE70D, CollapseGlyph = 0xE70E;
     private readonly IconActionButton _toggle;
-    private readonly StackPanel _content = new() { Margin = new Thickness(40, 0, 0, 0), Visibility = Visibility.Collapsed };
+    private readonly SettingsContent _content = new() { Visibility = Visibility.Collapsed };
     public SettingsRow Header { get; }
     public UIElementCollection Rows => _content.Children;
     public event Action<bool>? ExpandedChanged;

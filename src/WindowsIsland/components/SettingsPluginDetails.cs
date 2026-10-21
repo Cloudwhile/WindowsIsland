@@ -6,7 +6,7 @@ using WindowsIsland.Services;
 
 namespace WindowsIsland.Components;
 
-internal sealed class SettingsPluginDetails : StackPanel, IDisposable
+internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
 {
     private readonly PluginMetadata? _metadata;
     public bool Matches(NotificationPluginDefinition definition) => ReferenceEquals(_metadata, definition.Metadata);
@@ -16,11 +16,9 @@ internal sealed class SettingsPluginDetails : StackPanel, IDisposable
     private long? _bytes;
 
     /// <summary>创建可选择和复制的插件详情。</summary>
-    public SettingsPluginDetails(NotificationPluginDefinition definition, PluginCatalogService? catalog = null)
+    public SettingsPluginDetails(NotificationPluginDefinition definition, PluginCatalogService? catalog = null) : base(false)
     {
         _metadata = definition.Metadata;
-        Spacing = 12;
-        Margin = new Thickness(12, 8, 12, 16);
         Field("PluginVersion", _metadata?.Version, definition.Id + ".Version");
         var type = Field("PluginType", null, definition.Id + ".Type", placeholder: false);
         LocalizedUI.Bind(type, () => type.Text = Localization.Get(_metadata?.IsBuiltIn != false ? "PluginBuiltIn" : "PluginInstalled"));

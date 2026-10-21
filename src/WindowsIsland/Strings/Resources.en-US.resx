@@ -623,4 +623,6 @@
   <data name="DiagnosticTitlePluginCleanup" xml:space="preserve"><value>Plugin file cleanup failed</value></data>
   <data name="DiagnosticTitleOpenRepository" xml:space="preserve"><value>Could not open the repository link</value></data>
   <data name="DiagnosticTitleSavePreferences" xml:space="preserve"><value>Could not save settings</value></data>
+  <data name="LanguageChinese" xml:space="preserve"><value>简体中文</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
 </root>

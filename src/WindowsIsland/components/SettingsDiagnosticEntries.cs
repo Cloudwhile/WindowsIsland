@@ -11,7 +11,7 @@ internal sealed class SettingsDiagnosticEntries : StackPanel
     private sealed class EntryView
     {
         public SettingsExpander Row { get; }
-        private readonly StackPanel _details = new() { Spacing = 12, Margin = new Thickness(12, 8, 12, 16) };
+        private readonly SettingsContent _details = new(false);
         private DiagnosticEntry? _entry;
         private string? _language;
 
@@ -46,11 +46,7 @@ internal sealed class SettingsDiagnosticEntries : StackPanel
 
         private void Detail(string text, string field)
         {
-            var value = IslandTheme.Text(text, 12, secondary: true);
-            value.TextWrapping = TextWrapping.Wrap;
-            value.IsTextSelectionEnabled = true;
-            AutomationProperties.SetAutomationId(value, "DiagnosticDetail." + _entry!.Id + "." + field);
-            _details.Children.Add(value);
+            _details.Children.Add(new SettingsField(null, text, "DiagnosticDetail." + _entry!.Id + "." + field, placeholder: false));
         }
     }
 

@@ -30,9 +30,8 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _remove = remove ?? (_ => Task.CompletedTask);
         _catalog = catalog;
         _retained.TextWrapping = TextWrapping.Wrap;
-        _retained.Margin = new Thickness(12);
         _retained.Visibility = Visibility.Collapsed;
-        Children.Add(_retained);
+        Children.Add(SettingsContent.Wrap(_retained));
     }
 
     public void Refresh(IReadOnlyList<NotificationPluginStatus> plugins, bool busy)

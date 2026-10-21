@@ -180,8 +180,7 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     private void AddSection(string id, string title, params UIElement[] rows)
     {
-        var content = new StackPanel { Margin = new Thickness(16, 0, 16, 24) };
-        foreach (var row in rows) content.Children.Add(row);
+        var content = SettingsSection.Page(rows);
         _sections.Add(id, (title, content));
         AutomationProperties.SetAutomationId(content, "SettingsSection" + id);
     }

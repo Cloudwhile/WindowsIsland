@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -21,10 +20,10 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     private readonly IconActionButton _releasePage = new(Symbol.OpenFile, "ActionOpenRelease", "OpenReleasePage") { Visibility = Visibility.Collapsed };
     private readonly IconActionButton _cancel = new(Symbol.Cancel, "ActionCancel", "CancelUpdate") { Visibility = Visibility.Collapsed };
     private readonly InfoBar _status = new() { IsClosable = false, IsOpen = true, Visibility = Visibility.Collapsed };
-    private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Visibility = Visibility.Collapsed, Margin = new Thickness(12, 12, 12, 4) };
-    private readonly TextBlock _releaseName = IslandTheme.Text("", 18);
+    private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Visibility = Visibility.Collapsed };
+    private readonly TextBlock _releaseName = SettingsSection.Heading("", localizeTitle: false);
     private readonly MarkdownText _notes = new();
-    private readonly StackPanel _release = new() { Spacing = 12, Margin = new Thickness(12, 20, 12, 0), Visibility = Visibility.Collapsed };
+    private readonly SettingsContent _release = new() { Visibility = Visibility.Collapsed };
     private readonly SettingsRow _versionRow, _availableRow;
     private readonly TextBlock _size = IslandTheme.Text("", 12, secondary: true);
     private bool _checked;
@@ -56,11 +55,8 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         _availableRow = new SettingsRow(Symbol.Download, "UpdateAvailable", actions, "UpdateAvailableStatus");
         Children.Add(_availableRow);
         AutomationProperties.SetAutomationId(_size, "UpdatePackageSize");
-        _status.Margin = new Thickness(0, 12, 0, 0);
-        Children.Add(_status);
-        Children.Add(_progress);
-        _releaseName.FontWeight = FontWeights.SemiBold;
-        _releaseName.TextWrapping = TextWrapping.Wrap;
+        Children.Add(SettingsContent.Wrap(_status));
+        Children.Add(SettingsContent.Wrap(_progress));
         _release.Children.Add(_releaseName);
         _release.Children.Add(_notes);
         Children.Add(_release);

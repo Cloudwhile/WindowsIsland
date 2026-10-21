@@ -19,9 +19,9 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
     private readonly TextBox _details = new()
     {
         IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap,
-        MaxHeight = 360, Margin = new Thickness(12), Visibility = Visibility.Collapsed
+        MaxHeight = 360, Visibility = Visibility.Collapsed
     };
-    private readonly InfoBar _status = new() { IsClosable = false, IsOpen = false, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly InfoBar _status = new() { IsClosable = false, IsOpen = false, Visibility = Visibility.Collapsed };
     private readonly SettingsRow _recordRow, _recentRow, _feedbackRow;
     private readonly SettingsDiagnosticEntries _entries = new();
     private readonly SettingsSection _events;
@@ -38,16 +38,15 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         _recentRow = new SettingsRow(Symbol.Important, "DiagnosticsRecent", actions, "DiagnosticsSummary");
         Children.Add(_recordRow);
         Children.Add(_recentRow);
-        Children.Add(_details);
+        Children.Add(SettingsContent.Wrap(_details));
         var feedback = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         feedback.Children.Add(_copy); feedback.Children.Add(_feedback);
         _feedbackRow = new SettingsRow(Symbol.Send, "DiagnosticsFeedbackTitle", feedback);
         Children.Add(_feedbackRow);
         var privacy = LocalizedUI.Text("DiagnosticsPrivacy", 12, secondary: true);
         privacy.TextWrapping = TextWrapping.Wrap;
-        privacy.Margin = new Thickness(12, 12, 12, 4);
-        Children.Add(privacy);
-        Children.Add(_status);
+        Children.Add(new SettingsContent(privacy));
+        Children.Add(SettingsContent.Wrap(_status));
         _events = new SettingsSection("DiagnosticsEvents", _entries);
         Children.Add(_events);
         AutomationProperties.SetAutomationId(_record, "LocalDiagnosticsToggle");
@@ -162,6 +161,7 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
     {
         _statusKey = key;
         _status.IsOpen = true;
+        _status.Visibility = Visibility.Visible;
         _status.Message = Localization.Get(key);
         _status.Severity = error ? InfoBarSeverity.Error : InfoBarSeverity.Success;
     }

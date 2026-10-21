@@ -39,7 +39,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         LocalizedUI.Label(_address, "PluginSourceAddress");
         AutomationProperties.SetAutomationId(_address, "PluginSourceAddress");
         _status.TextWrapping = TextWrapping.Wrap;
-        var source = new StackPanel { Spacing = 12, Margin = new Thickness(12, 8, 12, 16) };
+        var source = new SettingsContent();
         source.Children.Add(_address);
         source.Children.Add(_status);
         source.Children.Add(_notice);
@@ -122,7 +122,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
             localizeTitle: false, actions: [install, repository]);
         row.Header.Status = entry.Version;
         row.ExpandOnHeaderTap = true;
-        var details = new StackPanel { Spacing = 12, Margin = new Thickness(12, 8, 12, 16) };
+        var details = new SettingsContent(false);
         details.Children.Add(new SettingsField("PluginDescription", entry.Description, "OfficialDescription." + entry.Id));
         var permissions = new SettingsField("PluginPermissionsRequested", string.Join(", ", entry.Permissions), "OfficialPermissions." + entry.Id, placeholder: false);
         if (entry.Permissions.Length == 0) LocalizedUI.Bind(permissions, () => permissions.Value.Text = Localization.Get("PluginPermissionsNone"));
@@ -151,7 +151,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     {
         var container = new StackPanel();
         container.Children.Add(row);
-        var notice = new PluginCatalogNotice(_library.Catalog, manifest) { Margin = new Thickness(52, 4, 12, 12) };
+        var notice = new PluginCatalogNotice(_library.Catalog, manifest, inset: true);
         if (manifest is not null) AutomationProperties.SetAutomationId(notice, "OfficialCatalogNotice." + manifest.Id);
         _notices.Add(notice);
         container.Children.Add(notice);
@@ -161,7 +161,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     private async Task<string[]?> ConfirmPermissionsAsync(PluginCatalogEntry entry)
     {
         if (entry.DeveloperId == PluginCatalogClient.OfficialDeveloperId) return entry.Permissions.Where(PluginPermissions.IsHighRisk).ToArray();
-        var content = new StackPanel { Spacing = 8 };
+        var content = new SettingsContent(false);
         var text = LocalizedUI.Text("PluginThirdParty", 14);
         text.TextWrapping = TextWrapping.Wrap;
         content.Children.Add(text);

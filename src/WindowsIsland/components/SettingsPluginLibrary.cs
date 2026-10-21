@@ -26,8 +26,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         actions.Children.Add(_install);
         actions.Children.Add(_cancel);
         Children.Add(new SettingsSection("PluginInstallation", new SettingsRow(Symbol.Add, "PluginInstall", actions)));
-        _notice.Margin = new Thickness(12, 8, 12, 8);
-        Children.Add(_notice);
+        Children.Add(SettingsContent.Wrap(_notice));
         _official = new SettingsOfficialPlugins(library);
         Children.Add(_official);
         _install.Click += async (_, _) => await ImportAsync();

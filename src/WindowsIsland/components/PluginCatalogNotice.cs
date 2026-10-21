@@ -7,14 +7,14 @@ using WindowsIsland.Services;
 namespace WindowsIsland.Components;
 
 /// <summary>列表与已安装插件详情共用的下架及更新提示。</summary>
-internal sealed class PluginCatalogNotice : StackPanel
+internal sealed class PluginCatalogNotice : SettingsContent
 {
     private readonly TextBlock _delisted = IslandTheme.Text("", 12, "SystemFillColorCriticalBrush");
     private readonly TextBlock _update = IslandTheme.Text("", 12, secondary: true);
     private readonly PluginCatalogService? _catalog;
     private readonly PluginManifest? _manifest;
 
-    public PluginCatalogNotice(PluginCatalogService? catalog, PluginManifest? manifest)
+    public PluginCatalogNotice(PluginCatalogService? catalog, PluginManifest? manifest, bool inset = false) : base(inset)
     {
         _catalog = catalog;
         _manifest = manifest;
