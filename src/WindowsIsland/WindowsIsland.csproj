@@ -28,6 +28,8 @@
     <KnownFrameworkReference Update="Microsoft.WindowsDesktop.App;Microsoft.WindowsDesktop.App.WPF;Microsoft.WindowsDesktop.App.WindowsForms"
       LatestRuntimeFrameworkVersion="10.0.13" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
+    <PackageReference Include="Markdig" Version="1.4.2" />
+    <Content Include="Licenses\Markdig.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Icons\LOGO.ico" Link="Assets\Island.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Icons\LOGO.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Icons\Shell\*.png" Link="Assets\Shell\%(Filename)%(Extension)"

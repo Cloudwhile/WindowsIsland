@@ -23,7 +23,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
     private readonly InfoBar _status = new() { IsClosable = false, IsOpen = true, Visibility = Visibility.Collapsed };
     private readonly ProgressBar _progress = new() { Minimum = 0, Maximum = 100, Visibility = Visibility.Collapsed, Margin = new Thickness(12, 12, 12, 4) };
     private readonly TextBlock _releaseName = IslandTheme.Text("", 18);
-    private readonly TextBlock _notes = IslandTheme.Text("");
+    private readonly MarkdownText _notes = new();
     private readonly StackPanel _release = new() { Spacing = 12, Margin = new Thickness(12, 20, 12, 0), Visibility = Visibility.Collapsed };
     private readonly SettingsRow _versionRow, _availableRow;
     private readonly TextBlock _size = IslandTheme.Text("", 12, secondary: true);
@@ -61,9 +61,6 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         Children.Add(_progress);
         _releaseName.FontWeight = FontWeights.SemiBold;
         _releaseName.TextWrapping = TextWrapping.Wrap;
-        _notes.TextWrapping = TextWrapping.Wrap;
-        _notes.TextTrimming = TextTrimming.None;
-        _notes.IsTextSelectionEnabled = true;
         _release.Children.Add(_releaseName);
         _release.Children.Add(_notes);
         Children.Add(_release);
@@ -126,7 +123,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         if (_candidate is { } candidate)
         {
             _releaseName.Text = candidate.Name;
-            _notes.Text = candidate.Notes.Length == 0 ? Localization.Get("UpdateNotesEmpty") : candidate.Notes;
+            _notes.Text = string.IsNullOrWhiteSpace(candidate.Notes) ? Localization.Get("UpdateNotesEmpty") : candidate.Notes;
         }
         if (!_preserveResult)
         {
@@ -226,7 +223,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
                     : Localization.Format("UpdateProgressPercent", message, percent)
                 : message;
         }
-        if (_candidate is { Notes.Length: 0 }) _notes.Text = Localization.Get("UpdateNotesEmpty");
+        if (_candidate is { } candidate && string.IsNullOrWhiteSpace(candidate.Notes)) _notes.Text = Localization.Get("UpdateNotesEmpty");
         RefreshAvailable();
     }
 
