@@ -38,6 +38,7 @@ internal static class PluginSourceChecks
         Check(JsonSerializer.Serialize(state.Sources[0].Source).Contains("\"pluginsUrl\"") && !JsonSerializer.Serialize(entry).Contains("review"),
             "Catalog wire fields are stable and contain no pending-review state");
         entry = state.Sources[0].Plugins[0];
+        CheckInstallAvailability(entry, paths);
         await library.InstallOfficialAsync(entry, []);
         var code = paths.Code(PluginSourceKind.Official, entry.Id);
         var external = manager.Snapshot().Single().Definition.Metadata!.External!;
@@ -103,6 +104,39 @@ internal static class PluginSourceChecks
         }
         Check(!PluginLibrary.Compatible(entry with { MinHostVersion = "999.0.0" }), "Catalog versions requiring a newer host cannot be installed");
         await manager.ShutdownAsync();
+    }
+
+    private static void CheckInstallAvailability(PluginCatalogEntry entry, PluginPaths paths)
+    {
+        PluginMetadata Installed(PluginSourceKind kind, string developer, string version = "1.0.0") => new(false, version, "fixture.dll",
+            External: new ExternalPlugin(paths, new(entry.Id, entry.Name, version, "fixture.dll", "Fixture",
+                PluginContract.Version, [], DeveloperId: developer, SourceKind: kind), paths.Code(kind, entry.Id)));
+        var official = Installed(PluginSourceKind.Official, entry.DeveloperId);
+        Check(PluginLibrary.InstallUnavailableReason(entry, null) is null, "A compatible uninstalled catalog entry can be installed");
+        Check(PluginLibrary.InstallUnavailableReason(entry, official) == "PluginAlreadyLatest", "The same installed version explains the disabled catalog action");
+        Check(PluginLibrary.InstallUnavailableReason(entry with { Version = "0.9.0" }, official) == "PluginAlreadyLatest", "An older catalog version cannot downgrade the installed plugin");
+        Check(PluginLibrary.InstallUnavailableReason(entry, Installed(PluginSourceKind.Manual, entry.DeveloperId)) == "PluginInstalledElsewhere",
+            "A manual installation explains why catalog replacement is unavailable");
+        Check(PluginLibrary.InstallUnavailableReason(entry, Installed(PluginSourceKind.Official, "other")) == "PluginDeveloperMismatch",
+            "A different catalog owner explains the disabled action");
+        Check(PluginLibrary.InstallUnavailableReason(entry with { ContractVersion = PluginContract.Version + 1 }, null) == "PluginContractIncompatible",
+            "Incompatible contract requirements explain the disabled action");
+        Check(PluginLibrary.InstallUnavailableReason(entry with { MinHostVersion = "999.0.0" }, null) == "PluginHostTooOld",
+            "A newer host requirement explains the disabled action");
+        foreach (var installed in new PluginMetadata?[] { null, official, Installed(PluginSourceKind.Manual, entry.DeveloperId),
+            Installed(PluginSourceKind.Official, "other"), new(false, "1.0.0", "fixture.dll") })
+        foreach (var version in new[] { "0.9.0", "1.0.0", "1.1.0" })
+        foreach (var contract in new[] { PluginContract.Version, PluginContract.Version + 1 })
+        foreach (var host in new[] { "0.0.0", "999.0.0" })
+        {
+            var candidate = entry with { Version = version, ContractVersion = contract, MinHostVersion = host };
+            var newer = installed is null || ReleaseVersion.FromInformationalVersion(candidate.Version)
+                .CompareTo(ReleaseVersion.FromInformationalVersion(installed.Version)) > 0;
+            var sameOwner = installed?.External is not { } external || external.Manifest.SourceKind == PluginSourceKind.Official
+                && external.Manifest.DeveloperId == candidate.DeveloperId;
+            Check((PluginLibrary.InstallUnavailableReason(candidate, installed) is null) == (newer && sameOwner && PluginLibrary.Compatible(candidate)),
+                $"Catalog explanations preserve eligibility: {installed?.External?.Manifest.SourceKind}/{version}/{contract}/{host}");
+        }
     }
 
     private sealed class GitHubProxy(Uri mockBase) : HttpMessageHandler

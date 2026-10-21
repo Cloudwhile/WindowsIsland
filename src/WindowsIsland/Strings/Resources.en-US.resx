@@ -520,7 +520,7 @@
   <data name="SizeKilobytes" xml:space="preserve"><value>{0} KB</value></data>
   <data name="DiagnosticsCopy" xml:space="preserve"><value>Copy diagnostic report</value></data>
   <data name="DiagnosticsCopied" xml:space="preserve"><value>Report copied. Paste it into the issue form after reviewing it.</value></data>
-  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>Connection retried. Check the plugin list for the result.</value></data>
+  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>Connection retried. Check Message sources for the result.</value></data>
   <data name="DiagnosticsRecordCount" xml:space="preserve"><value>{0} records · {1} failed</value></data>
   <data name="DiagnosticFailedCount" xml:space="preserve"><value>Failed · {0} times</value></data>
   <data name="DiagnosticSucceededCount" xml:space="preserve"><value>Succeeded · {0} times</value></data>
@@ -546,7 +546,7 @@
   <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>WeChat reset its accessibility switch</value></data>
   <data name="DiagnosticReasonError" xml:space="preserve"><value>{0} ({1})</value></data>
   <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>No specific error was recorded</value></data>
-  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>Retry the connection in the plugin list. If it still fails, copy the report and submit feedback.</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>Retry the connection in Message sources. If it still fails, copy the report and submit feedback.</value></data>
   <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>If this keeps happening, copy the report and submit an issue.</value></data>
   <data name="SystemDoNotDisturb" xml:space="preserve"><value>Windows do not disturb</value></data>
   <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>Could not change do not disturb. Try again or open Windows notification settings.</value></data>
@@ -625,4 +625,9 @@
   <data name="DiagnosticTitleSavePreferences" xml:space="preserve"><value>Could not save settings</value></data>
   <data name="LanguageChinese" xml:space="preserve"><value>简体中文</value></data>
   <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="PluginAlreadyLatest" xml:space="preserve"><value>Already up to date</value></data>
+  <data name="PluginInstalledElsewhere" xml:space="preserve"><value>Installed from another source</value></data>
+  <data name="PluginDeveloperMismatch" xml:space="preserve"><value>Different developer</value></data>
+  <data name="PluginContractIncompatible" xml:space="preserve"><value>Incompatible contract version</value></data>
+  <data name="PluginHostTooOld" xml:space="preserve"><value>A newer host is required. Update Windows Island first.</value></data>
 </root>

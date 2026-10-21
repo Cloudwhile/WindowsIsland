@@ -17,7 +17,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     private readonly StackPanel _plugins = new();
     private readonly TextBlock _status = LocalizedUI.Text("PluginCatalogEmpty", 12, secondary: true);
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
-    private readonly List<IconActionButton> _actions = [];
+    private readonly List<(IconActionButton Button, SettingsRow Row)> _actions = [];
     private readonly List<PluginCatalogNotice> _notices = [];
     private readonly List<SettingsPluginDetails> _details = [];
     private PluginMetadata[] _installed = [];
@@ -88,14 +88,13 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
             }
         }
         foreach (var notice in _notices) notice.Refresh();
-        foreach (var action in _actions)
+        foreach (var (action, row) in _actions)
         {
             if (action.Tag is not PluginCatalogEntry entry) continue;
             var installed = _library.Manager.Snapshot().FirstOrDefault(s => s.Definition.Id == entry.Id)?.Definition.Metadata;
-            var newer = installed is null || ReleaseVersion.FromInformationalVersion(entry.Version).CompareTo(ReleaseVersion.FromInformationalVersion(installed.Version)) > 0;
-            var sameOwner = installed?.External is not { } external || external.Manifest.SourceKind == PluginSourceKind.Official
-                && external.Manifest.DeveloperId == entry.DeveloperId;
-            action.IsEnabled = _operation is null && newer && sameOwner && PluginLibrary.Compatible(entry);
+            var reason = PluginLibrary.InstallUnavailableReason(entry, installed);
+            action.IsEnabled = _operation is null && reason is null;
+            row.Detail = reason is null ? "" : Localization.Get(reason);
             action.SetAction(installed is null ? 0xE896 : 0xE777, installed is null ? "PluginInstall" : "PluginUpdate");
         }
         _save.IsEnabled = _refresh.IsEnabled = _operation is null && !state.Busy;
@@ -111,7 +110,6 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
             if (confirmed is null) return;
             await _library.InstallOfficialAsync(entry, confirmed, token);
         });
-        _actions.Add(install);
         var repository = new IconActionButton(Symbol.Link, "PluginRepository", "OfficialRepository." + entry.Id);
         repository.Click += async (_, _) =>
         {
@@ -120,6 +118,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         };
         var row = new SettingsExpander(new SymbolIcon(Symbol.AllApps), entry.Name, "OfficialPlugin." + entry.Id,
             localizeTitle: false, actions: [install, repository]);
+        _actions.Add((install, row.Header));
         row.Header.Status = entry.Version;
         row.ExpandOnHeaderTap = true;
         var details = new SettingsContent(false);

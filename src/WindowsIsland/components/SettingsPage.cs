@@ -148,8 +148,8 @@ internal sealed class SettingsPage : Grid, IDisposable
             (settings, value) => settings with { MuteDuringFullScreen = value });
         _fullScreenRow = new SettingsRow(Symbol.FullScreen, "MuteDuringFullScreen", _muteDuringFullScreen, "FullScreenStatus");
         if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (() => Task.FromResult<string?>(null)));
-        AddSection("plugins", "PluginList", _pluginLibrary ?? new StackPanel(), new SettingsSection("Sources", _sources));
-        AddSection("sources", "Sources",
+        AddSection("plugins", "PluginList", _pluginLibrary ?? new StackPanel());
+        AddSection("sources", "Sources", _sources,
             new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),
             new SettingsSection("NotificationDisplay", _doNotDisturbSettings));
         _updates = new SettingsUpdates(store, updates, exit);

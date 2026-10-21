@@ -520,7 +520,7 @@
   <data name="SizeKilobytes" xml:space="preserve"><value>{0} KB</value></data>
   <data name="DiagnosticsCopy" xml:space="preserve"><value>复制诊断报告</value></data>
   <data name="DiagnosticsCopied" xml:space="preserve"><value>报告已复制。打开问题反馈后粘贴到对应位置，提交前请检查内容。</value></data>
-  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>已重新尝试连接，结果会显示在插件列表。</value></data>
+  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>已重新尝试连接，结果会显示在消息来源页。</value></data>
   <data name="DiagnosticsRecordCount" xml:space="preserve"><value>{0} 条记录 · {1} 条失败</value></data>
   <data name="DiagnosticFailedCount" xml:space="preserve"><value>失败 · {0} 次</value></data>
   <data name="DiagnosticSucceededCount" xml:space="preserve"><value>成功 · {0} 次</value></data>
@@ -546,7 +546,7 @@
   <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>微信重置了辅助访问开关</value></data>
   <data name="DiagnosticReasonError" xml:space="preserve"><value>{0}（{1}）</value></data>
   <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>未记录具体错误</value></data>
-  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>请到插件列表重试连接；仍失败时，复制报告并提交问题反馈。</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>请到消息来源页重试连接；仍失败时，复制报告并提交问题反馈。</value></data>
   <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>问题反复出现时，复制报告并提交问题反馈。</value></data>
   <data name="SystemDoNotDisturb" xml:space="preserve"><value>系统免打扰</value></data>
   <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>未能更改系统免打扰，请重试或打开 Windows 通知设置。</value></data>
@@ -625,4 +625,9 @@
   <data name="DiagnosticTitleSavePreferences" xml:space="preserve"><value>设置保存失败</value></data>
   <data name="LanguageChinese" xml:space="preserve"><value>简体中文</value></data>
   <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="PluginAlreadyLatest" xml:space="preserve"><value>已是最新版</value></data>
+  <data name="PluginInstalledElsewhere" xml:space="preserve"><value>已从其他来源安装</value></data>
+  <data name="PluginDeveloperMismatch" xml:space="preserve"><value>开发者不一致</value></data>
+  <data name="PluginContractIncompatible" xml:space="preserve"><value>合约版本不兼容</value></data>
+  <data name="PluginHostTooOld" xml:space="preserve"><value>宿主版本过低，请先更新消息岛</value></data>
 </root>

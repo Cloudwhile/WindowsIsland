@@ -71,7 +71,7 @@ internal static class StatusChecks
                 && DiagnosticPresentation.Outcome(enabled with { Fatal = true }) == DiagnosticOutcome.Failure
                 && DiagnosticPresentation.Title(enabled with { Errors = error.Errors }) == "无障碍补丁启用失败",
                 "Error metadata or fatal status overrides a success-like event name and title");
-            check(DiagnosticPresentation.Suggestion(patch)?.Contains("插件列表", StringComparison.Ordinal) == true,
+            check(DiagnosticPresentation.Suggestion(patch)?.Contains("消息来源", StringComparison.Ordinal) == true,
                 "Retry guidance points to the actual location of the source controls");
             check(Localization.Get("TrayConnecting") == Localization.Get("NotConnected")
                 && Localization.Get("TrayListening") == Localization.Get("Connected"),
@@ -82,6 +82,8 @@ internal static class StatusChecks
                 && DiagnosticPresentation.Title(Entry("FutureOperation")) == "WeChat · Operation failed"
                 && DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.PowerPlugin }) == "System notifications",
                 "Diagnostic event names and fallbacks follow the selected language");
+            check(DiagnosticPresentation.Suggestion(patch)?.Contains("Message sources", StringComparison.Ordinal) == true,
+                "English retry guidance follows the relocated source controls");
         }
         finally { Localization.Configure("zh-CN"); }
         check(DiagnosticReports.ClientVersion("4.0.1.12 (x64)\\Users") == "4.0.1.12" && DiagnosticReports.ClientVersion("C:\\x") is null,

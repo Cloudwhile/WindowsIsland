@@ -23,6 +23,20 @@ internal sealed class PluginLibrary : IDisposable
     public static bool Compatible(PluginCatalogEntry entry) => PluginContract.IsCompatible(entry.ContractVersion)
         && ReleaseVersion.Current.CompareTo(ReleaseVersion.FromInformationalVersion(entry.MinHostVersion)) >= 0;
 
+    public static string? InstallUnavailableReason(PluginCatalogEntry entry, PluginMetadata? installed)
+    {
+        if (installed?.External is { } external)
+        {
+            if (external.Manifest.SourceKind != PluginSourceKind.Official) return "PluginInstalledElsewhere";
+            if (external.Manifest.DeveloperId != entry.DeveloperId) return "PluginDeveloperMismatch";
+        }
+        if (!PluginContract.IsCompatible(entry.ContractVersion)) return "PluginContractIncompatible";
+        if (ReleaseVersion.Current.CompareTo(ReleaseVersion.FromInformationalVersion(entry.MinHostVersion)) < 0)
+            return "PluginHostTooOld";
+        return installed is not null && ReleaseVersion.FromInformationalVersion(entry.Version)
+            .CompareTo(ReleaseVersion.FromInformationalVersion(installed.Version)) <= 0 ? "PluginAlreadyLatest" : null;
+    }
+
     public async Task InstallOfficialAsync(PluginCatalogEntry entry, IEnumerable<string> confirmed, CancellationToken token = default)
     {
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);

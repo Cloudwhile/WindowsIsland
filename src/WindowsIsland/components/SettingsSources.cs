@@ -19,6 +19,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     private readonly Dictionary<string, Controls> _rows = [];
     private readonly TextBlock _retained = LocalizedUI.Text("PluginDataPreserved", 12, secondary: true);
     private bool _syncing, _disposed;
+    private int _visit;
 
     public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
         Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null, PluginCatalogService? catalog = null)
@@ -32,11 +33,13 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _retained.TextWrapping = TextWrapping.Wrap;
         _retained.Visibility = Visibility.Collapsed;
         Children.Add(SettingsContent.Wrap(_retained));
+        Unloaded += (_, _) => { _visit++; _retained.Visibility = Visibility.Collapsed; };
     }
 
     public void Refresh(IReadOnlyList<NotificationPluginStatus> plugins, bool busy)
     {
         if (_disposed) return;
+        _retained.Visibility = Visibility.Collapsed;
         _syncing = true;
         try
         {
@@ -92,8 +95,14 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     delete.Click += async (_, _) =>
                     {
                         if (_disposed || !definition.CanRemove) return;
+                        var visit = _visit;
                         delete.IsEnabled = false;
-                        try { await _remove(definition.Id); if (definition.Metadata?.External is not null) _retained.Visibility = Visibility.Visible; }
+                        try
+                        {
+                            await _remove(definition.Id);
+                            if (!_disposed && IsLoaded && visit == _visit && definition.Metadata?.External is not null)
+                                _retained.Visibility = Visibility.Visible;
+                        }
                         catch (Exception error) { _failed(error); }
                         finally { if (!_disposed) delete.IsEnabled = true; }
                     };
