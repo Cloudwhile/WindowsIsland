@@ -250,6 +250,7 @@ WeChatRoutingChecks.Run(Check);
 StatusChecks.Run(Check);
 ToastImageChecks.Run(Check);
 NotificationImageStoreChecks.Run(Check);
+await NotificationIconCacheChecks.RunAsync(Check);
 await DiagnosticChecks.RunAsync(Check);
 await DiagnosticReportCacheChecks.RunAsync(Check);
 await WindowsIsland.LogicTests.PluginDirectoryChecks.RunAsync();

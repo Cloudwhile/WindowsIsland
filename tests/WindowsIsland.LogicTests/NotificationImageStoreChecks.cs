@@ -38,6 +38,38 @@ internal static class NotificationImageStoreChecks
             var missing = path + ".missing";
             check(NotificationImageStore.Read(notification, missing) is null && !File.Exists(missing),
                 "Unavailable notification caches are neither created nor required for delivery");
+            var delays = 0;
+            Task Delay(int milliseconds)
+            {
+                delays++;
+                if (sqlite3_open_v2(path, out var writer, 2, 0) != 0) throw new Exception("Fixture writer failed");
+                try
+                {
+                    Execute(writer, $"INSERT INTO Notification VALUES(12, 1, 'toast', 'Xml', {created.ToFileTime()}, X'{Convert.ToHexString(Encoding.UTF8.GetBytes(first))}');");
+                }
+                finally { sqlite3_close(writer); }
+                return Task.CompletedTask;
+            }
+            check(NotificationImageStore.ReadAsync(notification with { Id = 12 }, path, Delay).GetAwaiter().GetResult()?.Avatar == "C:\\first-photo"
+                && delays == 1, "An image row committed after notification delivery is found on a bounded retry");
+            delays = 0;
+            Task CountDelay(int milliseconds) { delays++; return Task.CompletedTask; }
+            check(NotificationImageStore.ReadAsync(notification, missing, CountDelay).GetAwaiter().GetResult() is null && delays == 0,
+                "A missing notification database is a permanent miss without retry");
+            check(NotificationImageStore.ReadAsync(notification with { CreatedAt = created.AddSeconds(2) }, path, CountDelay)
+                .GetAwaiter().GetResult() is null && delays == 0, "Retries never widen the original one-second arrival window");
+            check(NotificationImageStore.ReadAsync(notification with { Id = 99 }, path, CountDelay).GetAwaiter().GetResult() is null
+                && delays == 2, "An absent notification row stops after three attempts");
+            if (sqlite3_open_v2(path, out database, 2, 0) != 0) throw new Exception("Cannot open fixture lock");
+            Execute(database, "BEGIN EXCLUSIVE;");
+            delays = 0;
+            Task Unlock(int milliseconds) { delays++; Execute(database, "COMMIT;"); return Task.CompletedTask; }
+            check(NotificationImageStore.ReadAsync(notification, path, Unlock).GetAwaiter().GetResult()?.Avatar == "C:\\first-photo"
+                && delays == 1, "A transient SQLite lock retries after releasing the read connection");
+            Execute(database, $"INSERT INTO Notification VALUES(13, 1, 'toast', 'Xml', {created.ToFileTime()}, X'00');");
+            delays = 0;
+            check(NotificationImageStore.ReadAsync(notification with { Id = 13 }, path, CountDelay).GetAwaiter().GetResult() is null
+                && delays == 0, "An invalid toast payload is a permanent miss without retry");
         }
         finally
         {
