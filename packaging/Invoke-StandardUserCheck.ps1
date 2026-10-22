@@ -1,5 +1,5 @@
 #Requires -Version 7.0
-param([Parameter(Mandatory)][ValidateSet('Test-Inno.ps1','Test-MsiUpgrade.ps1')][string]$Script, [switch]$Probe)
+param([Parameter(Mandatory)][ValidateSet('Test-Inno.ps1')][string]$Script, [switch]$Probe)
 $ErrorActionPreference = 'Stop'
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 try { $administrator = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator) }

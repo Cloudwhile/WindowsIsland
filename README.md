@@ -31,12 +31,15 @@ Download Windows Island from [Releases](https://github.com/Cloudwhile/WindowsIsl
 
 | Package | How to open |
 | --- | --- |
-| Windows installer | Choose an installation folder, then open Windows Island from the Start menu |
+| Windows installer (.exe) | Allow administrator access, choose a folder, then open Windows Island from the Start menu |
+| Portable ZIP | Extract and run WindowsIsland.exe |
 
 1. In **Setup**, click the icon beside **App initialization**.
 2. Click the icon beside **Notification access** and allow access in the Windows prompt.
 3. Choose your sources in **Sources**. Use the preview to check the island, then select its position and animation in **Appearance**.
 4. Click the completion icon in the upper right. The app remains available in the system tray.
+
+Before deleting a portable copy, open **Setup**, select **Unregister notification package**, confirm, and wait for Windows Island to exit. First use of system notifications may require administrator access once. The portable package creates no Start menu, startup, or uninstall entry.
 
 Settings save automatically. Click the tray icon to reopen settings, or right-click it to check status and exit. If notification access needs attention, use the Windows settings shortcut in Setup, then refresh or retry.
 

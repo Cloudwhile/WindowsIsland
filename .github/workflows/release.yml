@@ -49,7 +49,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          for extension in exe; do
+          for extension in exe zip; do
             name="WindowsIsland-${RELEASE_TAG#v}-win-x64.$extension"
             test -s "$name"
             sha256sum --check "$name.sha256"
@@ -75,7 +75,7 @@ jobs:
             fi
             gh release create "$RELEASE_TAG" "${options[@]}"
           fi
-          gh release upload "$RELEASE_TAG" "distribution/$name.exe" "distribution/$name.exe.sha256" --clobber
+          gh release upload "$RELEASE_TAG" "distribution/$name.exe" "distribution/$name.exe.sha256" "distribution/$name.zip" "distribution/$name.zip.sha256" --clobber
           gh release edit "$RELEASE_TAG" --notes-file release.md --draft=false
 
   update-feed:

@@ -45,13 +45,6 @@ jobs:
           New-Item -Path $key -Force | Out-Null
           New-ItemProperty -Path $key -Name AllowAllTrustedApps -Value 1 -PropertyType DWord -Force | Out-Null
           New-ItemProperty -Path $key -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
-          # Windows Server otherwise blocks non-elevated, unmanaged per-user MSI installs.
-          $installer = 'HKLM:/SOFTWARE/Policies/Microsoft/Windows/Installer'
-          if (!(Test-Path -LiteralPath $installer)) { New-Item -Path $installer -Force | Out-Null }
-          New-ItemProperty -Path $installer -Name DisableMSI -Value 0 -PropertyType DWord -Force | Out-Null
-          if ((Get-ItemPropertyValue -LiteralPath $installer -Name DisableMSI) -ne 0) {
-            throw 'Per-user MSI installation is still disabled on the test runner.'
-          }
 
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -84,6 +77,12 @@ jobs:
       - name: Check update manifest generation
         run: ./packaging/Test-UpdateManifest.ps1
 
+      - name: Check installer policy snapshots
+        run: ./packaging/Test-InstallerPolicy.ps1
+
+      - name: Check Shell icon alpha
+        run: dotnet run --project tests/WindowsIsland.IconTests/WindowsIsland.IconTests.csproj -c Release
+
       - name: Run Telegram bridge checks
         run: dotnet run --project tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj -c Release
 
@@ -110,7 +109,7 @@ jobs:
             'WindowsIsland.pri', 'App.xbf', 'Microsoft.UI.Xaml.dll', 'coreclr.dll',
             'en-US/WindowsIsland.resources.dll',
             'hostfxr.dll', 'Assets/Island.ico', 'Icons/LOGO.png', 'Initialization/AppxManifest.xml',
-            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt', 'Updater/Apply-Update.ps1',
+            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt', 'Unregister-Package.ps1',
             'Assets/Shell/AppList.png', 'Assets/Shell/MediumTile.png', 'Assets/Shell/StoreLogo.png',
             'Assets/Shell/AppList.targetsize-24_altform-unplated.png',
             'Assets/Shell/AppList.targetsize-24_altform-lightunplated.png'
@@ -150,16 +149,6 @@ jobs:
 
       - name: Check isolated Inno installation and removal
         run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1
-
-      - name: Set up isolated MSI upgrade checks
-        run: |
-          dotnet tool install wix --version 5.0.2 --tool-path artifacts/tools/wix
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./artifacts/tools/wix/wix.exe extension add WixToolset.UI.wixext/5.0.2
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Check isolated upgrades and rollback
-        run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-MsiUpgrade.ps1
 
       - name: Upload Windows package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

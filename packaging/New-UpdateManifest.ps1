@@ -28,10 +28,14 @@ function Convert-Release($release) {
         $release.prerelease -isnot [bool] -or $release.tag_name -isnot [string] -or
         !(Test-ReleaseTag $release.tag_name) -or $release.assets -isnot [array]) { return }
     $tag = $release.tag_name
-    $baseName = "WindowsIsland-$($tag.Substring(1))-win-x64"
+    $installers = @($release.assets | Where-Object {
+        $_ -is [Collections.IDictionary] -and $_.name -is [string] -and
+        $_.name -match '^[^/\\:<>"|?*\x00-\x1F]+\.exe$'
+    })
+    if ($installers.Count -ne 1) { return }
+    $installerName = $installers[0].name
     $assets = [Collections.Generic.List[object]]::new()
-    foreach ($extension in '.exe', '.exe.sha256') {
-        $name = "$baseName$extension"
+    foreach ($name in @($installerName, "$installerName.sha256")) {
         $matching = @($release.assets | Where-Object { $_ -is [Collections.IDictionary] -and $_.name -ceq $name })
         if ($matching.Count -ne 1) { return }
         $asset = $matching[0]

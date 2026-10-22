@@ -13,34 +13,6 @@ if (args.FirstOrDefault() == "--restart-parent-fixture")
     return;
 }
 
-if (args.FirstOrDefault() == "--update-fixture")
-{
-    var noConsole = args.Contains("--no-console", StringComparer.Ordinal);
-    if (noConsole) UpdateFixtureConsole.Detach();
-    var directory = args[1];
-    var installer = Path.Combine(directory, "WindowsIsland-" + ReleaseVersion.Current.Display + "-win-x64.exe");
-    using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), File.Exists(installer) ? installer : null,
-        File.Exists(Path.Combine(directory, "expected-version.txt")) ? File.ReadAllText(Path.Combine(directory, "expected-version.txt"))
-            : ReleaseVersion.Current.Display, Path.GetDirectoryName(directory)!);
-    try { await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory),
-        restoreRegistration: args.Contains("--restore-registration", StringComparer.Ordinal)); }
-    catch (Exception error)
-    {
-        if (!noConsole) Console.Error.WriteLine(error.Message);
-        Environment.ExitCode = 1;
-    }
-    return;
-}
-if (args.FirstOrDefault() == "/i" && File.Exists(Path.Combine(AppContext.BaseDirectory, "msi-fixture-exit.txt")))
-{
-    var code = int.Parse(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "msi-fixture-exit.txt")));
-    var marker = Path.Combine(AppContext.BaseDirectory, "msi.args");
-    await File.WriteAllTextAsync(marker + ".tmp", string.Join(' ', args));
-    File.Move(marker + ".tmp", marker, overwrite: true);
-    if (code is 0 or 3010) await File.WriteAllTextAsync(Path.Combine(AppContext.BaseDirectory, "a-library.dll"), "new MSI library");
-    Environment.ExitCode = code;
-    return;
-}
 if (args.Contains("--settings"))
 {
     var restartArguments = Path.Combine(AppContext.BaseDirectory, "restart.args");
@@ -262,6 +234,7 @@ await WindowsIsland.LogicTests.PluginManagerChecks.RunAsync(Check);
 await RegisteredRestartChecks.RunAsync(Check);
 await InitializationRegistrationChecks.RunAsync(Check);
 await UpdateChecks.RunAsync(Check);
+await UpdateScriptChecks.RunAsync(Check);
 await UpdateCheckServiceChecks.RunAsync(Check);
 Console.WriteLine($"{checks} checks passed.");
 

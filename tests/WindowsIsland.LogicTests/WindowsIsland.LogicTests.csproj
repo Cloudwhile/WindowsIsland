@@ -31,6 +31,8 @@
     <Compile Include="../../src/WindowsIsland/Plugins/PluginFiles.cs" Link="Plugins/PluginFiles.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginTrust.cs" Link="Plugins/PluginTrust.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginAssemblyValidator.cs" Link="Plugins/PluginAssemblyValidator.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginException.cs" Link="Plugins/PluginException.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginErrors.cs" Link="Plugins/PluginErrors.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginInstaller.cs" Link="Plugins/PluginInstaller.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginLibrary.cs" Link="Plugins/PluginLibrary.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogClient.cs" Link="Plugins/PluginCatalogClient.cs" />
@@ -56,6 +58,7 @@
     <EmbeddedResource Include="../../src/WindowsIsland/Strings/*.resx" Link="Strings/%(Filename)%(Extension)" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationState.cs" Link="NotificationState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/ToastImageReference.cs" Link="ToastImageReference.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/NotificationIconCache.cs" Link="NotificationIconCache.cs" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationImageStore.cs" Link="NotificationImageStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/SingleInstance.cs" Link="SingleInstance.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessageRouter.cs" Link="MessageRouter.cs" />
@@ -79,8 +82,8 @@
     <Compile Include="../../src/WindowsIsland/Services/GitHubReleaseClient.cs" Link="GitHubReleaseClient.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateCheckService.cs" Link="UpdateCheckService.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdatePackage.cs" Link="UpdatePackage.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InstallationMode.cs" Link="InstallationMode.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateInstaller.cs" Link="UpdateInstaller.cs" />
-    <Compile Include="../../src/WindowsIsland/Services/UpdateElevation.cs" Link="UpdateElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateWorkDirectory.cs" Link="UpdateWorkDirectory.cs" />
   </ItemGroup>
   <Target Name="CopyPluginFixture" AfterTargets="Build">

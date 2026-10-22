@@ -40,14 +40,6 @@ internal static class WindowsPreferencesChecks
         check(StartupElevation.TryHandle(["--configure-startup", "unknown"], out var invalidResult) && invalidResult != 0,
             "Malformed privileged commands are handled without starting the normal application");
         check(!StartupElevation.TryHandle(["--settings"], out _), "Normal launch arguments retain the regular application startup");
-        var updateJob = Path.Combine(Path.GetTempPath(), "WindowsIsland Update", "job.json");
-        var update = UpdateElevation.Request(executable, updateJob);
-        check(update.UseShellExecute && update.Verb == "runas" && update.WindowStyle == ProcessWindowStyle.Hidden
-            && update.ArgumentList.SequenceEqual(["--apply-update-worker", updateJob]),
-            "Protected updates request UAC through the installed executable with a fixed job path");
-        check(UpdateElevation.TryHandle(["--apply-update-worker"], out invalidResult) && invalidResult != 0,
-            "Malformed privileged update commands do not start a worker");
-        check(!UpdateElevation.TryHandle(["--settings"], out _), "Normal settings launch bypasses the update elevation helper");
         var initialization = InitializationElevation.Request(executable, 42, 1234, new Version(1, 0, 0, 12));
         check(initialization.UseShellExecute && initialization.Verb == "runas" && initialization.WindowStyle == ProcessWindowStyle.Hidden
             && initialization.ArgumentList.SequenceEqual(["--prepare-initialization", "42", "1234", "1.0.0.12"]),

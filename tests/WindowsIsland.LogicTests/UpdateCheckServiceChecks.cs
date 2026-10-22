@@ -114,6 +114,6 @@ internal static class UpdateCheckServiceChecks
         var version = new ReleaseVersion(9, 0, 0, "", "9.0.0");
         var uri = new Uri("https://github.com/Cloudwhile/WindowsIsland/releases/tag/v9.0.0");
         return new(version, version.Tag, "Update", "", uri, false,
-            new("package.zip", uri, 100), new("package.zip.sha256", uri, 64), null, null);
+            new("package.exe", uri, 100), new("package.exe.sha256", uri, 64));
     }
 }
