@@ -1,6 +1,5 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Globalization;
-using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,13 +8,12 @@ namespace WindowsIsland.Services;
 
 internal sealed record UpdateProgress(string MessageKey, double? Percent = null, double? BytesPerSecond = null);
 
-internal sealed class PreparedUpdate(string directory, string stagingDirectory, string? installerPath,
+internal sealed class PreparedUpdate(string directory, string installerPath,
     string version, string root) : IDisposable
 {
     private bool _handedOff;
     public string Directory { get; } = directory;
-    public string StagingDirectory { get; } = stagingDirectory;
-    public string? InstallerPath { get; } = installerPath;
+    public string InstallerPath { get; } = installerPath;
     public string Version { get; } = version;
     public void HandOff() => _handedOff = true;
     public void Dispose()
@@ -27,25 +25,13 @@ internal sealed class PreparedUpdate(string directory, string stagingDirectory, 
 internal static class UpdatePackage
 {
     private const long MaximumDownload = 2L * 1024 * 1024 * 1024;
-    private const long MaximumExpanded = 4L * 1024 * 1024 * 1024;
     public static string WorkRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WindowsIsland", "Updates");
-    internal static readonly string[] RequiredFiles =
-    [
-        "WindowsIsland.exe", "WindowsIsland.dll", "WindowsIsland.deps.json", "WindowsIsland.runtimeconfig.json",
-        "WindowsIsland.pri", "App.xbf", "Microsoft.UI.Xaml.dll", "coreclr.dll", "hostfxr.dll",
-        "en-US/WindowsIsland.resources.dll",
-        "WindowsIsland.TelegramHook.dll", "Assets/Island.ico", "Icons/LOGO.png", "Initialization/AppxManifest.xml",
-        "Initialization/RuntimeManifest.xml", "Licenses/MinHook.txt", "Updater/Apply-Update.ps1", "Assets/Shell/AppList.png",
-        "Assets/Shell/MediumTile.png", "Assets/Shell/StoreLogo.png",
-        "Assets/Shell/AppList.targetsize-24_altform-unplated.png", "Assets/Shell/AppList.targetsize-24_altform-lightunplated.png"
-    ];
-
     public static async Task<PreparedUpdate> PrepareAsync(GitHubReleaseClient client, GitHubRelease release,
-        bool useInstaller, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken, string? workRoot = null)
+        IProgress<UpdateProgress>? progress, CancellationToken cancellationToken, string? workRoot = null)
     {
-        if (useInstaller && (release.Installer is null || release.InstallerChecksum is null
-            || !UpdateInstaller.IsInstallerFileName(release.Installer.Name)))
+        if (release.Installer is null || release.InstallerChecksum is null
+            || !UpdateInstaller.IsInstallerFileName(release.Installer.Name))
             throw Localization.DataError("UpdateErrorInstallerMissing");
         var root = Path.GetFullPath(workRoot ?? WorkRoot);
         Directory.CreateDirectory(root);
@@ -54,26 +40,11 @@ internal static class UpdatePackage
         Directory.CreateDirectory(directory);
         try
         {
-            var staging = Path.Combine(directory, "payload");
-            string? installer = null;
-            if (useInstaller)
-            {
-                // Keep the release asset name so Windows Installer can identify the
-                // package consistently during later repair or maintenance.
-                installer = Path.Combine(directory, release.Installer!.Name);
-                await DownloadVerifiedAsync(client, release.Installer!, release.InstallerChecksum!, installer, root,
-                    progress, cancellationToken).ConfigureAwait(false);
-            }
-            else
-            {
-                var archive = Path.Combine(directory, "update.zip");
-                await DownloadVerifiedAsync(client, release.Archive, release.Checksum, archive, root,
-                    progress, cancellationToken).ConfigureAwait(false);
-                progress?.Report(new("UpdateExtracting"));
-                await Task.Run(() => Extract(archive, staging, cancellationToken), cancellationToken).ConfigureAwait(false);
-            }
+            var installer = Path.Combine(directory, release.Installer!.Name);
+            await DownloadVerifiedAsync(client, release.Installer, release.InstallerChecksum!, installer, root,
+                progress, cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
-            return new(directory, staging, installer, release.Version.Text, root);
+            return new(directory, installer, release.Version.Text, root);
         }
         catch
         {
@@ -251,51 +222,6 @@ internal static class UpdatePackage
     {
         try { if (File.Exists(path)) File.Delete(path); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Trace.WriteLine(error); }
-    }
-
-    internal static void Extract(string archivePath, string destination, CancellationToken cancellationToken)
-    {
-        if (Directory.Exists(destination)) throw Localization.IoError("UpdateErrorDirectoryExists");
-        var root = Path.GetFullPath(destination) + Path.DirectorySeparatorChar;
-        using var archive = ZipFile.OpenRead(archivePath);
-        var entries = new List<(ZipArchiveEntry Entry, string Path)>();
-        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        long expanded = 0;
-        if (archive.Entries.Count > 10000) throw Localization.DataError("UpdateErrorTooManyFiles");
-        foreach (var entry in archive.Entries)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var relative = entry.FullName.Replace('\\', '/');
-            var parts = relative.TrimEnd('/').Split('/');
-            if (relative.Length == 0 || relative.StartsWith('/') || parts.Any(part => part.Length == 0 || part is "." or ".."
-                || part.EndsWith(' ') || part.EndsWith('.') || part.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-                || ((entry.ExternalAttributes >> 16) & 0xF000) == 0xA000
-                || (entry.ExternalAttributes & (int)FileAttributes.ReparsePoint) != 0)
-                throw Localization.DataError("UpdateErrorInvalidPath");
-            var path = Path.GetFullPath(Path.Combine(destination, Path.Combine(parts)));
-            if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !paths.Add(path))
-                throw Localization.DataError("UpdateErrorConflictingPath");
-            expanded = checked(expanded + entry.Length);
-            if (expanded > MaximumExpanded) throw Localization.DataError("UpdateErrorTooLarge");
-            entries.Add((entry, path));
-        }
-        foreach (var required in RequiredFiles)
-        {
-            if (!entries.Any(item => string.Equals(item.Entry.FullName.Replace('\\', '/'), required,
-                StringComparison.OrdinalIgnoreCase) && item.Entry.Length > 0))
-                throw Localization.DataError("UpdateErrorRequiredFile");
-        }
-        Directory.CreateDirectory(destination);
-        foreach (var (entry, path) in entries)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\')) Directory.CreateDirectory(path);
-            else
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                entry.ExtractToFile(path);
-            }
-        }
     }
 
     internal static void DeleteWorkDirectory(string directory, string root)

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -92,7 +92,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         layout.Children.Add(_notice);
         _initializationRow = new SettingsRow(Symbol.Download, "Initialization", _initialize);
         _permissionRow = new SettingsRow(Symbol.Permissions, "NotificationAccess", _permission);
-        _setup = new SettingsSetup(_initializationRow, _permissionRow);
+        _setup = new SettingsSetup(_initializationRow, _permissionRow, new PortableRegistrationSettings(exit, verification));
         _startup = new ToggleSwitch { OnContent = null, OffContent = null, MinWidth = 0,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetAutomationId(_startup, "StartupToggle");
@@ -111,7 +111,8 @@ internal sealed class SettingsPage : Grid, IDisposable
             }, "ErrorStartupSettings");
         };
         _actions.Add(_startup);
-        AddSection("setup", "Setup", _setup, new SettingsSection("General", _startupRow));
+        if (!verification && InstallationMode.IsPortable()) AddSection("setup", "Setup", _setup);
+        else AddSection("setup", "Setup", _setup, new SettingsSection("General", _startupRow));
         _animations = Switch("Animations", "AnimationsToggle", settings => settings.Animations,
             (settings, value) => settings with { Animations = value });
         _animationsRow = new SettingsRow(Symbol.Play, "Animations", _animations);
@@ -247,7 +248,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         catch (Exception error)
         {
             Diagnostics.Capture(DiagnosticArea.Settings, error, message); Trace.WriteLine(error);
-            if (!_disposed) ShowError(message, showInstallSettings);
+            if (!_disposed) ShowError(InitializationRegistration.IsSideLoadingDisabled(error) ? "NeedsDeveloperMode" : message, showInstallSettings);
         }
         finally
         {
@@ -326,7 +327,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         if (!_busy) _ = RefreshWindowsAsync();
         _position.SetEnabled(!_busy);
         _positionRow.Status = NotificationPlacement.Label(settings.Position);
-        _initializationRow.Status = Localization.Get(state.Initialized ? "Complete" : settings.SystemNotifications ? "Pending" : "Optional");
+        _initializationRow.Status = Localization.Get(state.Initialized ? "Complete" : AppInitialization.NeedsDeveloperMode
+            ? "NeedsDeveloperMode" : settings.SystemNotifications ? "Pending" : "Optional");
         _permissionRow.Status = Localization.Get(state.Access switch
         {
             NotificationAccess.Allowed => "Allowed",

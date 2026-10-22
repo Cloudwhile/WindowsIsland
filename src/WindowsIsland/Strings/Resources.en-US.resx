@@ -632,4 +632,9 @@
   <data name="PluginDeveloperMismatch" xml:space="preserve"><value>Different developer</value></data>
   <data name="PluginContractIncompatible" xml:space="preserve"><value>Incompatible contract version</value></data>
   <data name="PluginHostTooOld" xml:space="preserve"><value>A newer host is required. Update Windows Island first.</value></data>
+  <data name="UnregisterPackage" xml:space="preserve"><value>Unregister notification package</value></data>
+  <data name="ActionUnregisterPackage" xml:space="preserve"><value>Unregister and exit</value></data>
+  <data name="UnregisterPackageConfirm" xml:space="preserve"><value>Windows Island will exit and unregister notifications for this folder. You can then delete the folder. Starting the app again registers it again.</value></data>
+  <data name="ErrorUnregisterPackage" xml:space="preserve"><value>Could not start unregistration. Please try again.</value></data>
+  <data name="NeedsDeveloperMode" xml:space="preserve"><value>Developer mode is required</value></data>
 </root>

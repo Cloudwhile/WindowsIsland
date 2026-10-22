@@ -632,4 +632,9 @@
   <data name="PluginDeveloperMismatch" xml:space="preserve"><value>开发者不一致</value></data>
   <data name="PluginContractIncompatible" xml:space="preserve"><value>合约版本不兼容</value></data>
   <data name="PluginHostTooOld" xml:space="preserve"><value>宿主版本过低，请先更新消息岛</value></data>
+  <data name="UnregisterPackage" xml:space="preserve"><value>注销稀疏包注册</value></data>
+  <data name="ActionUnregisterPackage" xml:space="preserve"><value>注销并退出</value></data>
+  <data name="UnregisterPackageConfirm" xml:space="preserve"><value>消息岛将退出并注销当前目录的系统通知注册。完成后可删除文件夹。再次启动会重新注册。</value></data>
+  <data name="ErrorUnregisterPackage" xml:space="preserve"><value>注销未能启动，请重试。</value></data>
+  <data name="NeedsDeveloperMode" xml:space="preserve"><value>需要开启开发者模式</value></data>
 </root>

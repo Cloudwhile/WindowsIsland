@@ -1,25 +1,13 @@
 using System.Diagnostics;
-using System.Runtime.Versioning;
 using System.Text.Json;
-using Microsoft.Win32;
+using System.ComponentModel;
 
 namespace WindowsIsland.Services;
 
-internal sealed record UpdateJob(string InstallDirectory, string PayloadDirectory, string? InstallerPath,
-    string? InstallerSourcePath, int ProcessId, long ProcessStartedUtcTicks, string Version,
-    string MutexName = @"Local\WindowsIsland.Tray",
-    bool RestoreRegistration = false, bool RequiresElevation = false, string UserSid = "");
 internal sealed record UpdateResult(string InstallDirectory, string Version, bool Success, string Message, string? MessageKey = null);
 
 internal static class UpdateInstaller
 {
-    [SupportedOSPlatform("windows")]
-    public static bool IsMsiInstallation(string? directory = null)
-    {
-        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Cloudwhile\WindowsIsland\Installer");
-        return key?.GetValue("InstallDirectory") is string installed && SameDirectory(installed, directory ?? AppContext.BaseDirectory);
-    }
-
     public static UpdateResult? ReadResult(string? directory = null)
     {
         try
@@ -39,63 +27,60 @@ internal static class UpdateInstaller
         return result with { Version = target.Display };
     }
 
-    public static async Task StartAsync(PreparedUpdate update, CancellationToken cancellationToken,
-        string mutexName = @"Local\WindowsIsland.Tray", bool restoreRegistration = false)
+    public static async Task StartAsync(PreparedUpdate update, CancellationToken cancellationToken)
     {
         if (update.InstallerPath is not { } directInstaller || !File.Exists(directInstaller)
             || !IsInstallerFileName(Path.GetFileName(directInstaller)))
             throw Localization.DataError("UpdateErrorInstallerMissing");
         cancellationToken.ThrowIfCancellationRequested();
-        var installerStart = new ProcessStartInfo(directInstaller)
-        {
-            UseShellExecute = true,
-            WorkingDirectory = Path.GetDirectoryName(directInstaller)!,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        // Preserve the active installation location when migrating from MSI or
-        // when the user selected a non-default Inno directory.
-        installerStart.ArgumentList.Add("/DIR=" + Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
-        foreach (var argument in new[] { "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" })
-            installerStart.ArgumentList.Add(argument);
-        using var installerProcess = Process.Start(installerStart)
-            ?? throw Localization.IoError("UpdateErrorHelperStart");
-        update.HandOff();
-        await Task.CompletedTask.ConfigureAwait(false);
-    }
-
-    internal static bool RequiresElevation(string directory)
-    {
-        var probe = Path.Combine(Path.GetFullPath(directory), ".island-access-" + Guid.NewGuid().ToString("N"));
+        // Confirm the final privilege mode before exiting, so cancelled UAC preserves the app.
+        var eventName = @"Local\WindowsIsland.Update." + Guid.NewGuid().ToString("N");
+        using var ready = new EventWaitHandle(false, EventResetMode.ManualReset, eventName);
+        var installerStart = CreateStartInfo(directInstaller, AppContext.BaseDirectory);
+        installerStart.ArgumentList.Add("/UPDATEEVENT=" + eventName);
         try
         {
-            using var file = new FileStream(probe, FileMode.CreateNew, FileAccess.Write,
-                FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.DeleteOnClose);
-            return false;
+            using var installerProcess = Process.Start(installerStart)
+                ?? throw Localization.IoError("UpdateErrorHelperStart");
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            while (!ready.WaitOne(0))
+            {
+                if (installerProcess.HasExited)
+                    throw new OperationCanceledException("Installer did not accept the update.", cancellationToken);
+                await Task.Delay(50, timeout.Token).ConfigureAwait(false);
+            }
         }
-        catch (Exception error) when (error is UnauthorizedAccessException or System.Security.SecurityException)
+        catch (Win32Exception error) when (error.NativeErrorCode == 1223)
+        { throw new OperationCanceledException("Update permission request was cancelled.", error, cancellationToken); }
+        update.HandOff();
+    }
+
+    internal static ProcessStartInfo CreateStartInfo(string installer, string directory)
+    {
+        var info = new ProcessStartInfo(installer)
         {
-            return true;
+            UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(installer)!,
+            WindowStyle = ProcessWindowStyle.Hidden
+        };
+        info.ArgumentList.Add("/DIR=" + Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)));
+        foreach (var argument in new[] { "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/UPDATE=1" })
+            info.ArgumentList.Add(argument);
+        if (InstallationMode.IsPortable(directory))
+        {
+            info.ArgumentList.Add("/PORTABLE=1");
+            info.ArgumentList.Add("/CURRENTUSER");
         }
+        else info.ArgumentList.Add("/ALLUSERS");
+        return info;
     }
 
     internal static bool IsInstallerFileName(string? name)
     {
-        const string prefix = "WindowsIsland-";
-        const string suffix = "-win-x64.exe";
-        if (name is null || !name.StartsWith(prefix, StringComparison.Ordinal)
-            || !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) return false;
-        var version = name[prefix.Length..^suffix.Length];
-        return ReleaseVersion.TryParse(version, out _);
-    }
-
-    internal static bool IsInstallerSourcePath(string? path, string workDirectory)
-    {
-        if (path is null) return false;
-        var full = Path.GetFullPath(path);
-        var sourceRoot = Path.GetDirectoryName(Path.GetFullPath(workDirectory));
-        return sourceRoot is not null
-            && SameDirectory(Path.GetDirectoryName(full) ?? "", sourceRoot)
-            && IsInstallerFileName(Path.GetFileName(full));
+        return name is { Length: > 4 and <= 255 } && Path.GetFileName(name) == name
+            && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
+            && !name.Contains('/') && !name.Contains('\\')
+            && Path.GetExtension(name).Equals(".exe", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool SameDirectory(string left, string right) => string.Equals(

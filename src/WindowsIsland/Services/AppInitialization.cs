@@ -10,6 +10,7 @@ internal static class AppInitialization
     private static readonly SemaphoreSlim InitializationGate = new(1, 1);
     private static long _retryAfterUtcTicks;
     private static int _failedAttempts;
+    internal static bool NeedsDeveloperMode { get; private set; }
 
     internal static bool RetryDeferred => DateTimeOffset.UtcNow.UtcTicks < Volatile.Read(ref _retryAfterUtcTicks);
     internal static int FailedAttempts => Volatile.Read(ref _failedAttempts);
@@ -32,7 +33,7 @@ internal static class AppInitialization
         return package is null ? null : package.Id.FamilyName + "!App";
     }
 
-    public static async Task<string> InitializeAsync(bool force = false)
+    public static async Task<string> InitializeAsync(bool force = false, bool allowElevation = true)
     {
         if (!force && RetryDeferred)
             throw new InitializationDeferredException(new DateTimeOffset(Volatile.Read(ref _retryAfterUtcTicks), TimeSpan.Zero));
@@ -41,13 +42,15 @@ internal static class AppInitialization
         {
             if (!force && RetryDeferred)
                 throw new InitializationDeferredException(new DateTimeOffset(Volatile.Read(ref _retryAfterUtcTicks), TimeSpan.Zero));
-            var result = await Task.Run(() => InitializeCoreAsync(force)).ConfigureAwait(false);
+            var result = await Task.Run(() => InitializeCoreAsync(force, allowElevation)).ConfigureAwait(false);
+            NeedsDeveloperMode = false;
             Volatile.Write(ref _failedAttempts, 0);
             Volatile.Write(ref _retryAfterUtcTicks, 0);
             return result;
         }
-        catch
+        catch (Exception error)
         {
+            NeedsDeveloperMode = InitializationRegistration.IsSideLoadingDisabled(error);
             var attempts = Interlocked.Increment(ref _failedAttempts);
             var seconds = Math.Min(300, Math.Pow(2, Math.Min(attempts, 8)));
             Volatile.Write(ref _retryAfterUtcTicks, DateTimeOffset.UtcNow.AddSeconds(seconds).UtcTicks);
@@ -56,7 +59,7 @@ internal static class AppInitialization
         finally { InitializationGate.Release(); }
     }
 
-    private static async Task<string> InitializeCoreAsync(bool force)
+    private static async Task<string> InitializeCoreAsync(bool force, bool allowElevation)
     {
         if (!force && HasIdentity) return Package.Current.Id.FamilyName + "!App";
         var directory = Path.GetFullPath(AppContext.BaseDirectory);
@@ -69,6 +72,12 @@ internal static class AppInitialization
         var installed = manager.FindPackagesForUser(string.Empty)
             .FirstOrDefault(package => package.Id.Name == name && SameLocation(package, directory));
         if (!force && installed is not null) return installed.Id.FamilyName + "!App";
+        if (!allowElevation)
+        {
+            if (!File.Exists(Path.Combine(directory, "AppxManifest.xml")) || !File.Exists(Path.Combine(directory, "resources.pri")))
+                InitializationPreparation.Prepare(directory, null);
+            return await RegisterCurrentUserAsync(manager, directory, name);
+        }
         var installedVersion = installed?.Id.Version;
         var version = installedVersion is { } value ? new Version(value.Major, value.Minor, value.Build, value.Revision) : null;
         bool systemPrepared;

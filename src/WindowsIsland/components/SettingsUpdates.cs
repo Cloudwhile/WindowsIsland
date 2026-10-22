@@ -161,12 +161,12 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
                 _progress.IsIndeterminate = !value.Percent.HasValue;
                 _progress.Value = value.Percent ?? 0;
             });
-            using var update = await UpdatePackage.PrepareAsync(_client, candidate, useInstaller: true,
+            using var update = await UpdatePackage.PrepareAsync(_client, candidate,
                 progress: progress, cancellationToken: _operation!.Token);
             if (_disposed) return;
             Show("UpdateInstalling", InfoBarSeverity.Informational);
             _cancel.IsEnabled = false;
-            await UpdateInstaller.StartAsync(update, _operation.Token, restoreRegistration: AppInitialization.HasIdentity);
+            await UpdateInstaller.StartAsync(update, _operation.Token);
             _restart();
         }
         catch (OperationCanceledException) { if (!_disposed) Show("UpdateCanceled", InfoBarSeverity.Informational); }

@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 
 namespace WindowsIsland.Services;
 
@@ -21,6 +21,7 @@ internal sealed class WindowsSettingsService
 
     public async Task<bool> SetStartupAsync(bool enabled)
     {
+        if (!_verification && InstallationMode.IsPortable()) return false;
         if (_verification)
         {
             await Task.Run(() =>
