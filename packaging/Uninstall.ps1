@@ -5,18 +5,7 @@ $root = Get-Item -LiteralPath $directory -Force
 if (($root.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
     throw 'Installation directory cannot be a reparse point.'
 }
-$executable = Join-Path $directory 'WindowsIsland.exe'
-foreach ($application in @(Get-Process WindowsIsland -ErrorAction SilentlyContinue)) {
-    if ($application.Path -eq $executable) {
-        # Let the application dispose its Telegram hook before falling back to
-        # a forceful stop; otherwise the installer can inherit a locked DLL.
-        try { [void]$application.CloseMainWindow() } catch { }
-        if (!$application.WaitForExit(5000)) {
-            Stop-Process -InputObject $application -Force
-            if (!$application.WaitForExit(5000)) { throw 'Windows Island could not be stopped.' }
-        }
-    }
-}
+& (Join-Path $PSScriptRoot 'Close-InstalledApp.ps1') -InstallDirectory $directory
 function Remove-LegacyHookCache {
     $hooks = Join-Path $directory 'Hooks'
     if (!(Test-Path -LiteralPath $hooks -PathType Container)) { return }

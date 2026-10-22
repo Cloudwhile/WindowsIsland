@@ -38,3 +38,24 @@ if (!(Test-Path -LiteralPath $installer -PathType Leaf)) { throw 'Inno Setup did
 $digest = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText("$installer.sha256", "$digest  $([IO.Path]::GetFileName($installer))`n", [Text.UTF8Encoding]::new($false))
 Write-Output $installer
+
+# ZIP is a distribution format only; both modes update through the same EXE.
+$portable = Join-Path $output 'portable-staging'
+if (Test-Path -LiteralPath $portable) { throw 'Portable staging already exists.' }
+New-Item -ItemType Directory -Path $portable | Out-Null
+try {
+    foreach ($item in Get-ChildItem -LiteralPath $publish -Force) {
+        if ($item.Name -like 'verification-*' -or $item.Name -eq 'Updater' -or $item.Name -like 'unins*' -or $item.Name -eq 'installer-policy.json') { continue }
+        Copy-Item -LiteralPath $item.FullName -Destination $portable -Recurse
+    }
+    [IO.File]::WriteAllText((Join-Path $portable 'portable.marker'), '', [Text.UTF8Encoding]::new($false))
+    $archive = Join-Path $output "WindowsIsland-$Version-win-x64.zip"
+    Compress-Archive -Path (Join-Path $portable '*') -DestinationPath $archive -Force
+    $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText("$archive.sha256", "$digest  $([IO.Path]::GetFileName($archive))`n", [Text.UTF8Encoding]::new($false))
+    Write-Output $archive
+} finally {
+    $resolved = [IO.Path]::GetFullPath($portable)
+    if ([IO.Path]::GetDirectoryName($resolved) -ine $output -or [IO.Path]::GetFileName($resolved) -cne 'portable-staging') { throw 'Invalid portable staging path.' }
+    Remove-Item -LiteralPath $resolved -Recurse -Force
+}

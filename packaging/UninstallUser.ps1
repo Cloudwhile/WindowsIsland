@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$InstallDirectory, [switch]$UserContext)
+param([Parameter(Mandatory)][string]$InstallDirectory, [switch]$UserContext, [switch]$PreservePackage)
 $ErrorActionPreference = 'Stop'
 $directory = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 if ((Get-Item -LiteralPath $directory -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
@@ -19,7 +19,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 public static class IslandUninstallUser
 {
-    public static void Run(string script, string directory)
+    public static void Run(string script, string directory, bool preservePackage)
     {
         uint processId;
         var shell = GetShellWindow();
@@ -43,6 +43,7 @@ public static class IslandUninstallUser
                 // with a dot to avoid a trailing slash escaping the quote.
                 var command = new StringBuilder("\"" + executable + "\" -NoProfile -NonInteractive -WindowStyle Hidden"
                     + " -ExecutionPolicy Bypass -File \"" + script + "\" -InstallDirectory \"" + directory + "\\.\" -UserContext");
+                if (preservePackage) command.Append(" -PreservePackage");
                 var startup = new StartupInfo { Size = Marshal.SizeOf(typeof(StartupInfo)), Flags = 1, Show = 0 };
                 ProcessInfo child;
                 if (!CreateProcessWithTokenW(primary, 1, executable, command, 0x08000000,
@@ -84,7 +85,7 @@ public static class IslandUninstallUser
     [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
 }
 '@
-    [IslandUninstallUser]::Run($PSCommandPath, $directory)
+    [IslandUninstallUser]::Run($PSCommandPath, $directory, [bool]$PreservePackage)
     return
 }
 $executable = Join-Path $directory 'WindowsIsland.exe'
@@ -99,8 +100,4 @@ try {
         finally { if ($approval) { $approval.Dispose() } }
     }
 } finally { if ($startup) { $startup.Dispose() } }
-foreach ($package in @(Get-AppxPackage -Name WindowsIsland.Desktop)) {
-    if ($package.InstallLocation.TrimEnd('\') -eq $directory) {
-        Remove-AppxPackage -Package $package.PackageFullName -PreserveApplicationData
-    }
-}
+if (!$PreservePackage) { & (Join-Path $PSScriptRoot 'Unregister-Package.ps1') -InstallDirectory $directory }
