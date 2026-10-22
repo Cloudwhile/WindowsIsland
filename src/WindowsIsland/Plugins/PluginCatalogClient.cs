@@ -21,7 +21,7 @@ internal sealed class PluginCatalogClient : IDisposable
     {
         if (!Uri.TryCreate(value.TrimEnd('/') + "/", UriKind.Absolute, out var uri)
             || uri.UserInfo.Length > 0 || uri.Query.Length > 0 || uri.Fragment.Length > 0
-            || !(uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback)) throw new InvalidDataException("官方源地址无效。");
+            || !(uri.Scheme == "https" || uri.Scheme == "http" && uri.IsLoopback)) throw new PluginException(PluginErrorCode.SourceAddress, "官方源地址无效。");
         return uri;
     }
 
@@ -30,18 +30,18 @@ internal sealed class PluginCatalogClient : IDisposable
         var baseUri = BaseUri(baseUrl);
         var sources = await JsonAsync<PluginSource[]>(new Uri(baseUri, "api/sources"), token);
         if (sources.Length > 512 || sources.Any(s => s is null) || sources.Select(s => s.DeveloperId).Distinct(StringComparer.Ordinal).Count() != sources.Length)
-            throw new InvalidDataException("官方源列表无效。");
+            throw new PluginException(PluginErrorCode.SourceList, "官方源列表无效。");
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var result = new List<PluginSourceIndex>();
         foreach (var source in sources)
         {
             ValidateSource(source, baseUri);
             var plugins = await JsonAsync<PluginCatalogEntry[]>(new Uri(source.IndexUrl), token);
-            if (plugins.Length > 2048) throw new InvalidDataException("官方插件索引过大。");
+            if (plugins.Length > 2048) throw new PluginException(PluginErrorCode.IndexSize, "官方插件索引过大。");
             foreach (var plugin in plugins)
             {
                 ValidateEntry(plugin, source);
-                if (!ids.Add(plugin.Id)) throw new InvalidDataException("官方插件标识重复。");
+                if (!ids.Add(plugin.Id)) throw new PluginException(PluginErrorCode.IndexDuplicate, "官方插件标识重复。");
             }
             result.Add(new(source with { LastSync = DateTimeOffset.UtcNow }, plugins));
         }
@@ -54,7 +54,7 @@ internal sealed class PluginCatalogClient : IDisposable
             || source.DeveloperName.Length > 200 || !PluginManifestReader.GitHubRepository(source.RepositoryUrl)
             || !Uri.TryCreate(source.IndexUrl, UriKind.Absolute, out var index)
             || index != new Uri(baseUri, "api/sources/" + source.DeveloperId + "/plugins"))
-            throw new InvalidDataException("官方源元数据无效。");
+            throw new PluginException(PluginErrorCode.SourceMetadata, "官方源元数据无效。");
     }
 
     public static void ValidateEntry(PluginCatalogEntry plugin, PluginSource source)
@@ -69,7 +69,7 @@ internal sealed class PluginCatalogClient : IDisposable
             || !Uri.TryCreate(plugin.DownloadUrl, UriKind.Absolute, out var download) || download.Scheme != "https" || download.Host != "github.com"
             || !download.IsDefaultPort || download.UserInfo.Length > 0 || download.Fragment.Length > 0 || download.Query.Length > 0
             || !download.AbsolutePath.StartsWith(new Uri(source.RepositoryUrl).AbsolutePath.TrimEnd('/') + "/releases/download/", StringComparison.Ordinal)
-            || !download.AbsolutePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("官方插件索引无效。");
+            || !download.AbsolutePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) throw new PluginException(PluginErrorCode.IndexMetadata, "官方插件索引无效。");
     }
 
     private async Task<T> JsonAsync<T>(Uri uri, CancellationToken token)
@@ -81,7 +81,7 @@ internal sealed class PluginCatalogClient : IDisposable
         await using var input = await response.Content.ReadAsStreamAsync(token);
         using var output = new MemoryStream();
         await CopyBoundedAsync(input, output, 4 * 1024 * 1024, token);
-        return JsonSerializer.Deserialize<T>(output.ToArray(), PluginManifestReader.Json) ?? throw new InvalidDataException("官方源返回空内容。");
+        return JsonSerializer.Deserialize<T>(output.ToArray(), PluginManifestReader.Json) ?? throw new PluginException(PluginErrorCode.SourceEmpty, "官方源返回空内容。");
     }
 
     public async Task DownloadAsync(PluginCatalogEntry plugin, string destination, CancellationToken token)
@@ -100,7 +100,7 @@ internal sealed class PluginCatalogClient : IDisposable
                     response = null;
                     if (next.Scheme != "https" || !next.IsDefaultPort || next.UserInfo.Length != 0
                         || !(next.Host == "github.com" || next.Host.EndsWith(".githubusercontent.com", StringComparison.Ordinal)))
-                        throw new InvalidDataException("插件下载重定向无效。");
+                        throw new PluginException(PluginErrorCode.DownloadRedirect, "插件下载重定向无效。");
                     uri = next;
                     continue;
                 }
@@ -115,7 +115,7 @@ internal sealed class PluginCatalogClient : IDisposable
             }
             await using var file = File.OpenRead(destination);
             var hash = await SHA256.HashDataAsync(file, token);
-            if (!CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(plugin.Sha256))) throw new InvalidDataException("插件 SHA256 校验失败。");
+            if (!CryptographicOperations.FixedTimeEquals(hash, Convert.FromHexString(plugin.Sha256))) throw new PluginException(PluginErrorCode.Hash, "插件 SHA256 校验失败。");
         }
         catch { File.Delete(destination); throw; }
     }
@@ -128,7 +128,7 @@ internal sealed class PluginCatalogClient : IDisposable
         while ((length = await input.ReadAsync(buffer, token)) > 0)
         {
             total += length;
-            if (total > limit) throw new InvalidDataException("官方源响应超过大小限制。");
+            if (total > limit) throw new PluginException(PluginErrorCode.SourceSize, "官方源响应超过大小限制。");
             await output.WriteAsync(buffer.AsMemory(0, length), token);
         }
     }

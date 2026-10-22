@@ -63,7 +63,7 @@ internal static class PluginDirectoryChecks
         foreach (var path in new[] { "../escape.dll", "/absolute.dll", "C:/absolute.dll", "inner/../escape.dll", "inner\\escape.dll" })
         {
             var rejected = false;
-            try { PluginPaths.Relative(root, path); } catch (InvalidDataException) { rejected = true; }
+            try { PluginPaths.Relative(root, path); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected, "Unsafe plugin path is rejected: " + path);
         }
         var old = JsonSerializer.Deserialize<PluginManifest>("""

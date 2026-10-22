@@ -14,7 +14,7 @@ internal sealed partial class PluginManager
 
     private async Task InstallCoreAsync(PreparedPlugin prepared, bool overwrite, CancellationToken token)
     {
-        if (_paths is null || _loader is null || _disposed) throw new InvalidOperationException("插件安装尚未就绪。");
+        if (_paths is null || _loader is null || _disposed) throw new PluginException(PluginErrorCode.NotReady, "插件安装尚未就绪。");
         await DiscoverAsync();
         var manifest = prepared.Manifest;
         var target = _paths.Code(manifest.SourceKind, manifest.Id);
@@ -34,12 +34,12 @@ internal sealed partial class PluginManager
             PluginPaths.CheckLinks(receipt);
             previous = Entries.FirstOrDefault(e => e.Registration.Definition.Id == manifest.Id);
             if (previous is not null && previous.Registration.Definition.Metadata?.External is not { } existing)
-                throw new InvalidDataException("插件标识与现有插件冲突。");
+                throw new PluginException(PluginErrorCode.IdConflict, "插件标识与现有插件冲突。");
             if (previous?.Registration.Definition.Metadata?.External is { } external && !previous.Removed
-                && external.Manifest.SourceKind != manifest.SourceKind) throw new InvalidDataException("插件已从其他来源安装，请先卸载。");
+                && external.Manifest.SourceKind != manifest.SourceKind) throw new PluginException(PluginErrorCode.SourceConflict, "插件已从其他来源安装，请先卸载。");
             if (previous?.Registration.Definition.Metadata?.External is { } owner && !previous.Removed
                 && manifest.SourceKind == PluginSourceKind.Official && owner.Manifest.DeveloperId != manifest.DeveloperId)
-                throw new InvalidDataException("插件开发者与已安装版本不一致。");
+                throw new PluginException(PluginErrorCode.IndexMismatch, "插件开发者与已安装版本不一致。");
             if (Directory.Exists(target)) PluginInstaller.CheckVersion(manifest, PluginManifestReader.Read(target, manifest.Id), overwrite);
             if (File.Exists(receipt)) oldReceipt = await File.ReadAllBytesAsync(receipt, token);
             if (previous is { Removed: false })
@@ -87,7 +87,7 @@ internal sealed partial class PluginManager
         try
         {
             if (_started) await ReconcileAsync();
-            if (installed?.Failed == true) throw new InvalidDataException("插件启动失败，已恢复旧版本。");
+            if (installed?.Failed == true) throw new PluginException(PluginErrorCode.Start, "插件启动失败，已恢复旧版本。");
         }
         catch
         {

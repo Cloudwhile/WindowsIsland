@@ -23,7 +23,7 @@ internal sealed class ExternalPlugin(PluginPaths paths, PluginManifest manifest,
         try
         {
             var type = context.LoadFromAssemblyPath(PluginPaths.Relative(Directory, Manifest.EntryAssembly)).GetType(Manifest.EntryType, throwOnError: true)!;
-            if (type.IsAbstract || !typeof(IIslandPlugin).IsAssignableFrom(type)) throw new InvalidDataException("入口必须实现 IIslandPlugin。");
+            if (type.IsAbstract || !typeof(IIslandPlugin).IsAssignableFrom(type)) throw new PluginException(PluginErrorCode.RuntimeEntry, "入口必须实现 IIslandPlugin。");
             var plugin = (IIslandPlugin)Activator.CreateInstance(type)!;
             return plugin as IMessageSource ?? new LifecycleSource(plugin);
         }
@@ -58,7 +58,7 @@ internal sealed class PluginLoadContext(string assembly, string directory) : Ass
     protected override Assembly? Load(AssemblyName name)
     {
         if (name.Name == typeof(IIslandPlugin).Assembly.GetName().Name) return typeof(IIslandPlugin).Assembly;
-        if (name.Name == "WindowsIsland") throw new FileLoadException("插件不能引用宿主程序集。");
+        if (name.Name == "WindowsIsland") throw new PluginException(PluginErrorCode.RuntimeHostDependency, "插件不能引用宿主程序集。");
         var path = _resolver.ResolveAssemblyToPath(name);
         if (path is null && name.Name is { } simple && simple.IndexOfAny(['/', '\\', ':']) < 0)
         {
@@ -98,7 +98,7 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
                         PluginPaths.CheckTree(directory);
                         var manifest = PluginManifestReader.Read(directory, id) with { SourceKind = kind };
                         PluginAssemblyValidator.Validate(directory, manifest);
-                        if (!ids.Add(id)) throw new InvalidDataException("插件标识重复。");
+                        if (!ids.Add(id)) throw new PluginException(PluginErrorCode.DuplicateId, "插件标识重复。");
                         result.Add(Registration(manifest, directory));
                     }
                     catch (Exception error) { new PluginDiagnostics(PluginId.IsValid(id) ? id : "wini_loader_plugin", DiagnosticArea.Application).Capture(error, "Discover"); }

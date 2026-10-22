@@ -61,28 +61,28 @@ internal static class PluginInstallationChecks
         var rejected = false;
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest)))
         {
-            try { await manager.InstallAsync(prepared); } catch (InvalidDataException) { rejected = true; }
+            try { await manager.InstallAsync(prepared); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
         }
         Check(rejected && PluginManifestReader.Read(code).Version == "2.0.0", "Downgrade rejection preserves the installed version");
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest with { Version = "3.0.0", EntryType = "WindowsIsland.PluginFixture.BrokenSource" })))
         {
             Check(prepared.Manifest.Version == "3.0.0", "Metadata validation never executes a throwing plugin constructor");
             rejected = false;
-            try { await manager.InstallAsync(prepared); } catch (InvalidDataException) { rejected = true; }
+            try { await manager.InstallAsync(prepared); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected && PluginManifestReader.Read(code).Version == "2.0.0" && manager.Snapshot().Single().StatusKey == "Connected",
                 "A plugin start failure rolls back files, permissions and the running previous instance");
         }
         foreach (var extra in new[] { "../escape", "/absolute", "C:/absolute", "folder/manifest.json", "CON", "x/../../escape" })
         {
             rejected = false;
-            try { using var prepared = await installer.PrepareAsync(Zip(root, manifest, extra)); } catch (InvalidDataException) { rejected = true; }
+            try { using var prepared = await installer.PrepareAsync(Zip(root, manifest, extra)); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected, "ZIP structure rejects " + extra);
         }
         foreach (var invalid in new[] { manifest with { Id = "invalid" }, manifest with { Id = BuiltInPluginIds.System }, manifest with { ContractVersion = 2 },
             manifest with { EntryType = "Missing.Type" }, manifest with { Version = "1.02.0" } })
         {
             rejected = false;
-            try { using var prepared = await installer.PrepareAsync(Zip(root, invalid)); } catch (InvalidDataException) { rejected = true; }
+            try { using var prepared = await installer.PrepareAsync(Zip(root, invalid)); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected, "Invalid manifest or entry is rejected before execution: " + invalid.Id + "/" + invalid.EntryType + "/" + invalid.Version);
         }
         var symlinkZip = Zip(root, manifest);
@@ -94,7 +94,7 @@ internal static class PluginInstallationChecks
             writer.Write("../outside");
         }
         rejected = false;
-        try { using var prepared = await installer.PrepareAsync(symlinkZip); } catch (InvalidDataException) { rejected = true; }
+        try { using var prepared = await installer.PrepareAsync(symlinkZip); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
         Check(rejected, "ZIP symbolic-link metadata is rejected before extraction");
         using (var cancellation = new CancellationTokenSource())
         {

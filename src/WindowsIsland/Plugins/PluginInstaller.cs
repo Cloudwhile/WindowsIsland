@@ -20,7 +20,7 @@ internal sealed class PluginInstaller(PluginPaths paths)
 
     private PreparedPlugin Prepare(string zip, PluginSourceKind kind, IEnumerable<string>? confirmed, CancellationToken token)
     {
-        if (!Path.GetExtension(zip).Equals(".zip", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("只能安装 ZIP 插件包。");
+        if (!Path.GetExtension(zip).Equals(".zip", StringComparison.OrdinalIgnoreCase)) throw new PluginException(PluginErrorCode.Zip, "只能安装 ZIP 插件包。");
         var stage = Path.Combine(paths.Slot(kind), ".stage-" + Guid.NewGuid().ToString("N"));
         PluginPaths.CheckLinks(stage);
         try
@@ -28,7 +28,7 @@ internal sealed class PluginInstaller(PluginPaths paths)
             using var archive = ZipFile.OpenRead(zip);
             if (archive.Entries.Count is 0 or > 4096 || archive.Entries.Count(e => e.FullName.Equals("manifest.json", StringComparison.OrdinalIgnoreCase)) != 1
                 || archive.Entries.Any(e => e.FullName.Contains('/') && Path.GetFileName(e.FullName).Equals("manifest.json", StringComparison.OrdinalIgnoreCase)))
-                throw new InvalidDataException("ZIP 根目录必须且只能包含一个 manifest.json。");
+                throw new PluginException(PluginErrorCode.Manifest, "ZIP 根目录必须且只能包含一个 manifest.json。");
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             long total = 0;
             // 完整结构校验先于任何解压写入。
@@ -39,9 +39,9 @@ internal sealed class PluginInstaller(PluginPaths paths)
                 _ = PluginPaths.Relative(stage, name);
                 var mode = (entry.ExternalAttributes >> 16) & 0xF000;
                 if (mode is not (0 or 0x8000 or 0x4000) || (entry.ExternalAttributes & (int)FileAttributes.ReparsePoint) != 0
-                    || !names.Add(name) || name.Split('/').Any(IsDevice)) throw new InvalidDataException("ZIP 含重复路径、特殊文件或符号链接。");
+                    || !names.Add(name) || name.Split('/').Any(IsDevice)) throw new PluginException(PluginErrorCode.Path, "ZIP 含重复路径、特殊文件或符号链接。");
                 total = checked(total + entry.Length);
-                if (entry.Length > 128L * 1024 * 1024 || total > 256L * 1024 * 1024) throw new InvalidDataException("插件包解压大小超出限制。");
+                if (entry.Length > 128L * 1024 * 1024 || total > 256L * 1024 * 1024) throw new PluginException(PluginErrorCode.ExpandedSize, "插件包解压大小超出限制。");
             }
             Directory.CreateDirectory(stage);
             foreach (var entry in archive.Entries)
@@ -59,10 +59,10 @@ internal sealed class PluginInstaller(PluginPaths paths)
                 {
                     token.ThrowIfCancellationRequested();
                     written += count;
-                    if (written > entry.Length) throw new InvalidDataException("ZIP 文件长度不匹配。");
+                    if (written > entry.Length) throw new PluginException(PluginErrorCode.ArchiveLength, "ZIP 文件长度不匹配。");
                     output.Write(buffer, 0, count);
                 }
-                if (written != entry.Length) throw new InvalidDataException("ZIP 文件不完整。");
+                if (written != entry.Length) throw new PluginException(PluginErrorCode.ArchiveIncomplete, "ZIP 文件不完整。");
             }
             var manifest = PluginManifestReader.Read(stage) with { SourceKind = kind };
             PluginAssemblyValidator.Validate(stage, manifest);
@@ -76,7 +76,7 @@ internal sealed class PluginInstaller(PluginPaths paths)
     public static void CheckVersion(PluginManifest incoming, PluginManifest installed, bool overwrite)
     {
         var compared = ReleaseVersion.FromInformationalVersion(incoming.Version).CompareTo(ReleaseVersion.FromInformationalVersion(installed.Version));
-        if (compared < 0) throw new InvalidDataException("不能安装比当前版本更旧的插件。");
+        if (compared < 0) throw new PluginException(PluginErrorCode.Downgrade, "不能安装比当前版本更旧的插件。");
         if (compared == 0 && !overwrite) throw new PluginAlreadyInstalledException();
     }
 

@@ -32,7 +32,7 @@ internal sealed class PluginCatalogService : IDisposable
             {
                 PluginPaths.CheckLinks(_cache);
                 if (!File.Exists(_cache)) return null;
-                if (new FileInfo(_cache).Length > 4 * 1024 * 1024) throw new InvalidDataException("官方源缓存过大。");
+                if (new FileInfo(_cache).Length > 4 * 1024 * 1024) throw new PluginException(PluginErrorCode.CacheSize, "官方源缓存过大。");
                 return JsonSerializer.Deserialize<PluginCatalogState>(File.ReadAllText(_cache), PluginManifestReader.Json);
             });
             if (cached is null) return;
@@ -41,7 +41,7 @@ internal sealed class PluginCatalogService : IDisposable
             foreach (var source in cached.Sources)
             {
                 PluginCatalogClient.ValidateSource(source.Source, baseUri);
-                foreach (var plugin in source.Plugins) { PluginCatalogClient.ValidateEntry(plugin, source.Source); if (!ids.Add(plugin.Id)) throw new InvalidDataException(); }
+                foreach (var plugin in source.Plugins) { PluginCatalogClient.ValidateEntry(plugin, source.Source); if (!ids.Add(plugin.Id)) throw new PluginException(PluginErrorCode.IndexDuplicate, "官方插件标识重复。"); }
             }
             lock (_gate) if (!_disposed && !_attempted) _state = cached with { Busy = false, Fresh = false, Unavailable = false };
             Changed?.Invoke();
@@ -107,7 +107,7 @@ internal sealed class PluginCatalogService : IDisposable
         var temporary = _cache + ".tmp";
         PluginPaths.CheckLinks(temporary);
         var content = JsonSerializer.SerializeToUtf8Bytes(state, PluginManifestReader.Json);
-        if (content.Length > 4 * 1024 * 1024) throw new InvalidDataException("官方源缓存过大。");
+        if (content.Length > 4 * 1024 * 1024) throw new PluginException(PluginErrorCode.CacheSize, "官方源缓存过大。");
         try { await File.WriteAllBytesAsync(temporary, content, token); File.Move(temporary, _cache, true); }
         finally { File.Delete(temporary); }
     }

@@ -32,7 +32,7 @@ internal static class PluginEvolutionChecks
         foreach (var invalid in new[] { Manifest with { Description = new('d', 8001) }, Manifest with { Author = new('a', 201) } })
         {
             var rejected = false;
-            try { PluginManifestReader.Validate(invalid); } catch (InvalidDataException) { rejected = true; }
+            try { PluginManifestReader.Validate(invalid); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected, "Manifest description/author limits reject oversized values");
         }
         var store = new SettingsStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json"));

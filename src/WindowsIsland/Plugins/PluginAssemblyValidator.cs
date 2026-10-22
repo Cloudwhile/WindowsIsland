@@ -20,10 +20,10 @@ internal sealed class PluginAssemblyValidator : IDisposable
         var image = validator.Open(PluginPaths.Relative(root, manifest.EntryAssembly));
         var reader = image.Reader;
         var handle = reader.TypeDefinitions.FirstOrDefault(h => validator.FullName(reader, h) == manifest.EntryType);
-        if (handle.IsNil) throw new InvalidDataException("找不到清单声明的入口类型。");
+        if (handle.IsNil) throw new PluginException(PluginErrorCode.Entry, "找不到清单声明的入口类型。");
         var type = reader.GetTypeDefinition(handle);
         if ((type.Attributes & TypeAttributes.Abstract) != 0 || (type.Attributes & TypeAttributes.VisibilityMask) != TypeAttributes.Public
-            || !validator.Implements(image, handle, new HashSet<string>())) throw new InvalidDataException("插件入口必须是公开的插件实现类型。");
+            || !validator.Implements(image, handle, new HashSet<string>())) throw new PluginException(PluginErrorCode.Entry, "插件入口必须是公开的插件实现类型。");
         var constructor = type.GetMethods().Select(reader.GetMethodDefinition).Any(method =>
         {
             if (reader.GetString(method.Name) != ".ctor" || (method.Attributes & MethodAttributes.Public) == 0) return false;
@@ -32,7 +32,7 @@ internal sealed class PluginAssemblyValidator : IDisposable
             if (header.IsGeneric) signature.ReadCompressedInteger();
             return signature.ReadCompressedInteger() == 0;
         });
-        if (!constructor) throw new InvalidDataException("插件入口缺少公开的无参数构造函数。");
+        if (!constructor) throw new PluginException(PluginErrorCode.Entry, "插件入口缺少公开的无参数构造函数。");
         foreach (var dependency in validator._images.Values.ToArray()) validator.CheckReferences(dependency, new HashSet<string>());
     }
 
@@ -74,7 +74,7 @@ internal sealed class PluginAssemblyValidator : IDisposable
         try
         {
             pe = new PEReader(stream);
-            if (!pe.HasMetadata) throw new InvalidDataException("入口或依赖不是托管程序集。");
+            if (!pe.HasMetadata) throw new PluginException(PluginErrorCode.ManagedAssembly, "入口或依赖不是托管程序集。");
             var image = new Image(stream, pe, pe.GetMetadataReader());
             _images.Add(path, image);
             return image;
@@ -90,10 +90,10 @@ internal sealed class PluginAssemblyValidator : IDisposable
             var reference = image.Reader.GetAssemblyReference(handle);
             var name = image.Reader.GetString(reference.Name);
             if (name == typeof(IIslandPlugin).Assembly.GetName().Name) continue;
-            if (name == "WindowsIsland") throw new InvalidDataException("外部插件不能依赖主程序程序集。");
+            if (name == "WindowsIsland") throw new PluginException(PluginErrorCode.HostDependency, "外部插件不能依赖主程序程序集。");
             var path = PluginPaths.Relative(_root, name + ".dll");
             if (File.Exists(path)) CheckReferences(Open(path), visited);
-            else if (!_platform.Contains(name)) throw new InvalidDataException("插件包缺少依赖程序集。");
+            else if (!_platform.Contains(name)) throw new PluginException(PluginErrorCode.MissingDependency, "插件包缺少依赖程序集。");
         }
     }
 

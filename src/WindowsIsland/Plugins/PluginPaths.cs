@@ -10,16 +10,16 @@ internal sealed class PluginPaths
     public string Slot(PluginSourceKind kind) => Path.Combine(Root, kind == PluginSourceKind.Official ? "official" : "community");
     public string Code(PluginSourceKind kind, string id) => Path.Combine(Slot(kind), ValidId(id));
     public string Data(string id) => Path.Combine(Root, "data", ValidId(id));
-    private static string ValidId(string id) => PluginId.IsValid(id) && id.Length <= 80 ? id : throw new InvalidDataException("插件标识无效。");
+    private static string ValidId(string id) => PluginId.IsValid(id) && id.Length <= 80 ? id : throw new PluginException(PluginErrorCode.PathId, "插件标识无效。");
 
     public static string Relative(string root, string relative)
     {
         if (string.IsNullOrWhiteSpace(relative) || relative.Any(c => c < 32 || c is ':' or '\\' or '<' or '>' or '"' or '|' or '?' or '*')
             || Path.IsPathRooted(relative) || relative.Split('/').Any(p => p is ".." or "." or "" || p.EndsWith('.') || p.EndsWith(' ')))
-            throw new InvalidDataException("插件路径无效。");
+            throw new PluginException(PluginErrorCode.Path, "插件路径无效。");
         var path = Path.GetFullPath(Path.Combine(root, relative));
         if (!path.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("插件路径超出目录。");
+            throw new PluginException(PluginErrorCode.Path, "插件路径超出目录。");
         CheckLinks(path);
         return path;
     }
@@ -31,7 +31,7 @@ internal sealed class PluginPaths
             try
             {
                 if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-                    throw new InvalidDataException("插件目录不能包含符号链接或重解析点。");
+                    throw new PluginException(PluginErrorCode.Path, "插件目录不能包含符号链接或重解析点。");
             }
             catch (FileNotFoundException) { }
             catch (DirectoryNotFoundException) { }

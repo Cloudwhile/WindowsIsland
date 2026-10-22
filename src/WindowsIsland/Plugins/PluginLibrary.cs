@@ -43,8 +43,8 @@ internal sealed class PluginLibrary : IDisposable
         operation.CancelAfter(TimeSpan.FromMinutes(5));
         var cancellation = operation.Token;
         var index = Catalog.State.Sources.SingleOrDefault(s => s.Source.DeveloperId == entry.DeveloperId
-            && s.Plugins.Contains(entry)) ?? throw new InvalidDataException("插件已不在当前官方索引中。");
-        if (!Compatible(entry)) throw new InvalidDataException("插件合约版本与消息岛不兼容。");
+            && s.Plugins.Contains(entry)) ?? throw new PluginException(PluginErrorCode.NotListed, "插件已不在当前官方索引中。");
+        if (!Compatible(entry)) throw new PluginException(PluginErrorCode.Contract, "插件合约版本与消息岛不兼容。");
         var file = Path.Combine(Paths.Root, ".downloads", Guid.NewGuid().ToString("N") + ".zip");
         PluginPaths.CheckLinks(file);
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
@@ -58,9 +58,9 @@ internal sealed class PluginLibrary : IDisposable
             var manifest = prepared.Manifest;
             if (manifest.Id != entry.Id || manifest.DeveloperId != entry.DeveloperId || manifest.Version != entry.Version
                 || manifest.RepositoryUrl != entry.RepositoryUrl || !manifest.Permissions.Order().SequenceEqual(entry.Permissions.Order()))
-                throw new InvalidDataException("插件包与官方索引不一致。");
+                throw new PluginException(PluginErrorCode.IndexMismatch, "插件包与官方索引不一致。");
             if (!Catalog.State.Sources.Any(s => s.Source == index.Source && s.Plugins.Contains(entry)))
-                throw new InvalidDataException("插件已不在当前官方索引中。");
+                throw new PluginException(PluginErrorCode.NotListed, "插件已不在当前官方索引中。");
             await Manager.InstallAsync(prepared, token: cancellation);
         }
         finally { File.Delete(file); }

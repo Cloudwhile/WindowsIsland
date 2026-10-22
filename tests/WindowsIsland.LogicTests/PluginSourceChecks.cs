@@ -91,7 +91,7 @@ internal static class PluginSourceChecks
         await library.Catalog.RefreshAsync();
         var rejected = false;
         try { await library.InstallOfficialAsync(library.Catalog.State.Sources[0].Plugins[0], []); }
-        catch (InvalidDataException) { rejected = true; }
+        catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
         Check(rejected && PluginManifestReader.Read(code).Version == "1.1.0"
             && !Directory.EnumerateFiles(Path.Combine(paths.Root, ".downloads")).Any(),
             "SHA256 mismatch aborts installation, removes downloaded bytes and preserves running code");
@@ -99,7 +99,7 @@ internal static class PluginSourceChecks
             entry with { Sha256 = "invalid" }, entry with { Version = "1.0" } })
         {
             rejected = false;
-            try { PluginCatalogClient.ValidateEntry(invalid, library.Catalog.State.Sources[0].Source); } catch (InvalidDataException) { rejected = true; }
+            try { PluginCatalogClient.ValidateEntry(invalid, library.Catalog.State.Sources[0].Source); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected, "Invalid catalog metadata is rejected: " + invalid.DeveloperId + "/" + invalid.Sha256[..Math.Min(8, invalid.Sha256.Length)]);
         }
         Check(!PluginLibrary.Compatible(entry with { MinHostVersion = "999.0.0" }), "Catalog versions requiring a newer host cannot be installed");
