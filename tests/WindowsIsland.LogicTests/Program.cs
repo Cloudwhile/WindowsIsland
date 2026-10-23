@@ -229,6 +229,7 @@ await WindowsIsland.LogicTests.PluginDirectoryChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginEvolutionChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginInstallationChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginSourceChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginCatalogContractChecks.RunAsync();
 await PluginChecks.RunAsync(Check);
 await WindowsIsland.LogicTests.PluginManagerChecks.RunAsync(Check);
 await RegisteredRestartChecks.RunAsync(Check);

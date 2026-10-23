@@ -11,7 +11,7 @@ public interface IIslandPlugin : IDisposable
     string DisplayName { get; }
 
     /// <summary>接收当前插件的宿主服务并准备内部状态，不开始监听或推送历史消息。</summary>
-    /// <param name="context">绑定到当前插件标识的宿主上下文，在插件释放前保持有效。</param>
+    /// <param name="context">绑定到当前插件标识和运行代次的宿主上下文，宿主开始停止插件前撤销投递与设置写入能力。</param>
     /// <returns>初始化完成时结束的任务。</returns>
     Task InitializeAsync(IPluginContext context);
 

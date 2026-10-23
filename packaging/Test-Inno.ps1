@@ -28,9 +28,11 @@ Copy-Item -LiteralPath (Join-Path $workspace 'LICENSE') -Destination $payload
 $manifest = Join-Path $payload 'Initialization/AppxManifest.xml'
 ([IO.File]::ReadAllText($manifest)).Replace('WindowsIsland.Desktop', $packageName).Replace('CN=WindowsIsland', 'CN=IslandInnoTest') |
     Set-Content -LiteralPath $manifest -Encoding UTF8
-foreach ($file in @('Uninstall.ps1','UninstallUser.ps1','Unregister-Package.ps1','InstallerPolicy.ps1','Close-InstalledApp.ps1','Migrate-LegacyInstallation.ps1','Write-InstallerResult.ps1','Convert-PortableDirectory.ps1')) {
+foreach ($file in @('Uninstall.ps1','UninstallUser.ps1','Unregister-Package.ps1','InstallerPolicy.ps1','Close-InstalledApp.ps1','Convert-InnoInstallation.ps1','Write-InstallerResult.ps1','Convert-PortableDirectory.ps1')) {
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination $packaging
 }
+$conversion = Join-Path $packaging 'Convert-InnoInstallation.ps1'
+[IO.File]::WriteAllText($conversion, [IO.File]::ReadAllText($conversion).Replace('8B397E71-1AA3-4F3B-911B-C08E0FAB484E', $appId))
 # The conversion check owns a separate startup value, never the real preference.
 $userCleanup = Join-Path $packaging 'UninstallUser.ps1'
 [IO.File]::WriteAllText($userCleanup, [IO.File]::ReadAllText($userCleanup).Replace("'WindowsIsland'", "'$packageName'"))
@@ -39,7 +41,6 @@ $resultScript = Join-Path $packaging 'Write-InstallerResult.ps1'
 $source = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'WindowsIsland.iss'))
 $source = $source.Replace('#define AppName "Windows Island"', '#define AppName "' + $appName + '"')
 $source = $source.Replace('8B397E71-1AA3-4F3B-911B-C08E0FAB484E', $appId)
-$source = $source.Replace('Software\Cloudwhile\WindowsIsland\Installer', 'Software\Cloudwhile\InnoTest-' + $id)
 # Machine checks use an isolated policy subtree; product policy values are never changed.
 $source = $source.Replace('SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock', 'SOFTWARE\Cloudwhile\InstallerChecks\' + $id)
 $source = $source.Replace('--after-update --settings', '--verify-local --settings')
@@ -56,75 +57,6 @@ function Run-Installer([string]$executable, [string[]]$arguments) {
         if (!$process.WaitForExit(120000)) { throw "Installer timed out: $executable" }
         if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
     } finally { $process.Dispose() }
-}
-function Exercise-LegacyMsi() {
-    # Build an isolated legacy MSI with the shipped layout: HKCU registration
-    # plus a per-user uninstall entry that the migration must remove.
-    $wix = Join-Path $workspace 'artifacts/tools/wix/wix.exe'
-    if (!(Test-Path -LiteralPath $wix)) { throw 'The isolated WiX toolset is required for the legacy MSI fixture.' }
-    $legacyWork = Join-Path $work 'legacy-msi'
-    $legacyInstall = Join-Path $legacyWork 'installed'
-    $legacyUninstall = @('HKCU:/Software/Microsoft/Windows/CurrentVersion/Uninstall', 'HKLM:/Software/Microsoft/Windows/CurrentVersion/Uninstall')
-    function Get-LegacyEntry() { foreach ($root in $legacyUninstall) { $entry = Get-ItemProperty -Path (Join-Path $root $legacyProduct) -ErrorAction SilentlyContinue; if ($entry) { return $entry } } }
-    $legacyKey = 'HKCU:/Software/Cloudwhile/LegacyMigration/' + $id
-    $legacyProduct = '{' + [Guid]::NewGuid().ToString().ToUpperInvariant() + '}'
-    New-Item -ItemType Directory -Path $legacyWork -Force | Out-Null
-    $source = @"
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="Windows Island Legacy $id" Manufacturer="Cloudwhile" Version="0.0.0" ProductCode="$legacyProduct" UpgradeCode="__UPGRADE__" Scope="perUser">
-    <MediaTemplate EmbedCab="yes" />
-    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]" After="CostFinalize" Sequence="execute" />
-    <StandardDirectory Id="LocalAppDataFolder">
-      <Directory Id="INSTALLFOLDER" Name="Island Legacy $id">
-        <Component Id="Registration" Guid="__COMPONENT__">
-          <RegistryValue Root="HKCU" Key="Software\Cloudwhile\LegacyMigration\$id" Name="InstallDirectory" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes" />
-          <RemoveRegistryKey Root="HKCU" Key="Software\Cloudwhile\LegacyMigration\$id" Action="removeOnUninstall" />
-        </Component>
-      </Directory>
-    </StandardDirectory>
-    <Feature Id="Application"><ComponentRef Id="Registration" /></Feature>
-  </Package>
-</Wix>
-"@
-    $source = $source.Replace('__UPGRADE__', '{' + [Guid]::NewGuid().ToString().ToUpperInvariant() + '}')
-    $source = $source.Replace('__COMPONENT__', '{' + [Guid]::NewGuid().ToString().ToUpperInvariant() + '}')
-    [IO.File]::WriteAllText((Join-Path $legacyWork 'legacy.wxs'), $source)
-    & $wix build -arch x64 (Join-Path $legacyWork 'legacy.wxs') -out (Join-Path $legacyWork 'legacy.msi')
-    if ($LASTEXITCODE -ne 0) { throw 'The isolated legacy MSI build failed.' }
-    $msi = Join-Path $legacyWork 'legacy.msi'
-    $arguments = "/i `"$msi`" /qn ALLUSERS=2 MSIINSTALLPERUSER=1 INSTALLFOLDER=`"$legacyInstall`" /l*v `"$(Join-Path $legacyWork 'legacy-install.log')`""
-    $process = Start-Process -FilePath msiexec.exe -ArgumentList $arguments -WindowStyle Hidden -PassThru
-    try {
-        if (!$process.WaitForExit(120000)) { throw 'The isolated legacy MSI timed out.' }
-        if ($process.ExitCode -ne 0) { throw "The isolated legacy MSI failed: $($process.ExitCode)" }
-    } finally { $process.Dispose() }
-    try {
-        New-Item -ItemType Directory -Path $legacyInstall -Force | Out-Null
-        $entry = Get-LegacyEntry
-        if (!$entry) { throw 'The isolated legacy MSI did not register an uninstall entry.' }
-        if ($entry.WindowsInstaller -ne 1 -or $entry.InstallLocation.TrimEnd('\') -ine $legacyInstall) {
-            throw 'The isolated legacy MSI did not register its install directory.'
-        }
-        [IO.File]::WriteAllText((Join-Path $legacyInstall 'settings.json'), 'legacy preserved settings')
-        Run-Installer $installer (@('/CURRENTUSER','/PORTABLE=1','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="' + $legacyInstall + '"'),('/LOG="' + (Join-Path $legacyWork 'migration.log') + '"')))
-        if (Get-LegacyEntry) {
-            throw 'Migration left the legacy MSI product registration.'
-        }
-        if ([IO.File]::ReadAllText((Join-Path $legacyInstall 'settings.json')) -cne 'legacy preserved settings') {
-            throw 'Migration did not preserve legacy user data.'
-        }
-        if (!(Test-Path -LiteralPath (Join-Path $legacyInstall 'portable.marker'))) {
-            throw 'Migration did not preserve the requested portable mode.'
-        }
-        'PASS legacy MSI registration is removed while preserving data and portable mode'
-    } finally {
-        $entry = Get-LegacyEntry
-        if ($entry) {
-            $process = Start-Process -FilePath msiexec.exe -ArgumentList @('/x',$legacyProduct,'/qn','/norestart') -WindowStyle Hidden -PassThru
-            try { $process.WaitForExit(120000) } finally { $process.Dispose() }
-        }
-        Remove-Item -LiteralPath $legacyKey -Recurse -Force -ErrorAction SilentlyContinue
-    }
 }
 function Assert-Data {
     if ([IO.File]::ReadAllText((Join-Path $installed 'settings.json')) -cne 'preserved user settings' -or
@@ -185,7 +117,6 @@ try {
     if ([IO.File]::ReadAllText((Join-Path $installed 'settings.json')) -cne 'preserved user settings' -or
         [IO.File]::ReadAllText((Join-Path $installed 'Plugins/data/check/state.txt')) -cne 'preserved plugin data') { throw 'Upgrade did not preserve data.' }
     'PASS isolated in-place upgrade preserves settings and plugin data'
-    Exercise-LegacyMsi
     if ($ExerciseTransitions) {
         Exercise-Update $mode
         if ($Machine) {

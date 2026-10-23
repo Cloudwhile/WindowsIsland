@@ -1,6 +1,5 @@
 ﻿# Centralized build, publish, package cache and verification output
 /artifacts/
-/.wix/
 /scripts/
 /scripts/
 *.template.md

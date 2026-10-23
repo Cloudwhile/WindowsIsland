@@ -96,6 +96,7 @@ internal static class DiagnosticPresentation
 
     public static string Title(DiagnosticEntry entry)
     {
+        if (entry.Operation.StartsWith("Catalog.", StringComparison.Ordinal)) return Localization.Get("DiagnosticTitlePluginCatalog");
         if (entry.Operation is "AccessibilityEnabled" or "AccessibilityRestored" && Outcome(entry) == DiagnosticOutcome.Failure)
             return Localization.Get("DiagnosticTitleAccessibilityFailed");
         if (entry.Operation.StartsWith("Accessibility.", StringComparison.Ordinal)) return Localization.Get("DiagnosticTitleAccessibilityFailed");
@@ -124,6 +125,8 @@ internal static class DiagnosticPresentation
     public static string? Reason(DiagnosticEntry entry)
     {
         if (Outcome(entry) == DiagnosticOutcome.Success) return null;
+        if (entry.Errors.FirstOrDefault() is { } catalog && WindowsIsland.Plugins.PluginErrors.DiagnosticKey(catalog.HResult) is { } key)
+            return Localization.Get(key);
         if (entry.Operation.StartsWith("Accessibility.", StringComparison.Ordinal))
             return Localization.Get(WeChatConnectionHealth.IsUnsupported(entry.Operation["Accessibility.".Length..])
                 ? "DiagnosticReasonUnsupported" : "DiagnosticReasonProcessAccess");

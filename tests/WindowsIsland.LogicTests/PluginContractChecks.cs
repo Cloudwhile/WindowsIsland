@@ -44,15 +44,18 @@ internal static class PluginContractChecks
 
         Check(PluginId.Prefix + "example" == "wini_plugin_example",
             "Public plugin identifier constants compose the new prefix-only format");
-        foreach (var id in new[] { "wini_plugin_system", "wini_plugin_wechat", "wini_plugin_my_source2", "wini_plugin_a", "wini_plugin_my_plugin" })
+        foreach (var id in new[] { "wini_plugin_system", "wini_plugin_wechat", "wini_plugin_my_source2", "wini_plugin_a", "wini_plugin_my_plugin",
+            "wini_plugin_chat__source", "wini_plugin_chat_" })
             Check(PluginId.IsValid(id), "Canonical plugin identifier is accepted: " + id);
         foreach (var id in new string?[] { null, "", "system", "wini_plugin", "wini_plugin_", "wini_plugin_WeChat",
-            "WINI_plugin_wechat", "wini_plugin_1chat", "wini_plugin_chat__source", "wini_plugin_chat_",
+            "WINI_plugin_wechat", "wini_plugin_1chat",
             "wini_plugin_微信", "wini_plugin_chat source", "wini_chat_widget", "wini_plugin_chat.dll", " wini_plugin_chat",
             "wini_wechat_plugin", "wini_my_source2_plugin", "wini_plugin__chat", "wini_plugin_chat-source" })
             Check(!PluginId.IsValid(id), "Malformed plugin identifier is rejected: " + id);
 
         Check(PluginContract.Version == 1 && PluginContract.IsCompatible(1), "Current plugin contract is version one and compatible");
+        Check(typeof(IIslandPlugin).Assembly.GetName().Version == new Version(PluginContract.Version, 0, 0, 0),
+            "Contract assembly identity follows the API major version independently of the application release");
         foreach (var version in new[] { int.MinValue, -1, 0, 2, int.MaxValue })
             Check(!PluginContract.IsCompatible(version), $"Plugin contract version {version} is incompatible with the current host");
         Check(PluginContract.IsCompatible(2, 2), "Matching explicit host and plugin contract major versions are compatible");

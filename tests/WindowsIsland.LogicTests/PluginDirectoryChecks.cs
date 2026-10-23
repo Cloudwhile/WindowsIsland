@@ -79,7 +79,7 @@ internal static class PluginDirectoryChecks
             Check(rejected, "External manifests reject old-format and reserved identifiers: " + id);
         }
         Check(PluginManifestReader.DeveloperIdValid("example_studio2")
-            && !PluginManifestReader.DeveloperIdValid("Example") && !PluginManifestReader.DeveloperIdValid("example__studio"),
+            && !PluginManifestReader.DeveloperIdValid("Example") && PluginManifestReader.DeveloperIdValid("example__studio"),
             "Developer identifiers retain their name rules after the plugin prefix changes");
         await manager.ShutdownAsync();
         Diagnostics.Shutdown();

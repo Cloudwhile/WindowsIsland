@@ -36,6 +36,9 @@
     <Compile Include="../../src/WindowsIsland/Plugins/PluginInstaller.cs" Link="Plugins/PluginInstaller.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginLibrary.cs" Link="Plugins/PluginLibrary.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogClient.cs" Link="Plugins/PluginCatalogClient.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogPolicy.cs" Link="Plugins/PluginCatalogPolicy.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/CatalogVersion.cs" Link="Plugins/CatalogVersion.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/GitHubDownloadProxy.cs" Link="Plugins/GitHubDownloadProxy.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogService.cs" Link="Plugins/PluginCatalogService.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Installation.cs" Link="Plugins/PluginManager.Installation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManifestReader.cs" Link="Plugins/PluginManifestReader.cs" />

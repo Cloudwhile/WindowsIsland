@@ -57,6 +57,8 @@ internal sealed class SettingsPage : Grid, IDisposable
     private string _cancelledKey = "StartupPermissionCancelled";
     private bool? _ready;
     private string _selectedSection = "setup";
+    private SettingsDetail? _detail;
+    private double _returnOffset;
     private string _errorKey = "ErrorSettingsSave";
     private StartupState _startupState;
     private bool _windowsReading, _windowsAvailable;
@@ -86,6 +88,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         };
         _previewButton.Click += (_, _) => preview();
         _header = new SettingsHeader(_progress, _previewButton, _refreshButton, _complete) { MaxWidth = 720 };
+        _header.BackRequested += ReturnFromDetail;
         layout.Children.Add(_header);
         _notice.Margin = new Thickness(16, 0, 16, 12);
         Grid.SetRow(_notice, 1);
@@ -146,14 +149,14 @@ internal sealed class SettingsPage : Grid, IDisposable
             ShowError("ErrorSettingsSave");
             Refresh();
         }, async id => { await retrySource(id); Refresh(); }, setSourceEnabled,
-            async id => { if (removePlugin is not null) await removePlugin(id); Refresh(); }, pluginLibrary?.Catalog, pluginSettings);
+            async id => { if (removePlugin is not null) await removePlugin(id); Refresh(); }, pluginLibrary?.Catalog, pluginSettings, OpenDetail);
         _muteDuringGames = Switch("MuteDuringGames", "MuteDuringGamesToggle", settings => settings.MuteDuringGames,
             (settings, value) => settings with { MuteDuringGames = value });
         _gameModeRow = new SettingsRow(Symbol.Mute, "MuteDuringGames", _muteDuringGames, "GameModeStatus");
         _muteDuringFullScreen = Switch("MuteDuringFullScreen", "MuteDuringFullScreenToggle", settings => settings.MuteDuringFullScreen,
             (settings, value) => settings with { MuteDuringFullScreen = value });
         _fullScreenRow = new SettingsRow(Symbol.FullScreen, "MuteDuringFullScreen", _muteDuringFullScreen, "FullScreenStatus");
-        if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (() => Task.FromResult<string?>(null)));
+        if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (() => Task.FromResult<string?>(null)), OpenDetail);
         AddSection("plugins", "PluginList", _pluginLibrary ?? new StackPanel());
         AddSection("sources", "Sources", _sources,
             new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),
@@ -193,6 +196,9 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     private void SelectSection(string section)
     {
+        _detail?.Close?.Invoke();
+        _detail = null;
+        _header.HasBack = false;
         _selectedSection = section;
         var selected = _sections[section];
         _header.Title = Localization.Get(selected.Title);
@@ -200,6 +206,26 @@ internal sealed class SettingsPage : Grid, IDisposable
         _refreshButton.Visibility = RefreshSections.Contains(section) ? Visibility.Visible : Visibility.Collapsed;
         _content.Content = selected.Content;
         _content.ChangeView(null, 0, null, disableAnimation: true);
+    }
+
+    private void OpenDetail(SettingsDetail detail)
+    {
+        if (_disposed) { detail.Close?.Invoke(); return; }
+        _detail?.Close?.Invoke();
+        _returnOffset = _content.VerticalOffset;
+        _detail = detail;
+        _header.Title = detail.LocalizeTitle ? Localization.Get(detail.Title) : detail.Title;
+        _header.HasBack = true;
+        _previewButton.Visibility = _refreshButton.Visibility = Visibility.Collapsed;
+        _content.Content = detail.Content;
+        _content.ChangeView(null, 0, null, disableAnimation: true);
+    }
+
+    private void ReturnFromDetail()
+    {
+        var offset = _returnOffset;
+        SelectSection(_selectedSection);
+        DispatcherQueue.TryEnqueue(() => { if (!_disposed && _detail is null) _content.ChangeView(null, offset, null, true); });
     }
 
     private ToggleSwitch Switch(string label, string id, Func<AppSettings, bool> read,
@@ -288,7 +314,8 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     private void RefreshLanguage()
     {
-        _header.Title = Localization.Get(_sections[_selectedSection].Title);
+        _header.Title = _detail is { } detail ? detail.LocalizeTitle ? Localization.Get(detail.Title) : detail.Title
+            : Localization.Get(_sections[_selectedSection].Title);
         Refresh();
     }
 
@@ -306,6 +333,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         try
         {
             _sources.Refresh(state.Sources, _busy);
+            if (_detail?.IsCurrent?.Invoke() == false) ReturnFromDetail();
+            _detail?.Refresh?.Invoke();
             _animations.IsOn = settings.Animations;
             _muteDuringGames.IsOn = settings.MuteDuringGames;
             _muteDuringFullScreen.IsOn = settings.MuteDuringFullScreen;
@@ -425,6 +454,9 @@ internal sealed class SettingsPage : Grid, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _detail?.Close?.Invoke();
+        _detail = null;
+        _header.BackRequested -= ReturnFromDetail;
         _store.Changed -= OnSettingsChanged;
         _updates.Dispose();
         _diagnostics.Dispose();

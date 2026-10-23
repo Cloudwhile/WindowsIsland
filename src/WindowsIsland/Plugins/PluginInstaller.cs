@@ -75,7 +75,7 @@ internal sealed class PluginInstaller(PluginPaths paths)
 
     public static void CheckVersion(PluginManifest incoming, PluginManifest installed, bool overwrite)
     {
-        var compared = ReleaseVersion.FromInformationalVersion(incoming.Version).CompareTo(ReleaseVersion.FromInformationalVersion(installed.Version));
+        var compared = CatalogVersion.Parse(incoming.Version).CompareTo(CatalogVersion.Parse(installed.Version));
         if (compared < 0) throw new PluginException(PluginErrorCode.Downgrade, "不能安装比当前版本更旧的插件。");
         if (compared == 0 && !overwrite) throw new PluginAlreadyInstalledException();
     }

@@ -10,8 +10,11 @@ namespace WindowsIsland.Components;
 internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
 {
     private readonly PluginLibrary _library;
+    private readonly Action<SettingsDetail> _open;
+    private readonly TextBox _proxy = new() { MinWidth = 0 };
     private readonly TextBox _address = new() { MinWidth = 0 };
-    private readonly IconActionButton _save = new(Symbol.Save, "PluginSaveSource", "SavePluginSource");
+    private readonly IconActionButton _saveAddress = new(Symbol.Save, "PluginSaveAddress", "SavePluginSourceAddress");
+    private readonly IconActionButton _save = new(Symbol.Save, "PluginSaveProxy", "SavePluginProxy");
     private readonly IconActionButton _refresh = new(Symbol.Refresh, "PluginRefreshCatalog", "RefreshPluginCatalog");
     private readonly IconActionButton _cancel = new(Symbol.Cancel, "PluginCancel", "CancelOfficialPlugin") { Visibility = Visibility.Collapsed };
     private readonly StackPanel _plugins = new();
@@ -19,33 +22,52 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
     private readonly List<(IconActionButton Button, SettingsRow Row)> _actions = [];
     private readonly List<PluginCatalogNotice> _notices = [];
-    private readonly List<SettingsPluginDetails> _details = [];
     private PluginMetadata[] _installed = [];
     private PluginCatalogState? _rendered;
-    private string _lastBase = "";
+    private bool _renderedPrereleases;
+    private string? _lastProxy;
+    private string? _lastAddress;
     private CancellationTokenSource? _operation;
     private ContentDialog? _dialog;
     private bool _disposed;
     private string? _noticeKey;
+    private InfoBar? _detailNotice;
+    private IconActionButton? _detailCancel;
 
-    public SettingsOfficialPlugins(PluginLibrary library)
+    public SettingsOfficialPlugins(PluginLibrary library, Action<SettingsDetail> open)
     {
         _library = library;
+        _open = open;
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-        toolbar.Children.Add(_save);
         toolbar.Children.Add(_refresh);
         toolbar.Children.Add(_cancel);
+        _proxy.Text = library.Catalog.State.GitHubProxy;
         _address.Text = library.Catalog.State.BaseUrl;
         LocalizedUI.Label(_address, "PluginSourceAddress");
         AutomationProperties.SetAutomationId(_address, "PluginSourceAddress");
+        LocalizedUI.Label(_proxy, "PluginGitHubProxy");
+        LocalizedUI.Bind(_proxy, () => _proxy.PlaceholderText = Localization.Get("PluginProxyDirect"));
+        AutomationProperties.SetAutomationId(_proxy, "PluginGitHubProxy");
         _status.TextWrapping = TextWrapping.Wrap;
         var source = new SettingsContent();
         source.Children.Add(_address);
         source.Children.Add(_status);
         source.Children.Add(_notice);
-        Children.Add(new SettingsSection("PluginOfficial", new SettingsRow(Symbol.World, "PluginSourceAddress", toolbar), source));
+        toolbar.Children.Insert(0, _saveAddress);
+        Children.Add(new SettingsSection("PluginOfficial", new SettingsRow(Symbol.World, "PluginSourceAddress", toolbar), source,
+            new SettingsRow(Symbol.Link, "PluginGitHubProxy", _save), new SettingsContent(_proxy)));
         Children.Add(_plugins);
-        _save.Click += async (_, _) => await RunAsync(async token => { await library.Catalog.ConfigureAsync(_address.Text); await library.Catalog.RefreshAsync(token); });
+        _saveAddress.Click += async (_, _) =>
+        {
+            try { await library.Catalog.ConfigureBaseAsync(_address.Text); Notice("PluginAddressSaved", InfoBarSeverity.Success); }
+            catch (Exception error) { Notice(PluginErrors.Key(error), InfoBarSeverity.Error); }
+            Refresh();
+        };
+        _save.Click += async (_, _) => await RunAsync(async _ =>
+        {
+            await library.Catalog.ConfigureProxyAsync(_proxy.Text);
+            Notice("PluginProxySaved", InfoBarSeverity.Success);
+        });
         _refresh.Click += async (_, _) => await RunAsync(token => library.Catalog.RefreshAsync(token));
         _cancel.Click += (_, _) => _operation?.Cancel();
         library.Catalog.Changed += OnChanged;
@@ -59,56 +81,59 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     {
         if (_disposed) return;
         var state = _library.Catalog.State;
+        if (_lastAddress != state.BaseUrl) { _lastAddress = state.BaseUrl; _address.Text = state.BaseUrl; }
         var installedPlugins = _library.Manager.Snapshot().Select(plugin => plugin.Definition.Metadata)
             .OfType<PluginMetadata>().Where(metadata => metadata.External is not null).ToArray();
-        if (_lastBase != state.BaseUrl && _operation is null) { _lastBase = state.BaseUrl; _address.Text = state.BaseUrl; }
-        _status.Text = Localization.Get(state.Unavailable ? "PluginCatalogUnavailable" : state.Sources.Length == 0 ? "PluginCatalogEmpty" : "PluginCatalogReady");
-        if ((!ReferenceEquals(_rendered, state) || !_installed.SequenceEqual(installedPlugins)) && _operation is null)
+        if (_lastProxy != state.GitHubProxy && _operation is null) { _lastProxy = state.GitHubProxy; _proxy.Text = state.GitHubProxy; }
+        _status.Text = Localization.Get(state.Failure is { } failure ? PluginErrors.Key(failure)
+            : state.Unavailable ? "PluginCatalogUnavailable" : state.AvailableSources.Length == 0 ? "PluginCatalogEmpty" : "PluginCatalogReady");
+        if ((!ReferenceEquals(_rendered, state) || _renderedPrereleases != _library.Catalog.IncludePrereleases
+            || !_installed.SequenceEqual(installedPlugins)) && _operation is null)
         {
             _rendered = state;
+            _renderedPrereleases = _library.Catalog.IncludePrereleases;
             _installed = installedPlugins;
-            foreach (var details in _details) details.Dispose();
-            _details.Clear();
             _plugins.Children.Clear();
             _actions.Clear();
             _notices.Clear();
             var delisted = installedPlugins.Where(metadata => _library.Catalog.IsDelisted(metadata.External!.Manifest)).ToArray();
-            var developers = state.Sources.Select(index => index.Source.DeveloperId)
+            var developers = state.AvailableSources.Select(index => index.Source.DeveloperId)
                 .Concat(delisted.Select(metadata => metadata.External!.Manifest.DeveloperId)).Distinct(StringComparer.Ordinal);
             foreach (var developerId in developers)
             {
-                var index = state.Sources.FirstOrDefault(source => source.Source.DeveloperId == developerId);
+                var index = state.AvailableSources.FirstOrDefault(source => source.Source.DeveloperId == developerId);
                 var removed = delisted.Where(metadata => metadata.External!.Manifest.DeveloperId == developerId).ToArray();
                 var rows = new List<UIElement>();
                 if (index is not null)
-                    foreach (var entry in index.Plugins) rows.Add(CreateEntry(entry, installedPlugins.FirstOrDefault(metadata => metadata.External!.Manifest.Id == entry.Id)));
+                    foreach (var entry in index.Plugins.Where(_library.Catalog.ChannelAllows))
+                    {
+                        var installed = installedPlugins.FirstOrDefault(metadata => metadata.External!.Manifest.Id == entry.Id);
+                        if (installed is not null && CatalogVersion.Parse(entry.Version).CompareTo(CatalogVersion.Parse(installed.Version)) < 0) continue;
+                        rows.Add(CreateEntry(entry, installed));
+                    }
                 foreach (var metadata in removed) rows.Add(CreateDelisted(metadata));
                 var name = index?.Source.DeveloperName ?? removed[0].External!.Manifest.DeveloperName ?? developerId;
-                _plugins.Children.Add(new SettingsSection(name, false, rows.ToArray()));
+                if (rows.Count > 0) _plugins.Children.Add(new SettingsSection(name, false, rows.ToArray()));
             }
         }
         foreach (var notice in _notices) notice.Refresh();
         foreach (var (action, row) in _actions)
         {
-            if (action.Tag is not PluginCatalogEntry entry) continue;
-            var installed = _library.Manager.Snapshot().FirstOrDefault(s => s.Definition.Id == entry.Id)?.Definition.Metadata;
-            var reason = PluginLibrary.InstallUnavailableReason(entry, installed);
-            action.IsEnabled = _operation is null && reason is null;
-            row.Detail = reason is null ? "" : Localization.Get(reason);
-            action.SetAction(installed is null ? 0xE896 : 0xE777, installed is null ? "PluginInstall" : "PluginUpdate");
+            UpdateAction(action, row);
         }
         _save.IsEnabled = _refresh.IsEnabled = _operation is null && !state.Busy;
-        _address.IsEnabled = _operation is null && !state.Busy;
+        _proxy.IsEnabled = _operation is null && !state.Busy;
+        if (_detailCancel is not null) _detailCancel.Visibility = _operation is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_detailNotice is not null && _noticeKey is { } key) _detailNotice.Message = Localization.Get(key);
     }
 
-    private UIElement CreateEntry(PluginCatalogEntry entry, PluginMetadata? installed)
+    private (IconActionButton Install, IconActionButton Repository) EntryActions(PluginCatalogEntry entry)
     {
         var install = new IconActionButton(Symbol.Download, "PluginInstall", "OfficialInstall." + entry.Id) { Tag = entry };
         install.Click += async (_, _) => await RunAsync(async token =>
         {
-            var confirmed = await ConfirmPermissionsAsync(entry);
-            if (confirmed is null) return;
-            await _library.InstallOfficialAsync(entry, confirmed, token);
+            var confirmed = await ConfirmPermissionsAsync(entry, install.XamlRoot);
+            if (confirmed is not null) await _library.InstallOfficialAsync(entry, confirmed, token);
         });
         var repository = new IconActionButton(Symbol.Link, "PluginRepository", "OfficialRepository." + entry.Id);
         repository.Click += async (_, _) =>
@@ -116,37 +141,75 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
             try { await Windows.System.Launcher.LaunchUriAsync(new Uri(entry.RepositoryUrl)); }
             catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Application, error, "OpenPluginRepository"); }
         };
-        var row = new SettingsExpander(new SymbolIcon(Symbol.AllApps), entry.Name, "OfficialPlugin." + entry.Id,
+        return (install, repository);
+    }
+
+    private void UpdateAction(IconActionButton action, SettingsRow row)
+    {
+        if (action.Tag is not PluginCatalogEntry entry) return;
+        var installed = _library.Manager.Snapshot().FirstOrDefault(s => s.Definition.Id == entry.Id)?.Definition.Metadata;
+        var reason = PluginLibrary.InstallUnavailableReason(entry, installed, _library.Catalog.IncludePrereleases);
+        action.IsEnabled = !_disposed && _operation is null && reason is null;
+        row.Detail = string.IsNullOrEmpty(reason) ? "" : Localization.Get(reason);
+        action.SetAction(installed is null ? 0xE896 : 0xE777, installed is null ? "PluginInstall" : "PluginUpdate");
+    }
+
+    private UIElement CreateEntry(PluginCatalogEntry entry, PluginMetadata? installed)
+    {
+        var (install, repository) = EntryActions(entry);
+        var row = new SettingsLinkRow(new SymbolIcon(Symbol.AllApps), entry.Name, "OfficialPlugin." + entry.Id,
             localizeTitle: false, actions: [install, repository]);
         _actions.Add((install, row.Header));
         row.Header.Status = entry.Version;
-        row.ExpandOnHeaderTap = true;
+        row.OpenRequested += () => OpenEntry(entry);
+        return WithNotice(row, installed?.External?.Manifest);
+    }
+
+    private void OpenEntry(PluginCatalogEntry entry)
+    {
+        if (_disposed) return;
+        var (install, repository) = EntryActions(entry);
+        var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        toolbar.Children.Add(install);
+        toolbar.Children.Add(repository);
+        var cancel = new IconActionButton(Symbol.Cancel, "PluginCancel", "CancelPluginDetailInstallation") { Visibility = Visibility.Collapsed };
+        cancel.Click += (_, _) => _operation?.Cancel();
+        toolbar.Children.Add(cancel);
+        _detailCancel = cancel;
+        var row = new SettingsRow(Symbol.AllApps, entry.Name, toolbar, localizeTitle: false) { Status = entry.Version };
         var details = new SettingsContent(false);
+        var notice = new InfoBar { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
+        _detailNotice = notice;
+        details.Children.Add(notice);
         details.Children.Add(new SettingsField("PluginDescription", entry.Description, "OfficialDescription." + entry.Id));
         var permissions = new SettingsField("PluginPermissionsRequested", string.Join(", ", entry.Permissions), "OfficialPermissions." + entry.Id, placeholder: false);
         if (entry.Permissions.Length == 0) LocalizedUI.Bind(permissions, () => permissions.Value.Text = Localization.Get("PluginPermissionsNone"));
         details.Children.Add(permissions);
-        var trust = LocalizedUI.Text(entry.DeveloperId == PluginCatalogClient.OfficialDeveloperId ? "PluginOfficialAuthor" : "PluginThirdParty", 12, secondary: true);
-        details.Children.Add(trust);
-        row.Rows.Add(details);
-        return WithNotice(row, installed?.External?.Manifest);
+        details.Children.Add(LocalizedUI.Text(entry.DeveloperId == PluginCatalogClient.OfficialDeveloperId ? "PluginOfficialAuthor" : "PluginThirdParty", 12, secondary: true));
+        _open(new(entry.Name, false, SettingsSection.Page(row, details), () => UpdateAction(install, row),
+            Close: () => { if (ReferenceEquals(_detailNotice, notice)) { _detailNotice = null; _detailCancel = null; } },
+            IsCurrent: () => _library.Catalog.State.AvailableSources.Any(s => s.Plugins.Contains(entry))));
+        UpdateAction(install, row);
     }
 
     private UIElement CreateDelisted(PluginMetadata metadata)
     {
         var manifest = metadata.External!.Manifest;
-        var row = new SettingsExpander(new SymbolIcon(Symbol.AllApps), manifest.Name, "OfficialPlugin." + manifest.Id,
-            localizeTitle: false) { ExpandOnHeaderTap = true };
+        var row = new SettingsLinkRow(new SymbolIcon(Symbol.AllApps), manifest.Name, "OfficialPlugin." + manifest.Id,
+            localizeTitle: false);
         row.Header.Status = metadata.Version;
-        var details = new SettingsPluginDetails(new(manifest.Id, manifest.Name, "", 0, DiagnosticArea.Application,
-            _ => false, (settings, _) => settings, _ => false, metadata));
-        _details.Add(details);
-        row.Rows.Add(details);
-        row.ExpandedChanged += async expanded => { if (expanded) await details.ReadSizeAsync(); };
+        row.OpenRequested += async () =>
+        {
+            if (_disposed) return;
+            var details = new SettingsPluginDetails(new(manifest.Id, manifest.Name, "", 0, DiagnosticArea.Application,
+                _ => false, (settings, _) => settings, _ => false, metadata), _library.Catalog);
+            _open(new(manifest.Name, false, SettingsSection.Page(details), details.RefreshCatalog, details.Dispose));
+            await details.ReadSizeAsync();
+        };
         return WithNotice(row, manifest);
     }
 
-    private UIElement WithNotice(SettingsExpander row, PluginManifest? manifest)
+    private UIElement WithNotice(SettingsLinkRow row, PluginManifest? manifest)
     {
         var container = new StackPanel();
         container.Children.Add(row);
@@ -157,7 +220,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         return container;
     }
 
-    private async Task<string[]?> ConfirmPermissionsAsync(PluginCatalogEntry entry)
+    private async Task<string[]?> ConfirmPermissionsAsync(PluginCatalogEntry entry, XamlRoot xamlRoot)
     {
         if (entry.DeveloperId == PluginCatalogClient.OfficialDeveloperId) return entry.Permissions.Where(PluginPermissions.IsHighRisk).ToArray();
         var content = new SettingsContent(false);
@@ -178,7 +241,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
             names.TextWrapping = TextWrapping.Wrap;
             content.Children.Add(names);
         }
-        _dialog = new ContentDialog { XamlRoot = XamlRoot, Title = entry.Name,
+        _dialog = new ContentDialog { XamlRoot = xamlRoot, Title = entry.Name,
             Content = new ScrollViewer { Content = content, MaxHeight = 320 },
             PrimaryButtonText = Localization.Get("PluginInstall"), CloseButtonText = Localization.Get("PluginCancel"),
             DefaultButton = ContentDialogButton.Close };
@@ -192,12 +255,14 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         using var operation = _operation = new CancellationTokenSource();
         _cancel.Visibility = Visibility.Visible;
         _notice.Visibility = Visibility.Collapsed;
+        if (_detailNotice is not null) _detailNotice.Visibility = Visibility.Collapsed;
         Refresh();
         try { await Task.Yield(); await run(operation.Token); }
         catch (OperationCanceledException) { Notice("PluginInstallCanceled", InfoBarSeverity.Informational); }
         catch (Exception error)
         {
-            Diagnostics.Capture(DiagnosticArea.Application, error, "OfficialPluginOperation");
+            if (error is not PluginException { Constraint: "C35" })
+                Diagnostics.Capture(DiagnosticArea.Application, error, "OfficialPluginOperation");
             Notice(PluginErrors.Key(error), InfoBarSeverity.Error);
         }
         finally
@@ -214,6 +279,12 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         _noticeKey = key;
         _notice.Severity = severity;
         _notice.Visibility = Visibility.Visible;
+        if (_detailNotice is not null)
+        {
+            _detailNotice.Message = Localization.Get(key);
+            _detailNotice.Severity = severity;
+            _detailNotice.Visibility = Visibility.Visible;
+        }
     }
 
     public void Dispose()
@@ -221,7 +292,6 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         _disposed = true;
         _dialog?.Hide();
         _operation?.Cancel();
-        foreach (var details in _details) details.Dispose();
         _library.Catalog.Changed -= OnChanged;
     }
 }

@@ -8,7 +8,7 @@ namespace WindowsIsland.Components;
 
 internal sealed class SettingsSources : StackPanel, IDisposable
 {
-    private sealed record Controls(SettingsExpander Expander, SettingsPluginDetails Details, ToggleSwitch Toggle,
+    private sealed record Controls(SettingsLinkRow Row, NotificationPluginDefinition Definition, ToggleSwitch Toggle,
         IconActionButton Retry, IconActionButton Delete);
     private readonly SettingsStore _store;
     private readonly Action<Exception> _failed;
@@ -17,6 +17,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     private readonly Func<string, Task> _remove;
     private readonly PluginCatalogService? _catalog;
     private readonly Func<string, Task<PluginSettingsModel?>>? _settings;
+    private readonly Action<SettingsDetail> _open;
     private readonly Dictionary<string, Controls> _rows = [];
     private readonly TextBlock _retained = LocalizedUI.Text("PluginDataPreserved", 12, secondary: true);
     private bool _syncing, _disposed;
@@ -24,7 +25,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
 
     public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
         Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null, PluginCatalogService? catalog = null,
-        Func<string, Task<PluginSettingsModel?>>? settings = null)
+        Func<string, Task<PluginSettingsModel?>>? settings = null, Action<SettingsDetail>? open = null)
     {
         _store = store;
         _failed = failed;
@@ -33,6 +34,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _remove = remove ?? (_ => Task.CompletedTask);
         _catalog = catalog;
         _settings = settings;
+        _open = open ?? (_ => { });
         _retained.TextWrapping = TextWrapping.Wrap;
         _retained.Visibility = Visibility.Collapsed;
         Children.Add(SettingsContent.Wrap(_retained));
@@ -51,17 +53,15 @@ internal sealed class SettingsSources : StackPanel, IDisposable
             foreach (var id in _rows.Keys.Where(id => !ids.Contains(id)).ToArray())
             {
                 var removed = _rows[id];
-                removed.Details.Dispose();
-                Children.Remove(removed.Expander);
+                Children.Remove(removed.Row);
                 _rows.Remove(id);
             }
             foreach (var plugin in plugins)
             {
                 var definition = plugin.Definition;
-                if (_rows.TryGetValue(definition.Id, out var old) && !old.Details.Matches(definition))
+                if (_rows.TryGetValue(definition.Id, out var old) && !ReferenceEquals(old.Definition.Metadata, definition.Metadata))
                 {
-                    old.Details.Dispose();
-                    Children.Remove(old.Expander);
+                    Children.Remove(old.Row);
                     _rows.Remove(definition.Id);
                 }
                 if (!_rows.TryGetValue(definition.Id, out var controls))
@@ -109,23 +109,27 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                         catch (Exception error) { _failed(error); }
                         finally { if (!_disposed) delete.IsEnabled = true; }
                     };
-                    var expander = new SettingsExpander(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
-                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle, delete)
-                    { ExpandOnHeaderTap = true };
-                    var details = new SettingsPluginDetails(definition, _catalog, _settings);
-                    expander.Rows.Add(details);
-                    expander.ExpandedChanged += async expanded => { if (expanded) await details.ReadSizeAsync(); };
-                    controls = new(expander, details, toggle, retry, delete);
+                    var row = new SettingsLinkRow(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
+                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle, delete);
+                    row.OpenRequested += async () =>
+                    {
+                        if (_disposed) return;
+                        var details = new SettingsPluginDetails(definition, _catalog, _settings);
+                        _open(new(definition.TitleKey, definition.Metadata?.External is null, SettingsSection.Page(details),
+                            details.RefreshCatalog, details.Dispose,
+                            () => _rows.TryGetValue(definition.Id, out var current) && ReferenceEquals(current.Definition.Metadata, definition.Metadata)));
+                        await details.ReadSizeAsync();
+                    };
+                    controls = new(row, definition, toggle, retry, delete);
                     _rows.Add(definition.Id, controls);
-                    Children.Add(controls.Expander);
+                    Children.Add(controls.Row);
                 }
                 controls.Toggle.IsOn = definition.IsEnabled(_store.Current);
-                controls.Details.RefreshCatalog();
                 controls.Toggle.IsEnabled = !busy;
                 var key = controls.Toggle.IsOn ? plugin.StatusKey : "Off";
-                controls.Expander.Header.Status = Localization.Get(key);
-                controls.Expander.Header.Tone = SourceStatus.Tone(key);
-                controls.Expander.Header.Detail = SourceStatus.DetailKey(definition.Id, key, systemAvailable) is { } detail ? Localization.Get(detail) : "";
+                controls.Row.Header.Status = Localization.Get(key);
+                controls.Row.Header.Tone = SourceStatus.Tone(key);
+                controls.Row.Header.Detail = SourceStatus.DetailKey(definition.Id, key, systemAvailable) is { } detail ? Localization.Get(detail) : "";
                 controls.Retry.Visibility = controls.Toggle.IsOn && plugin.CanRetry ? Visibility.Visible : Visibility.Collapsed;
                 controls.Delete.IsEnabled = !busy;
             }
@@ -136,6 +140,5 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     public void Dispose()
     {
         _disposed = true;
-        foreach (var controls in _rows.Values) controls.Details.Dispose();
     }
 }

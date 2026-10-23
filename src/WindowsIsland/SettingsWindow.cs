@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using WindowsIsland.Components;
@@ -20,15 +21,18 @@ internal sealed class SettingsWindow : Window
         Func<string, Task<Plugins.PluginSettingsModel?>>? pluginSettings = null)
     {
         Title = Localization.Get("WindowSettingsTitle");
-        SystemBackdrop = new MicaBackdrop();
+        var mica = Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported();
+        if (mica) SystemBackdrop = new MicaBackdrop();
         var page = new SettingsPage(settings, updates, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification,
             PickDiagnosticFileAsync, retrySource, setSourceEnabled, removePlugin, pluginLibrary, PickPluginFileAsync, rescanPlugins, pluginSettings);
-        var titleBar = new TitleBar
-        {
-            Title = "Windows Island",
-            IconSource = new ImageIconSource { ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Icons/LOGO.png")) }
-        };
-        var layout = new Grid { Language = Localization.Language };
+        var titleBar = (TitleBar)XamlReader.Load("<TitleBar xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Foreground='{ThemeResource TextFillColorPrimaryBrush}' />");
+        titleBar.Title = "Windows Island";
+        titleBar.IconSource = new ImageIconSource { ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Icons/LOGO.png")) };
+        titleBar.Loaded += (_, _) => RefreshCaptionTheme(titleBar);
+        titleBar.ActualThemeChanged += (_, _) => DispatcherQueue.TryEnqueue(() => RefreshCaptionTheme(titleBar));
+        var layout = (Grid)XamlReader.Load("<Grid xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Background='{ThemeResource ApplicationPageBackgroundThemeBrush}' />");
+        layout.Language = Localization.Language;
+        if (mica) layout.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         LocalizedUI.Bind(layout, () =>
         {
             Title = Localization.Get("WindowSettingsTitle");
@@ -55,6 +59,26 @@ internal sealed class SettingsWindow : Window
         _refresh.Tick += (_, _) => page.Refresh();
         _refresh.Start();
         Closed += (_, _) => { _refresh.Stop(); page.Dispose(); };
+    }
+
+    private void RefreshCaptionTheme(TitleBar titleBar)
+    {
+        var caption = AppWindow.TitleBar;
+        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast)
+        {
+            caption.ButtonForegroundColor = caption.ButtonInactiveForegroundColor = null;
+            caption.ButtonHoverForegroundColor = caption.ButtonPressedForegroundColor = null;
+            caption.ButtonBackgroundColor = caption.ButtonInactiveBackgroundColor = null;
+            caption.ButtonHoverBackgroundColor = caption.ButtonPressedBackgroundColor = null;
+            return;
+        }
+        if (titleBar.Foreground is not SolidColorBrush brush) return;
+        var color = brush.Color;
+        caption.ButtonForegroundColor = caption.ButtonHoverForegroundColor = caption.ButtonPressedForegroundColor = color;
+        caption.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(0x99, color.R, color.G, color.B);
+        caption.ButtonBackgroundColor = caption.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+        caption.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(0x0F, color.R, color.G, color.B);
+        caption.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(0x18, color.R, color.G, color.B);
     }
 
     private async Task<string?> PickDiagnosticFileAsync()

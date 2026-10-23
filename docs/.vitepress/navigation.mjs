@@ -28,7 +28,8 @@ export const sidebar = [
       { text: '生命周期与设置', link: '/plugins/lifecycle' },
       { text: '固定内容与交互', link: '/plugins/pinned-content' },
       { text: '权限与诊断', link: '/plugins/permissions' },
-      { text: '打包与分发', link: '/plugins/packaging' }
+      { text: '打包与分发', link: '/plugins/packaging' },
+      { text: '目录接口契约', link: '/plugins/catalog' }
     ]
   }
 ]

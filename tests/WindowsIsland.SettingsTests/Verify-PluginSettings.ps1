@@ -1,4 +1,5 @@
-﻿$ErrorActionPreference = 'Stop'
+﻿param([switch]$WithoutMica)
+$ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $runRoot = Join-Path $repoRoot ('artifacts/verification/plugin-settings-ui/' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
@@ -18,6 +19,15 @@ $targets = @"
 "@
 $targetsPath = Join-Path $runRoot 'UiChecks.targets'
 [IO.File]::WriteAllText($targetsPath, $targets)
+
+if ($WithoutMica) {
+    $settingsSource = Get-Content -LiteralPath (Join-Path $repoRoot 'src/WindowsIsland/SettingsWindow.cs') -Raw -Encoding utf8
+    $settingsSource = $settingsSource.Replace('Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported()', 'false')
+    [IO.File]::WriteAllText((Join-Path $runRoot 'SettingsWindow.cs'), $settingsSource)
+    $targets = $targets.Replace('<Compile Remove="App.xaml.cs" />', "<Compile Remove=`"App.xaml.cs;SettingsWindow.cs`" /><Compile Include=`"$runRoot/SettingsWindow.cs`" />")
+    [IO.File]::WriteAllText($targetsPath, $targets)
+}
+
 Push-Location $repoRoot
 try {
     dotnet build tests/WindowsIsland.PluginFixture/WindowsIsland.PluginFixture.csproj -c Release --no-restore *> (Join-Path $runRoot 'fixture-build.log')

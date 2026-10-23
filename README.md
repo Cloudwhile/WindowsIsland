@@ -57,6 +57,7 @@ Settings save automatically. Click the tray icon to reopen settings, or right-cl
 | Long messages | Wraps text and truncates overflow while keeping icons visible |
 | Automatic dismissal | Each notification stays for about five seconds; new messages refresh the island |
 | Message merging | Combines copies of the same message from multiple sources |
+| Pinned content | Plugins can keep a compact value visible and provide expandable details and controls; incoming messages take priority |
 
 ## Notification sources
 
@@ -73,6 +74,12 @@ The island starts with new messages when a source connects or is re-enabled. Mut
 
 System notifications require initialization and notification access. Connected sources such as WeChat and the notification preview remain available before system notification setup is complete.
 
+## Plugins
+
+Import a plugin ZIP from a trusted developer in **Plugins**, then manage its switch, status and settings in **Sources**. Click a plugin to open its details and use the back icon to return. Removing an external plugin keeps its settings and data for reinstallation. Plugins run with the app's system permissions, so only install code you trust.
+
+The [open platform](https://wini-plugins.abszero.cc/) is reserved for the official catalog and is not available yet. Use manual ZIP import for now. Developers can use the [plugin guide](https://wini-docs.abszero.cc/plugins) to build notification sources, pinned content and interactive controls.
+
 ## Settings
 
 The sidebar contains **Setup**, **Sources**, **Plugins**, **Appearance**, **Updates**, and **Diagnostics & feedback**.
@@ -83,6 +90,7 @@ The sidebar contains **Setup**, **Sources**, **Plugins**, **Appearance**, **Upda
 | Game and full-screen mute | Control the two switches independently in Sources; both are enabled by default |
 | Windows do not disturb | Toggle in Sources to quiet Windows banners while Windows Island continues receiving messages; Windows priority exceptions still apply |
 | Position and animation | Choose a screen position, toggle animation and preview a notification in Appearance |
+| Background | Adjust acrylic, background transparency and opacity transitions in Appearance |
 | Language | Choose Simplified Chinese, English or the system language in Appearance; the app defaults to Simplified Chinese |
 
 When a selected game or full-screen mute condition is detected, the island pauses popups. New messages appear again when it ends, without replaying the backlog. Windows do not disturb is a separate setting.

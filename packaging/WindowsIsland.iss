@@ -45,7 +45,7 @@ Source: "{#PackagingDirectory}\Write-InstallerResult.ps1"; DestDir: "{app}"; Fla
 Source: "{#PackagingDirectory}\Convert-PortableDirectory.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackagingDirectory}\Close-InstalledApp.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PackagingDirectory}\Close-InstalledApp.ps1"; Flags: dontcopy
-Source: "{#PackagingDirectory}\Migrate-LegacyInstallation.ps1"; Flags: dontcopy
+Source: "{#PackagingDirectory}\Convert-InnoInstallation.ps1"; Flags: dontcopy
 
 [Icons]
 Name: "{commonprograms}\{#AppName}"; Filename: "{app}\WindowsIsland.exe"; IconFilename: "{app}\Assets\Island.ico"; Check: not IsPortable
@@ -97,7 +97,6 @@ end;
 function GetDefaultDirName(Param: String): String;
 begin
   if RegQueryStringValue(HKLM64, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8B397E71-1AA3-4F3B-911B-C08E0FAB484E}_is1', 'InstallLocation', Result) then exit;
-  if RegQueryStringValue(HKCU, 'Software\Cloudwhile\WindowsIsland\Installer', 'InstallDirectory', Result) then exit;
   if IsPortable() then Result := ExpandConstant('{src}\Windows Island')
   else Result := ExpandConstant('{autopf}\Windows Island');
 end;
@@ -156,18 +155,16 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   Result := '';
   ExtractTemporaryFile('Close-InstalledApp.ps1');
-  ExtractTemporaryFile('Migrate-LegacyInstallation.ps1');
   if DirExists(ExpandConstant('{app}')) then begin
     if not PowerShell(ExpandConstant('{tmp}\Close-InstalledApp.ps1'), '-InstallDirectory "' + ExpandConstant('{app}') + '"', False) then begin
       Result := 'The previous Windows Island installation is still running.';
       exit;
     end;
-    if not PowerShell(ExpandConstant('{tmp}\Migrate-LegacyInstallation.ps1'), '-InstallDirectory "' + ExpandConstant('{app}') + '" -Portable ' + IntToStr(Ord(IsPortable())) + ' -Scope CurrentUser', True) then begin
-      Result := 'The previous user installation could not be migrated. Its data was preserved.';
-      exit;
+    if IsPortable() then begin
+      ExtractTemporaryFile('Convert-InnoInstallation.ps1');
+      if not PowerShell(ExpandConstant('{tmp}\Convert-InnoInstallation.ps1'), '-InstallDirectory "' + ExpandConstant('{app}') + '"', True) then
+        Result := 'The installation could not be converted to portable mode. Its data was preserved.';
     end;
-    if not PowerShell(ExpandConstant('{tmp}\Migrate-LegacyInstallation.ps1'), '-InstallDirectory "' + ExpandConstant('{app}') + '" -Portable ' + IntToStr(Ord(IsPortable())) + ' -Scope LocalMachine', False) then
-      Result := 'The previous installation could not be migrated. Its data was preserved.';
   end;
 end;
 

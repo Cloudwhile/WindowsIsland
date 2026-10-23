@@ -12,7 +12,7 @@ body:
     attributes:
       label: 消息岛版本 / App version
       description: 在设置的更新页查看版本；源码构建可填写提交号。Find the version in Settings → Updates, or provide the commit for a source build.
-      placeholder: v0.1.0-rc.3
+      placeholder: v0.1.0
     validations:
       required: true
   - type: input
@@ -29,6 +29,7 @@ body:
       label: 安装方式 / Installation method
       options:
         - Windows 安装器 / Windows installer
+        - ZIP 便携版 / Portable ZIP
         - 源码构建 / Source build
         - 不确定 / Not sure
     validations:
@@ -46,6 +47,7 @@ body:
         - 电源提醒 / Power notifications
         - 通知外观与动画 / Notification appearance and animations
         - 设置与语言 / Settings and language
+        - 插件安装与运行 / Plugin installation and runtime
         - 更新与安装 / Updates and installation
         - 其他 / Other
   - type: textarea

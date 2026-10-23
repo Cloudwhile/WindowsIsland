@@ -29,6 +29,10 @@ Get-FileHash artifacts/plugin-example/Example.Notifications-1.0.0.zip -Algorithm
 
 ## 官方目录分发
 
+[开放平台](https://wini-plugins.abszero.cc/)为官方目录预留，目前尚未开放。现阶段使用手动 ZIP 分发。
+
+完整端点与字段规则见[目录接口契约](./catalog.md)。官方开发者身份仅认 `winiofficial`；目录中其他开发者仍按三方权限处理。
+
 官方目录使用按开发者分组的索引。公开仓库应与开发者索引一致，包上传到该 GitHub 仓库的 Release 附件中，下载地址使用对应版本的 HTTPS ZIP 链接。
 
 目录项应提供以下信息：
@@ -38,7 +42,7 @@ Get-FileHash artifacts/plugin-example/Example.Notifications-1.0.0.zip -Algorithm
 | `id` / `name` / `version` | 与包内插件对应的身份和版本 |
 | `developerId` / `repositoryUrl` | 与所属开发者来源一致 |
 | `downloadUrl` | 该仓库公开 Release 的 ZIP 附件地址 |
-| `sha256` | ZIP 的 64 位十六进制 SHA-256 摘要 |
+| `sha256` | ZIP 的 64 位小写十六进制 SHA-256 摘要 |
 | `minHostVersion` | 最低宿主 SemVer 版本 |
 | `contractVersion` | 所需合约大版本 |
 | `permissions` / `description` | 能力声明与说明 |
@@ -54,7 +58,7 @@ Get-FileHash artifacts/plugin-example/Example.Notifications-1.0.0.zip -Algorithm
 5. 停用后等待后台任务结束，旧消息与旧交互不能恢复显示。
 6. 缺少可选服务、手动来源高危权限不可用时仍能合理降级。
 7. 更新失败可恢复安装前的代码与数据。
-8. 删除只移除插件代码和宿主管理的设置，独立数据目录按预期保留。
+8. 删除移除插件代码和来源项，保留插件设置及独立数据目录；同标识重装可继续读取。
 
 开发用实例与日常实例分开，避免覆盖实际插件数据。仓库内的合约和插件回归可以在根目录运行：
 

@@ -9,7 +9,7 @@ internal static class PluginManifestReader
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     public static bool Reserved(string id) => BuiltInPluginIds.IsReserved(id);
-    // 开发者标识采用与插件名称相同的小写字符和单下划线规则，不带固定插件前缀。
+    // C13：开发者标识与目录使用同一字符集，不带插件前缀。
     public static bool DeveloperIdValid(string? id) => id is { Length: > 0 and <= 64 } && PluginId.IsValid(PluginId.Prefix + id);
     public static bool GitHubRepository(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
         && uri.Scheme == "https" && uri.Host == "github.com" && uri.IsDefaultPort && uri.UserInfo.Length == 0
@@ -34,7 +34,7 @@ internal static class PluginManifestReader
             throw new PluginException(PluginErrorCode.DescriptionSize, "插件说明或作者名称过长。");
         if (!PluginId.IsValid(manifest.Id) || manifest.Id.Length > 80 || Reserved(manifest.Id)) throw new PluginException(PluginErrorCode.Id, "插件标识无效或与内置插件冲突。");
         if (!PluginContract.IsCompatible(manifest.ContractVersion)) throw new PluginException(PluginErrorCode.Contract, "插件合约版本与消息岛不兼容。");
-        if (!ReleaseVersion.TryParse(manifest.Version, out _)) throw new PluginException(PluginErrorCode.Version, "插件版本必须符合 SemVer。");
+        if (!CatalogVersion.TryParse(manifest.Version, out _)) throw new PluginException(PluginErrorCode.Version, "插件版本必须符合 SemVer。");
         if (string.IsNullOrWhiteSpace(manifest.Name) || manifest.Name.Length > 200 || string.IsNullOrWhiteSpace(manifest.EntryType))
             throw new PluginException(PluginErrorCode.EntryName, "插件名称或入口类型无效。");
         if (manifest.DeveloperId != "" && !DeveloperIdValid(manifest.DeveloperId)) throw new PluginException(PluginErrorCode.DeveloperId, "开发者标识无效。");

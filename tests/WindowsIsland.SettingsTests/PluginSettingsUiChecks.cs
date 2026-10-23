@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -40,12 +41,23 @@ internal static class PluginSettingsUiChecks
             await manager.StartAsync();
             using var updates = new UpdateCheckService(store);
             using var library = new PluginLibrary(manager, paths);
-            page = new SettingsPage(store, updates, () => new(NotificationAccess.Allowed, true, manager.Snapshot()),
-                () => Task.CompletedTask, () => Task.CompletedTask, () => { }, () => { }, () => { }, verification: true,
+            var catalogEntry = new PluginCatalogEntry("wini_plugin_catalog_fixture", "Catalog fixture", "1.0.0",
+                "https://github.com/example/plugins/releases/download/v1.0.0/plugin.zip", new string('0', 64),
+                "0.0.0", PluginContract.Version, ["notifications", "network"], "Catalog fixture details", "https://github.com/example/plugins", "example");
+            Directory.CreateDirectory(paths.Root);
+            var catalogState = new PluginCatalogState(PluginCatalogClient.DefaultBaseUrl,
+                [new(new("example", "Example developer", catalogEntry.RepositoryUrl,
+                    PluginCatalogClient.DefaultBaseUrl + "api/sources/example/plugins"), [catalogEntry])]);
+            File.WriteAllText(Path.Combine(paths.Root, "sources.json"), JsonSerializer.Serialize(catalogState, PluginManifestReader.Json));
+            await library.Catalog.LoadAsync();
+            window = new SettingsWindow(store, updates, () => new(NotificationAccess.Allowed, true, manager.Snapshot()),
+                () => Task.CompletedTask, () => Task.CompletedTask, () => { }, () => { }, verification: true,
                 setSourceEnabled: manager.SetEnabledAsync, pluginLibrary: library,
                 rescanPlugins: manager.RescanAsync, pluginSettings: manager.GetSettingsAsync);
-            window = new Window { Content = page };
+            var root = (FrameworkElement)window.Content;
+            page = Tree(root).OfType<SettingsPage>().Single();
             window.AppWindow.Resize(new SizeInt32(900, 760));
+            window.AppWindow.Show();
             window.Activate();
             await Task.Delay(200);
             Check(Tree(page).OfType<SettingsSources>().Any(), "Completed setup defaults to sources");
@@ -58,10 +70,11 @@ internal static class PluginSettingsUiChecks
             File.WriteAllText(Path.Combine(code, "manifest.json"), JsonSerializer.Serialize(manifest, PluginManifestReader.Json));
             var refresh = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "RefreshSettings");
             ((IInvokeProvider)new ButtonAutomationPeer(refresh).GetPattern(PatternInterface.Invoke)).Invoke();
-            await Until(() => Tree(page).OfType<SettingsExpander>().Any(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id));
+            await Until(() => Tree(page).OfType<SettingsLinkRow>().Any(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id));
             Check(manager.Snapshot().Count == 1, "Manual refresh rescans and displays a new directory plugin");
-            var expander = Tree(page).OfType<SettingsExpander>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id);
-            expander.IsExpanded = true;
+            var sourceRow = Tree(page).OfType<SettingsLinkRow>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id);
+            var open = Tree(sourceRow).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id + ".Open");
+            ((IInvokeProvider)new ButtonAutomationPeer(open).GetPattern(PatternInterface.Invoke)).Invoke();
             await Until(() => Tree(page).OfType<PluginSettingsEditor>().Any());
             var text = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSetting." + manifest.Id + ".message");
             var toggle = Tree(page).OfType<ToggleSwitch>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSetting." + manifest.Id + ".enabled");
@@ -85,22 +98,101 @@ internal static class PluginSettingsUiChecks
                     foreach (var width in new[] { 900, 520 })
                     {
                         Localization.Configure(language);
-                        page.RequestedTheme = theme;
+                        root.RequestedTheme = theme;
                         window.AppWindow.Resize(new SizeInt32(width, 760));
                         page.Refresh();
                         await Task.Delay(120);
                         page.UpdateLayout();
+                        var captionColor = window.AppWindow.TitleBar.ButtonForegroundColor;
+                        Check(captionColor is { } color && (theme == ElementTheme.Light ? color.R < 80 : color.R > 175),
+                            "Window caption buttons follow the current theme");
                         var editor = Tree(page).OfType<PluginSettingsEditor>().Single();
                         Check(text.ActualWidth > 0 && text.ActualWidth <= editor.ActualWidth + 1 && text.Text == "Edited in native WinUI"
                             && !toggle.IsOn && Tree(editor).OfType<SettingsField>().Count() == 2,
                             $"Fields retain values and fit: {language}/{theme}/{width}");
                         Check(Tree(page).OfType<TextBlock>().Any(e => e.Text == Localization.Get("PluginPermissionNotice")),
                             "Permission explanation follows the current language");
+                        var header = Tree(page).OfType<SettingsHeader>().Single();
+                        var backAction = Tree(header).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "BackToPluginList");
+                        Check(backAction.ActualWidth > 0 && backAction.ActualHeight > 0
+                            && header.ActualWidth <= page.ActualWidth + 1, "Back action remains reachable and the header fits");
+                        if (width == 520 && language == "zh-CN" && theme == ElementTheme.Light)
+                            await CaptureAsync(window, Path.Combine(output, "plugin-detail.png"));
                     }
             using var details = new SettingsPluginDetails(manager.Snapshot().Single().Definition, settings: manager.GetSettingsAsync);
             await details.ReadSizeAsync();
             Check(TreeLogical(details).OfType<TextBox>().Single().Text == "Edited in native WinUI"
                 && !TreeLogical(details).OfType<ToggleSwitch>().Single().IsOn, "Reopening details reads persisted values");
+            var back = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "BackToPluginList");
+            Check(back.Visibility == Visibility.Visible && ToolTipService.GetToolTip(back)?.ToString() == Localization.Get("ActionBack"),
+                "Plugin details expose a localized top-left back action");
+            ((IInvokeProvider)new ButtonAutomationPeer(back).GetPattern(PatternInterface.Invoke)).Invoke();
+            await Until(() => Tree(page).OfType<SettingsSources>().Any());
+            Check(!Tree(page).OfType<SettingsPluginDetails>().Any() && !Tree(page).OfType<SettingsExpander>().Any(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id),
+                "Back restores the source list without inline plugin expanders");
+            var navigation = Tree(page).OfType<NavigationView>().Single();
+            navigation.SelectedItem = navigation.MenuItems.OfType<NavigationViewItem>().Single(item => item.Tag is "plugins");
+            await Until(() => Tree(page).OfType<TextBox>().Any(e => AutomationProperties.GetAutomationId(e) == "PluginGitHubProxy"));
+            var address = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSourceAddress");
+            var saveAddress = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "SavePluginSourceAddress");
+            Check(address.Text == PluginCatalogClient.DefaultBaseUrl && saveAddress.IsEnabled, "C1: catalog base address is editable with an accessible save icon");
+            address.Text = "http://invalid.example/";
+            Invoke(saveAddress);
+            await Task.Delay(100);
+            Check(library.Catalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && library.Catalog.State.Sources.Length == 1,
+                "C2: invalid base save displays an error and preserves the configured base and listings");
+            address.Text = PluginCatalogClient.DefaultBaseUrl;
+            Invoke(saveAddress);
+            await Task.Delay(100);
+            var proxy = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginGitHubProxy");
+            var save = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "SavePluginProxy");
+            proxy.Text = "https://proxy.example/";
+            ((IInvokeProvider)new ButtonAutomationPeer(save).GetPattern(PatternInterface.Invoke)).Invoke();
+            await Until(() => library.Catalog.State.GitHubProxy == "https://proxy.example/" && save.IsEnabled);
+            proxy.Text = "";
+            ((IInvokeProvider)new ButtonAutomationPeer(save).GetPattern(PatternInterface.Invoke)).Invoke();
+            await Until(() => library.Catalog.State.GitHubProxy == "" && save.IsEnabled);
+            Check(library.Catalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl, "Saving and clearing a GitHub proxy preserve the configured catalog and restore direct downloads");
+            await CaptureAsync(window, Path.Combine(output, "plugin-catalog.png"));
+            root.RequestedTheme = ElementTheme.Light;
+            Localization.Configure("zh-CN");
+            await Task.Delay(200);
+            await CaptureAsync(window, Path.Combine(output, "plugin-catalog-light.png"));
+            var catalogRow = Tree(page).OfType<SettingsLinkRow>().Single(e => AutomationProperties.GetAutomationId(e) == "OfficialPlugin." + catalogEntry.Id);
+            Invoke(Tree(catalogRow).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "OfficialPlugin." + catalogEntry.Id + ".Open"));
+            await Until(() => Tree(page).OfType<TextBlock>().Any(e => e.Text == catalogEntry.Description));
+            Check(!Tree(page).OfType<SettingsOfficialPlugins>().Any() && back.Visibility == Visibility.Visible,
+                "Official catalog entries open a separate detail page with a back action");
+            var install = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "OfficialInstall." + catalogEntry.Id);
+            Invoke(install);
+            await Until(() => OpenDialogs(page).Any());
+            var dialog = OpenDialogs(page).Single();
+            Check(dialog.XamlRoot == page.XamlRoot && Tree(dialog).OfType<CheckBox>().Any(e => e.Tag is "network"),
+                "Official detail installation presents permissions on the active page");
+            dialog.Hide();
+            await Until(() => install.IsEnabled);
+            await CaptureAsync(window, Path.Combine(output, "official-plugin-detail.png"));
+            root.RequestedTheme = ElementTheme.Dark;
+            await Task.Delay(200);
+            await CaptureAsync(window, Path.Combine(output, "official-plugin-detail-dark.png"));
+            Invoke(back);
+            await Until(() => Tree(page).OfType<SettingsOfficialPlugins>().Any());
+            Check(Tree(page).OfType<SettingsLinkRow>().Any(e => AutomationProperties.GetAutomationId(e) == "OfficialPlugin." + catalogEntry.Id)
+                && (await manager.GetSettingsAsync(manifest.Id))!.Settings.GetString("message") == "Edited in native WinUI",
+                "Returning restores the official list and preserves plugin settings");
+            address = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSourceAddress");
+            saveAddress = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "SavePluginSourceAddress");
+            address.Text = "https://changed.example/catalog///";
+            Invoke(saveAddress);
+            await Until(() => library.Catalog.State.BaseUrl == "https://changed.example/catalog/" && library.Catalog.State.Sources.Length == 0);
+            Check(!Tree(page).OfType<SettingsLinkRow>().Any(e => AutomationProperties.GetAutomationId(e) == "OfficialPlugin." + catalogEntry.Id),
+                "C1/C4: saving a new base normalizes its address and clears catalog rows without restarting");
+            using (var reloadedCatalog = new PluginCatalogService(paths))
+            {
+                await reloadedCatalog.LoadAsync();
+                Check(reloadedCatalog.State.BaseUrl == "https://changed.example/catalog/" && reloadedCatalog.State.Sources.Length == 0,
+                    "C1/C4: changed base and cleared cache survive a reload");
+            }
             File.WriteAllText(Path.Combine(output, "plugin-settings-ui.success"), results.Count.ToString());
         }
         catch (Exception error)
@@ -117,6 +209,30 @@ internal static class PluginSettingsUiChecks
             app.Exit();
         }
     }
+    private static void Invoke(Button button) => ((IInvokeProvider)new ButtonAutomationPeer(button).GetPattern(PatternInterface.Invoke)).Invoke();
+    private static IEnumerable<ContentDialog> OpenDialogs(FrameworkElement page) => VisualTreeHelper.GetOpenPopupsForXamlRoot(page.XamlRoot)
+        .Where(popup => popup.Child is not null).SelectMany(popup => Tree(popup.Child)).OfType<ContentDialog>();
+    private static async Task CaptureAsync(Window window, string path)
+    {
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);
+        ShowWindow(hwnd, 9);
+        await Task.Delay(250);
+        if (!IsWindowVisible(hwnd) || !GetWindowRect(hwnd, out var bounds))
+            throw new InvalidOperationException("The verification window must be visible before capture.");
+        using var bitmap = new System.Drawing.Bitmap(bounds.Right - bounds.Left, bounds.Bottom - bounds.Top);
+        using (var graphics = System.Drawing.Graphics.FromImage(bitmap))
+        {
+            var dc = graphics.GetHdc();
+            try { if (!PrintWindow(hwnd, dc, 2)) throw new InvalidOperationException("Native window capture failed."); }
+            finally { graphics.ReleaseHdc(dc); }
+        }
+        bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+    }
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ShowWindow(nint hwnd, int command);
+    [StructLayout(LayoutKind.Sequential)] private struct WindowRect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetWindowRect(nint hwnd, out WindowRect rect);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool PrintWindow(nint hwnd, nint dc, uint flags);
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool IsWindowVisible(nint hwnd);
     private static IEnumerable<DependencyObject> Tree(DependencyObject root)
     {
         yield return root;

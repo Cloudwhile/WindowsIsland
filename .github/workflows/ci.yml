@@ -45,25 +45,11 @@ jobs:
           New-Item -Path $key -Force | Out-Null
           New-ItemProperty -Path $key -Name AllowAllTrustedApps -Value 1 -PropertyType DWord -Force | Out-Null
           New-ItemProperty -Path $key -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
-          # The legacy fixture is an unmanaged per-user MSI on Windows Server.
-          $installer = 'HKLM:/SOFTWARE/Policies/Microsoft/Windows/Installer'
-          if (!(Test-Path -LiteralPath $installer)) { New-Item -Path $installer -Force | Out-Null }
-          New-ItemProperty -Path $installer -Name DisableMSI -Value 0 -PropertyType DWord -Force | Out-Null
-          if ((Get-ItemPropertyValue -LiteralPath $installer -Name DisableMSI) -ne 0) {
-            throw 'Per-user MSI installation is still disabled on the test runner.'
-          }
 
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: '10.0.x'
-
-      - name: Set up legacy MSI fixture compiler
-        run: |
-          dotnet tool install wix --version 5.0.2 --tool-path artifacts/tools/wix
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ./artifacts/tools/wix/wix.exe --version
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Set package version
         id: version
@@ -93,6 +79,9 @@ jobs:
 
       - name: Check installer policy snapshots
         run: ./packaging/Test-InstallerPolicy.ps1
+
+      - name: Check Inno conversion recovery
+        run: ./packaging/Test-InnoConversion.ps1
 
       - name: Check Shell icon alpha
         run: dotnet run --project tests/WindowsIsland.IconTests/WindowsIsland.IconTests.csproj -c Release

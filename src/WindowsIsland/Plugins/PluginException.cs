@@ -46,9 +46,19 @@ internal enum PluginErrorCode
     RuntimeEntry = 41,
     DuplicateId = 42,
     RuntimeHostDependency = 43,
+    ProxyAddress = 44,
+    CatalogFetch = 45,
+    CatalogStatus = 46,
+    CatalogJson = 47,
+    CatalogTimeout = 48,
+    CatalogCache = 49,
 }
 
-internal sealed class PluginException(PluginErrorCode code, string message) : IOException(message)
+internal sealed class PluginException : IOException
 {
-    public PluginErrorCode Code { get; } = code;
+    public const int ErrorBase = unchecked((int)0xA0040000);
+    public PluginErrorCode Code { get; }
+    public string? Constraint { get; }
+    public PluginException(PluginErrorCode code, string message, string? constraint = null) : base(message)
+    { Code = code; Constraint = constraint; HResult = ErrorBase | (int)code; }
 }

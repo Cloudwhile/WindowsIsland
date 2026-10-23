@@ -11,8 +11,7 @@ wini_plugin_<name>
 `wini_plugin_` 是固定小写前缀，`<name>` 替换为实际名称，不保留括号或尖括号：
 
 - 以小写英文字母开头。
-- 仅包含小写英文字母、数字及分隔用的单个下划线。
-- 不以底线结束，不包含连续下划线。
+- 仅包含小写英文字母、数字及下划线。
 - 完整标识最长 80 字符，区分大小写。
 
 | 有效示例 | 无效示例 | 原因 |
@@ -20,7 +19,7 @@ wini_plugin_<name>
 | `wini_plugin_example` | `plugin_example` | 缺少固定前缀 |
 | `wini_plugin_weather2` | `wini_plugin_Weather` | 包含大写字母 |
 | `wini_plugin_my_source` | `wini_plugin_2source` | 名称以数字开头 |
-| `wini_plugin_example_notifications` | `wini_plugin_my__source` | 连续下划线 |
+| `wini_plugin_my__source_` | `wini_plugin_my-source` | 包含连字符 |
 
 内置标识 `wini_plugin_system`、`wini_plugin_wechat`、`wini_plugin_telegram`、`wini_plugin_power`，以及停用来源的保留标识 `wini_plugin_countdown`，不能由外部插件占用。
 

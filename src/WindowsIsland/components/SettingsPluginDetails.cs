@@ -70,7 +70,7 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
         return group.Value;
     }
 
-    /// <summary>首次展开时异步读取大小，组件释放后忽略晚到结果。</summary>
+    /// <summary>进入详情时异步读取大小与设置，组件释放后忽略晚到结果。</summary>
     public async Task ReadSizeAsync()
     {
         if (_disposed || _reading || _read) return;

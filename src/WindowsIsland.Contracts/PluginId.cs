@@ -16,12 +16,12 @@ public static class PluginId
         var length = id.Length - Prefix.Length;
         if (length <= 0) return false;
         var name = id.AsSpan(Prefix.Length, length);
-        if (name[0] is < 'a' or > 'z' || name[^1] == '_') return false;
+        if (name[0] is < 'a' or > 'z') return false;
         for (var index = 0; index < name.Length; index++)
         {
             var character = name[index];
             if (character is >= 'a' and <= 'z' or >= '0' and <= '9') continue;
-            if (character != '_' || index == 0 || name[index - 1] == '_') return false;
+            if (character != '_') return false;
         }
         return true;
     }

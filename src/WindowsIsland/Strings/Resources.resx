@@ -581,7 +581,7 @@
   <data name="PluginErrorStart" xml:space="preserve"><value>插件启动失败，已恢复旧版本。</value></data>
   <data name="PluginSaveSource" xml:space="preserve"><value>保存官方源地址</value></data>
   <data name="PluginRefreshCatalog" xml:space="preserve"><value>刷新官方源</value></data>
-  <data name="PluginSourceAddress" xml:space="preserve"><value>官方源地址</value></data>
+  <data name="PluginSourceAddress" xml:space="preserve"><value>目录基地址</value></data>
   <data name="PluginCatalogEmpty" xml:space="preserve"><value>官方源暂无插件</value></data>
   <data name="PluginCatalogUnavailable" xml:space="preserve"><value>官方源暂时不可用，已保留缓存</value></data>
   <data name="PluginCatalogReady" xml:space="preserve"><value>已同步官方源</value></data>
@@ -590,7 +590,7 @@
   <data name="PluginThirdParty" xml:space="preserve"><value>官方源收录的第三方插件，请逐项确认所需权限</value></data>
   <data name="PluginDelisted" xml:space="preserve"><value>该插件已从官方源下架，建议卸载</value></data>
   <data name="PluginUpdateAvailable" xml:space="preserve"><value>有新版本：{0}</value></data>
-  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>请输入有效的官方源地址</value></data>
+  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>请输入有效的目录基地址</value></data>
   <data name="PluginErrorHash" xml:space="preserve"><value>插件 SHA256 校验失败，下载已清理</value></data>
   <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>插件包与官方索引不一致，安装已中止</value></data>
   <data name="PluginErrorNotListed" xml:space="preserve"><value>该插件已不在当前官方索引中，请刷新后重试</value></data>
@@ -637,4 +637,22 @@
   <data name="UnregisterPackageConfirm" xml:space="preserve"><value>消息岛将退出并注销当前目录的系统通知注册。完成后可删除文件夹。再次启动会重新注册。</value></data>
   <data name="ErrorUnregisterPackage" xml:space="preserve"><value>注销未能启动，请重试。</value></data>
   <data name="NeedsDeveloperMode" xml:space="preserve"><value>需要开启开发者模式</value></data>
+  <data name="PluginGitHubProxy" xml:space="preserve"><value>GitHub 代理</value></data>
+  <data name="PluginSaveProxy" xml:space="preserve"><value>保存 GitHub 代理</value></data>
+  <data name="PluginProxyDirect" xml:space="preserve"><value>留空时直连 GitHub</value></data>
+  <data name="PluginProxySaved" xml:space="preserve"><value>GitHub 代理已保存</value></data>
+  <data name="PluginProxyInvalid" xml:space="preserve"><value>请输入有效的 HTTPS 代理地址</value></data>
+  <data name="ActionBack" xml:space="preserve"><value>返回</value></data>
+  <data name="ActionOpenPlugin" xml:space="preserve"><value>打开插件详情</value></data>
+  <data name="PluginSaveAddress" xml:space="preserve"><value>保存目录基地址</value></data>
+  <data name="PluginAddressSaved" xml:space="preserve"><value>目录基地址已保存，下次刷新生效。</value></data>
+  <data name="PluginCatalogFetchFailed" xml:space="preserve"><value>无法连接插件目录，请稍后刷新。</value></data>
+  <data name="PluginCatalogStatusFailed" xml:space="preserve"><value>插件目录暂不可用，请稍后刷新。</value></data>
+  <data name="PluginCatalogJsonFailed" xml:space="preserve"><value>插件目录响应格式无效。</value></data>
+  <data name="PluginCatalogTimedOut" xml:space="preserve"><value>插件目录请求超时，请稍后刷新。</value></data>
+  <data name="PluginCatalogSourceInvalid" xml:space="preserve"><value>插件目录来源信息无效。</value></data>
+  <data name="PluginCatalogIndexInvalid" xml:space="preserve"><value>插件目录索引无效。</value></data>
+  <data name="PluginCatalogEntryInvalid" xml:space="preserve"><value>插件目录条目信息无效。</value></data>
+  <data name="PluginCatalogResponseTooLarge" xml:space="preserve"><value>插件目录响应超过大小限制。</value></data>
+  <data name="PluginCatalogCacheFailed" xml:space="preserve"><value>无法读取或保存插件目录缓存。</value></data>
 </root>
