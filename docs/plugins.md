@@ -1,5 +1,17 @@
 # 插件开发
 
+从[创建第一个插件](./plugins/getting-started.md)开始，完成编译、打包和导入。
+
+| 文档 | 内容 |
+| --- | --- |
+| [创建第一个插件](./plugins/getting-started.md) | 项目、完整入口示例与首次安装 |
+| [清单与标识](./plugins/manifest.md) | `manifest.json`、`wini_plugin_<name>` 与字段说明 |
+| [通知与元数据](./plugins/notifications.md) | DTO、事件、去重、头像补全和点击激活 |
+| [生命周期与设置](./plugins/lifecycle.md) | 启停、取消、设置声明与迁移 |
+| [固定内容与交互](./plugins/pinned-content.md) | 持续显示、详情、控件与交互回调 |
+| [权限与诊断](./plugins/permissions.md) | 能力声明、信任边界与结构化诊断 |
+| [打包、分发与迁移](./plugins/packaging.md) | ZIP 结构、分发与旧标识迁移 |
+
 插件只引用 `WindowsIsland.Contracts`，入口实现 `IIslandPlugin`，通知来源可实现
 `IMessageSource`。宿主负责调度和窗口，插件经 `IPluginContext` 提交通知及固定内容。
 
@@ -71,6 +83,8 @@ string（可为 null）或 bool。标题、默认值、业务校验和迁移归�
 重新安装仍走原安装确认及权限流程，可以显式清除删除标记。
 
 ## 本地验证
+
+先在独立目录编译和打包，再导入开发用的消息岛实例。检查启停、重新开启、消息投递与停止后回调；具体步骤见[打包指南](./plugins/packaging.md#发布前检查)。
 
 逻辑及外部插件夹具回归：
 

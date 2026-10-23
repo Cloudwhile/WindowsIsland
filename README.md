@@ -18,7 +18,8 @@
 <p>
   <a href="#getting-started">Getting started</a> ·
   <a href="#notification-sources">Notification sources</a> ·
-  <a href="#settings">Settings</a>
+  <a href="#settings">Settings</a> ·
+  <a href="https://github.com/Cloudwhile/WindowsIsland/blob/master/docs/index.md">Documentation (简体中文)</a>
 </p>
 
 </div>
@@ -74,7 +75,7 @@ System notifications require initialization and notification access. Connected s
 
 ## Settings
 
-The sidebar contains **Setup**, **Sources**, **Appearance**, **Updates**, and **Diagnostics & feedback**.
+The sidebar contains **Setup**, **Sources**, **Plugins**, **Appearance**, **Updates**, and **Diagnostics & feedback**.
 
 | Setting | What you can choose |
 | --- | --- |

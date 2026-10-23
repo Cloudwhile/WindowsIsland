@@ -57,3 +57,9 @@ coverage/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# VitePress documentation dependencies and generated output
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
+/docs/.vitepress/.temp/
