@@ -66,11 +66,11 @@ internal static class PluginDirectoryChecks
             try { PluginPaths.Relative(root, path); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected, "Unsafe plugin path is rejected: " + path);
         }
-        var old = JsonSerializer.Deserialize<PluginManifest>("""
-            {"id":"wini_plugin_legacy","name":"旧清单","version":"1.0.0","entryAssembly":"a.dll","entryType":"A","contractVersion":1,"permissions":[]}
+        var minimal = JsonSerializer.Deserialize<PluginManifest>("""
+            {"id":"wini_plugin_minimal","name":"最小清单","version":"1.0.0","entryAssembly":"a.dll","entryType":"A","contractVersion":1,"permissions":[]}
             """, PluginManifestReader.Json)!;
-        Check(old.DeveloperId == "" && old.SourceKind == PluginSourceKind.Manual && old.DeveloperName is null,
-            "Old manifests retain defaults for new developer and source metadata");
+        Check(minimal.DeveloperId == "" && minimal.SourceKind == PluginSourceKind.Manual && minimal.DeveloperName is null,
+            "Optional developer and source metadata use their declared defaults");
         foreach (var id in new[] { "wini_fixture_plugin", "wini_plugin_system", "wini_plugin_countdown" })
         {
             var rejected = false;

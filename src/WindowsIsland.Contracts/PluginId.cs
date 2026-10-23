@@ -6,9 +6,6 @@ public static class PluginId
     /// <summary>获取插件标识的固定前缀。</summary>
     public const string Prefix = "wini_plugin_";
 
-    /// <summary>获取插件标识的固定后缀；当前格式不使用后缀。</summary>
-    public const string Suffix = "";
-
     /// <summary>判断标识是否符合 wini_plugin_名称 格式。</summary>
     /// <param name="id">待检查的插件标识。</param>
     /// <returns>名称以小写英文字母开头，且仅包含小写英文字母、数字及分隔用下划线时为真。</returns>

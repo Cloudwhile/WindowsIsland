@@ -3,7 +3,7 @@ namespace WindowsIsland.Contracts;
 /// <summary>提供与当前插件绑定的宿主服务，不暴露界面对象。</summary>
 public interface IPluginContext
 {
-    /// <summary>宿主版本号；旧宿主的默认实现为空字符串。</summary>
+    /// <summary>获取宿主的完整版本号。</summary>
     string HostVersion => "";
 
     /// <summary>被本次安装替换的版本；首次安装或没有更新交接信息时为 null。</summary>
@@ -24,7 +24,7 @@ public interface IPluginContext
     /// <remarks>同一合约大版本的新能力通过可选服务提供，调用方必须容忍 null；不得新增必填接口方法。</remarks>
     T? GetService<T>() where T : class => null;
 
-    /// <summary>获取固定内容提交能力；旧宿主未提供时为空引用。</summary>
+    /// <summary>获取固定内容提交能力；未提供时为空引用。</summary>
     IPinnedContentSource? PinnedContent => GetService<IPinnedContentSource>();
 
     /// <summary>从任意线程提交通知，由宿主入队并调度到界面线程。</summary>

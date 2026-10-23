@@ -28,7 +28,7 @@ internal static class PluginManagerChecks
         })), store);
         await manager.StartAsync();
         check(created.Keys.Order().SequenceEqual(new[] { BuiltInPluginIds.Power, BuiltInPluginIds.WeChat }),
-            "Legacy source switches select plugin activation without changing their values");
+            "Source switches select plugin activation without changing their values");
         check(created.Values.SelectMany(s => s).All(s => s.Calls.SequenceEqual(["Initialize", "Start"])),
             "Plugin registration initializes its own context before starting exactly once");
         await manager.StartAsync();
@@ -41,7 +41,7 @@ internal static class PluginManagerChecks
             "Re-enabling initializes a fresh source instance");
         var restarted = new SettingsStore(path);
         check(!restarted.Current.SystemNotifications && !restarted.Current.Telegram && restarted.Current.WeChat && restarted.Current.Power
-            && !restarted.Current.Animations && restarted.Current.Language == "en-US", "Plugin toggles persist in legacy fields without resetting unrelated preferences");
+            && !restarted.Current.Animations && restarted.Current.Language == "en-US", "Plugin toggles persist in source fields without resetting unrelated preferences");
 
         var wechat = created[BuiltInPluginIds.WeChat][1].Context!;
         var power = created[BuiltInPluginIds.Power][0].Context!;
@@ -63,13 +63,13 @@ internal static class PluginManagerChecks
         check(Enumerable.Range(0, 20).All(index => new PluginSettings(new SettingsStore(path), BuiltInPluginIds.WeChat).GetString("key" + index) == index.ToString()),
             "Concurrent plugin setting writes preserve independent keys");
         await File.WriteAllTextAsync(path, """
-            {"SystemNotifications":false,"WeChat":true,"Plugins":{"wechat":{"valid":"保持","bad":17,"enabled":"broken"},"power":false}}
+            {"SystemNotifications":false,"WeChat":true,"Plugins":{"wini_plugin_wechat":{"valid":"保持","bad":17,"enabled":"broken"},"wini_plugin_power":false}}
             """);
         var damaged = new SettingsStore(path);
         var damagedSettings = new PluginSettings(damaged, BuiltInPluginIds.WeChat);
         check(damagedSettings.GetString("valid") == "保持" && damagedSettings.GetString("bad", "fallback") == "fallback"
             && damagedSettings.GetBoolean("enabled", true) && damaged.Current.WeChat && !damaged.Current.SystemNotifications,
-            "Damaged plugin values fall back individually and retain valid legacy preferences");
+            "Damaged plugin values fall back individually and retain valid preferences");
 
         foreach (var source in Enum.GetValues<NotificationSource>())
         {
@@ -106,40 +106,34 @@ internal static class PluginManagerChecks
             check(rejected && !invoked, "Manager rejects malformed IDs before creating a plugin: " + id);
         }
 
-        var path = Path.Combine(root, "legacy-namespaces.json");
+        var path = Path.Combine(root, "plugin-namespaces.json");
         File.WriteAllText(path, """
             {"WeChat":false,"Telegram":true,"Animations":false,"Plugins":{
-              "wechat":{"mode":"旧模式","legacyOnly":"保留","enabled":false},
-              "wini_wechat_plugin":{"mode":"前一代","middleOnly":"中间值","legacyOnly":"较新值"},
-              "wini_plugin_wechat":{"mode":"新模式"},
-              "telegram":{"token":"最早值"},"wini_telegram_plugin":{"token":"原有值"},"wini_plugin_telegram":17,
-              "power":{"enabled":false},"wini_power_plugin":{"enabled":true},"wini_system_plugin":{"language":"zh-CN"},
-              "wini_plugin_other":{"custom":"保持"},"wini_other_plugin":{"custom":"旧插件保留"}}}
+              "wini_plugin_wechat":{"mode":"会话模式","enabled":false},
+              "wini_plugin_telegram":17,
+              "wini_plugin_power":{"enabled":true},"wini_plugin_system":{"language":"zh-CN"},
+              "unregistered_source":{"custom":"保持"}}}
             """);
         var store = new SettingsStore(path);
         var wechat = new PluginSettings(store, BuiltInPluginIds.WeChat);
-        check(wechat.GetString("mode") == "新模式" && wechat.GetString("legacyOnly") == "较新值"
-            && wechat.GetString("middleOnly") == "中间值"
-            && !wechat.GetBoolean("enabled", true) && !store.Current.WeChat && store.Current.Telegram && !store.Current.Animations,
-            "Renamed plugin namespaces merge legacy keys while preserving canonical values and source switches");
-        check(new PluginSettings(store, BuiltInPluginIds.Telegram).GetString("token") == "原有值"
+        check(wechat.GetString("mode") == "会话模式" && !wechat.GetBoolean("enabled", true)
+            && !store.Current.WeChat && store.Current.Telegram && !store.Current.Animations,
+            "Canonical plugin namespaces retain their values and independent source switches");
+        check(new PluginSettings(store, BuiltInPluginIds.Telegram).GetString("token", "fallback") == "fallback"
             && new PluginSettings(store, BuiltInPluginIds.Power).GetBoolean("enabled")
             && new PluginSettings(store, BuiltInPluginIds.System).GetString("language") == "zh-CN",
-            "All four legacy namespaces migrate and a corrupt canonical namespace retains valid legacy values");
-        wechat.SetString("legacyOnly", null);
+            "A damaged plugin namespace falls back without changing other canonical namespaces");
+        wechat.SetString("mode", null);
         var restarted = new SettingsStore(path);
-        check(new PluginSettings(restarted, BuiltInPluginIds.WeChat).GetString("legacyOnly") is null
-            && new PluginSettings(restarted, "wini_plugin_other").GetString("custom") == "保持"
-            && new PluginSettings(restarted, "wini_other_plugin").GetString("custom") == "旧插件保留",
-            "Removed migrated keys stay removed after restart and unrelated plugin settings survive");
+        check(new PluginSettings(restarted, BuiltInPluginIds.WeChat).GetString("mode") is null
+            && new PluginSettings(restarted, "unregistered_source").GetString("custom") == "保持",
+            "Plugin key removal persists while unrelated namespaces stay unchanged");
         using var saved = JsonDocument.Parse(File.ReadAllText(path));
-        var plugins = saved.RootElement.GetProperty("Plugins");
-        check(!plugins.TryGetProperty("wechat", out _) && !plugins.TryGetProperty("telegram", out _)
-            && !plugins.TryGetProperty("wini_wechat_plugin", out _) && !plugins.TryGetProperty("wini_telegram_plugin", out _)
-            && plugins.GetProperty(BuiltInPluginIds.WeChat).GetProperty("mode").GetString() == "新模式",
-            "Persisted settings use canonical namespaces without leaving stale legacy copies");
+        check(saved.RootElement.GetProperty("Plugins").GetProperty(BuiltInPluginIds.WeChat)
+            .GetProperty("enabled").ValueKind == JsonValueKind.False,
+            "Persisted plugin settings retain the canonical namespace and value types");
 
-        var directory = Path.Combine(root, "legacy-diagnostics");
+        var directory = Path.Combine(root, "plugin-diagnostics");
         Directory.CreateDirectory(directory);
         var entries = definitions.Select(d => DiagnosticReports.Capture(d.Id switch
         {
@@ -148,28 +142,14 @@ internal static class PluginManagerChecks
             BuiltInPluginIds.Power => DiagnosticArea.PowerPlugin,
             _ => DiagnosticArea.WeChatPlugin
         }, "Initialize", null, false, DateTimeOffset.UtcNow, pluginId: d.Id)).ToArray();
-        var json = JsonSerializer.Serialize(entries, DiagnosticStore.Json);
-        foreach (var name in new[] { "system", "telegram", "power", "wechat" })
-            json = json.Replace(BuiltInPluginIds.FromLegacy(name), name, StringComparison.Ordinal);
-        File.WriteAllText(Path.Combine(directory, "diagnostics.json"), json);
+        File.WriteAllText(Path.Combine(directory, "diagnostics.json"), JsonSerializer.Serialize(entries, DiagnosticStore.Json));
         using var diagnostics = new DiagnosticStore(directory, true);
         check(!diagnostics.PersistenceFailed && diagnostics.Snapshot().Select(e => e.PluginId).SequenceEqual(definitions.Select(d => d.Id)),
-            "Historical diagnostics retain all four entries and resolve legacy plugin identities");
+            "Plugin diagnostics load canonical identities without rewriting the records");
         using var report = JsonDocument.Parse(diagnostics.ReportJson());
         check(report.RootElement.GetProperty("Events").EnumerateArray().All(e =>
             PluginId.IsValid(e.GetProperty("Area").GetString()) && e.GetProperty("Area").GetString() == e.GetProperty("PluginId").GetString()),
-            "Historical diagnostics export canonical plugin areas and IDs");
-
-        var suffixedDirectory = Path.Combine(root, "suffixed-diagnostics");
-        Directory.CreateDirectory(suffixedDirectory);
-        var suffixedJson = JsonSerializer.Serialize(entries, DiagnosticStore.Json);
-        foreach (var name in new[] { "system", "telegram", "power", "wechat" })
-            suffixedJson = suffixedJson.Replace(BuiltInPluginIds.FromLegacy(name), "wini_" + name + "_plugin", StringComparison.Ordinal);
-        File.WriteAllText(Path.Combine(suffixedDirectory, "diagnostics.json"), suffixedJson);
-        using var suffixedDiagnostics = new DiagnosticStore(suffixedDirectory, true);
-        check(!suffixedDiagnostics.PersistenceFailed
-            && suffixedDiagnostics.Snapshot().Select(e => e.PluginId).SequenceEqual(definitions.Select(d => d.Id)),
-            "Suffixed historical plugin IDs migrate in both diagnostic areas and identities");
+            "Plugin diagnostics export canonical areas and identities");
     }
 
     private static async Task CheckFailures(string root, Action<bool, string> check)

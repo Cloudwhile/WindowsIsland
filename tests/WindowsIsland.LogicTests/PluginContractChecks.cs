@@ -42,7 +42,7 @@ internal static class PluginContractChecks
             && external.Author is null && external.Description is null && external.Permissions.SequenceEqual(["notifications"]),
             "Plugin manifests authored outside the host deserialize without optional metadata");
 
-        Check(PluginId.Prefix + "example" + PluginId.Suffix == "wini_plugin_example",
+        Check(PluginId.Prefix + "example" == "wini_plugin_example",
             "Public plugin identifier constants compose the new prefix-only format");
         foreach (var id in new[] { "wini_plugin_system", "wini_plugin_wechat", "wini_plugin_my_source2", "wini_plugin_a", "wini_plugin_my_plugin" })
             Check(PluginId.IsValid(id), "Canonical plugin identifier is accepted: " + id);

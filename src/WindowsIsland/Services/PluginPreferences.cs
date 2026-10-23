@@ -49,22 +49,6 @@ internal sealed partial class SettingsStore
         }
     }
 
-    private void MigratePluginPreferences()
-    {
-        // 新范围优先；两代旧范围同时存在时，先合并带 wini_ 前缀的较新一代。
-        foreach (var pair in _pluginPreferences.ToArray().OrderBy(pair => pair.Key.EndsWith("_plugin", StringComparison.Ordinal) ? 0 : 1))
-        {
-            var id = BuiltInPluginIds.FromLegacy(pair.Key);
-            if (id == pair.Key || pair.Value is not JsonObject legacy) continue;
-            if (_pluginPreferences[id] is not JsonObject current)
-                _pluginPreferences[id] = legacy.DeepClone();
-            else
-                foreach (var setting in legacy)
-                    if (!current.ContainsKey(setting.Key)) current[setting.Key] = setting.Value?.DeepClone();
-            _pluginPreferences.Remove(pair.Key);
-        }
-    }
-
     public string? GetPluginString(string id, string key, string? fallback)
     {
         ValidatePluginKey(key);
