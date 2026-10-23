@@ -19,7 +19,7 @@
   <a href="#开始使用">开始使用</a> ·
   <a href="#消息来源">消息来源</a> ·
   <a href="#设置">设置</a> ·
-  <a href="https://github.com/Cloudwhile/WindowsIsland/blob/master/docs/index.md">使用文档</a>
+  <a href="https://cloudwhile.github.io/WindowsIsland/">使用文档</a>
 </p>
 
 </div>

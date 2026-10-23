@@ -19,7 +19,7 @@
   <a href="#getting-started">Getting started</a> ·
   <a href="#notification-sources">Notification sources</a> ·
   <a href="#settings">Settings</a> ·
-  <a href="https://github.com/Cloudwhile/WindowsIsland/blob/master/docs/index.md">Documentation (简体中文)</a>
+  <a href="https://cloudwhile.github.io/WindowsIsland/">Documentation (简体中文)</a>
 </p>
 
 </div>
