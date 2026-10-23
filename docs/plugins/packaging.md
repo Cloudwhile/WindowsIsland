@@ -29,7 +29,7 @@ Get-FileHash artifacts/plugin-example/Example.Notifications-1.0.0.zip -Algorithm
 
 ## 官方目录分发
 
-[开放平台](https://wini-plugins.abszero.cc/)为官方目录预留，目前尚未开放。现阶段使用手动 ZIP 分发。
+开放平台目前尚未开放。现阶段使用手动 ZIP 分发。
 
 完整端点与字段规则见[目录接口契约](./catalog.md)。官方开发者身份仅认 `winiofficial`；目录中其他开发者仍按三方权限处理。
 

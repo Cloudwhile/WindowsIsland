@@ -1,16 +1,16 @@
 # 目录接口契约
 
-默认目录基地址为 `https://wini-plugins.abszero.cc/`。开放平台目前仅预留地址，尚未开放。
+开放平台目前尚未开放。
 本文定义目录服务与消息岛宿主之间的接口；手动 ZIP 分发见[打包与分发](./packaging.md)。
 
 ## 基地址与请求
 
 | 编号 | 约定 |
 | --- | --- |
-| C1 | 宿主只保存一个目录基地址，可在插件列表页修改；下次刷新生效，无需重启，进行中的刷新继续使用旧地址。 |
-| C2 | 保存和使用时均校验：绝对 HTTPS 地址，或仅回环地址的 HTTP；不得包含 userinfo、query 或 fragment。非法值拒绝保存或使用。 |
-| C3 | 已保存的基地址无效时禁用目录并记录稳定错误码；不回退其他地址，显式修正后恢复。 |
-| C4 | 基地址变化立即使全部索引缓存失效，下次刷新重新拉取。 |
+| C1 | 宿主使用应用提供的固定官方目录。 |
+| C2 | 目录基地址为绝对 HTTPS 地址，不包含 userinfo、query 或 fragment。 |
+| C3 | 其他来源不能替代官方目录。 |
+| C4 | 仅复用同一官方目录的索引缓存。 |
 | C5 | 端点路径精确、区分大小写；基地址末尾去重后保留一个 `/`，请求不带 query，不跟随 3xx。 |
 | C6 | 请求带 `Cache-Control: no-cache`；只有 HTTP 200 成功，304 及其他状态均表示源不可用。 |
 
@@ -19,8 +19,7 @@ GET {base}/api/sources
 GET {base}/api/sources/{developerId}/plugins
 ```
 
-这里的 `{base}` 指去除末尾斜杠后的基地址。例如默认来源列表地址是
-`https://wini-plugins.abszero.cc/api/sources`。
+这里的 `{base}` 指去除末尾斜杠后的基地址。下方使用 `catalog.example` 演示结构。
 
 ## 传输与格式
 
@@ -39,9 +38,9 @@ GET {base}/api/sources/{developerId}/plugins
 [
   {
     "developerId": "winiofficial",
-    "developerName": "WINI",
+    "developerName": "winiofficial",
     "repositoryUrl": "https://github.com/example/plugins",
-    "pluginsUrl": "https://wini-plugins.abszero.cc/api/sources/winiofficial/plugins"
+    "pluginsUrl": "https://catalog.example/api/sources/winiofficial/plugins"
   }
 ]
 ```
