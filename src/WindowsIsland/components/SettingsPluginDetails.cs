@@ -33,7 +33,9 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
         {
             var source = Field("PluginSource", null, definition.Id + ".Source", placeholder: false);
             LocalizedUI.Bind(source, () => source.Text = Localization.Get(external.Manifest.SourceKind == Contracts.PluginSourceKind.Manual ? "PluginManualRestricted" : "PluginOfficial"));
-            Field("PluginDeveloper", external.Manifest.DeveloperName ?? external.Manifest.DeveloperId, definition.Id + ".Developer");
+            Field("PluginDeveloper", external.Manifest.SourceKind == Contracts.PluginSourceKind.Official
+                && external.Manifest.DeveloperId == PluginCatalogClient.OfficialDeveloperId ? PluginCatalogClient.OfficialDeveloperId
+                : external.Manifest.DeveloperName ?? external.Manifest.DeveloperId, definition.Id + ".Developer");
             Field("PluginRepository", external.Manifest.RepositoryUrl, definition.Id + ".Repository");
             var trust = external.Trust;
             var granted = PermissionField("PluginPermissionsGranted", trust.Granted, definition.Id + ".Granted");

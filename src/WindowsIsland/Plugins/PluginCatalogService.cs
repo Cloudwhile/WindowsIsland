@@ -25,7 +25,6 @@ internal sealed class PluginCatalogService : IDisposable
     private Task _running = Task.CompletedTask;
     private PluginCatalogState _state = new(PluginCatalogClient.DefaultBaseUrl, []);
     private bool _disposed, _attempted;
-    private int _revision;
     public event Action? Changed;
     public PluginCatalogState State { get { lock (_gate) return _state; } }
     public bool IncludePrereleases => _includePrereleases();
@@ -45,19 +44,12 @@ internal sealed class PluginCatalogService : IDisposable
             if (!File.Exists(_cache)) return;
             var json = JsonNode.Parse(await File.ReadAllTextAsync(_cache, _lifetime.Token))?.AsObject();
             if (json is null) throw new JsonException();
-            var address = json["baseUrl"] is JsonValue b && b.TryGetValue<string>(out var raw) ? raw : "";
+            var address = PluginCatalogClient.DefaultBaseUrl;
             var proxy = json["gitHubProxy"] is JsonValue p && p.TryGetValue<string>(out var text) ? text : "";
             try { proxy = GitHubDownloadProxy.Normalize(proxy); } catch (PluginException) { proxy = ""; }
-            try { address = PluginCatalogPolicy.BaseAddress(address); }
-            catch (PluginException error)
-            {
-                lock (_gate) if (!_disposed && !_attempted)
-                    _state = new(address, [], Unavailable: true, GitHubProxy: proxy, Disabled: true, Failure: error.Code);
-                Record(error);
-                return;
-            }
-            // Preserve configuration even if the local index cache is damaged.
+            // 旧版自定义源的缓存不能作为官方目录使用；独立保留有效的下载代理。
             lock (_gate) if (!_disposed && !_attempted) _state = new(address, [], GitHubProxy: proxy);
+            if (json["baseUrl"] is not JsonValue b || !b.TryGetValue<string>(out var raw) || raw != address) return;
             json["baseUrl"] = address;
             json["gitHubProxy"] = proxy;
             var cached = json.Deserialize<PluginCatalogState>(PluginManifestReader.Json) ?? throw new JsonException();
@@ -92,30 +84,23 @@ internal sealed class PluginCatalogService : IDisposable
         {
             if (_disposed || !_running.IsCompleted) return _running;
             _attempted = true;
-            var address = _state.BaseUrl;
-            var revision = _revision;
             _state = _state with { Busy = true, Fresh = false, FreshDevelopers = [] };
-            _running = Task.Run(() => RunAsync(address, revision, token));
+            _running = Task.Run(() => RunAsync(token));
             return _running;
         }
     }
 
-    public Task ConfigureProxyAsync(string? proxy) => ConfigureAsync(null, GitHubDownloadProxy.Normalize(proxy));
-    public Task ConfigureBaseAsync(string? address) => ConfigureAsync(PluginCatalogPolicy.BaseAddress(address), null);
-    private async Task ConfigureAsync(string? address, string? proxy)
+    public async Task ConfigureProxyAsync(string? proxy)
     {
+        var normalized = GitHubDownloadProxy.Normalize(proxy);
         await _persistence.WaitAsync(_lifetime.Token);
         try
         {
-            var previous = State;
-            var changed = address is not null && (previous.BaseUrl != address || previous.Disabled);
-            var configured = changed ? new PluginCatalogState(address!, [], Busy: previous.Busy, GitHubProxy: previous.GitHubProxy) : previous;
-            if (proxy is not null) configured = configured with { GitHubProxy = proxy };
+            var configured = State with { GitHubProxy = normalized };
             await PersistAsync(configured, _lifetime.Token);
             lock (_gate)
             {
                 ObjectDisposedException.ThrowIf(_disposed, this);
-                if (changed) _revision++;
                 _state = configured;
             }
         }
@@ -123,17 +108,15 @@ internal sealed class PluginCatalogService : IDisposable
         Changed?.Invoke();
     }
 
-    private async Task RunAsync(string address, int revision, CancellationToken token)
+    private async Task RunAsync(CancellationToken token)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, token);
         try
         {
-            _ = PluginCatalogPolicy.BaseAddress(address);
-            var fetched = await _client.FetchAsync(address, cancellation.Token);
+            var fetched = await _client.FetchAsync(PluginCatalogClient.DefaultBaseUrl, cancellation.Token);
             await _persistence.WaitAsync(cancellation.Token);
             try
             {
-                if (revision != _revision) return; // C1/C4: the old flight cannot repopulate a changed base.
                 var previous = State;
                 var replacements = fetched.Indices.ToDictionary(s => s.Source.DeveloperId, StringComparer.Ordinal);
                 var merged = replacements.Count == 0 ? previous.Sources
@@ -164,7 +147,7 @@ internal sealed class PluginCatalogService : IDisposable
         catch (Exception error)
         {
             var failure = error as PluginException ?? new PluginException(PluginErrorCode.CatalogFetch, "目录刷新失败。", "C10");
-            lock (_gate) if (!_disposed && revision == _revision)
+            lock (_gate) if (!_disposed)
                 _state = _state with { Busy = false, Unavailable = true, Fresh = false, FreshDevelopers = [],
                     Disabled = failure.Code == PluginErrorCode.SourceAddress, Failure = failure.Code };
             if (!cancellation.IsCancellationRequested) Record(failure);

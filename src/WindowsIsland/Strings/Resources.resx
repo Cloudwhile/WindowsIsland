@@ -579,9 +579,7 @@
   <data name="PluginErrorPath" xml:space="preserve"><value>插件包包含不安全路径、符号链接或特殊文件。</value></data>
   <data name="PluginErrorSourceConflict" xml:space="preserve"><value>插件已从其他来源安装，请先卸载。</value></data>
   <data name="PluginErrorStart" xml:space="preserve"><value>插件启动失败，已恢复旧版本。</value></data>
-  <data name="PluginSaveSource" xml:space="preserve"><value>保存官方源地址</value></data>
   <data name="PluginRefreshCatalog" xml:space="preserve"><value>刷新官方源</value></data>
-  <data name="PluginSourceAddress" xml:space="preserve"><value>目录基地址</value></data>
   <data name="PluginCatalogEmpty" xml:space="preserve"><value>官方源暂无插件</value></data>
   <data name="PluginCatalogUnavailable" xml:space="preserve"><value>官方源暂时不可用，已保留缓存</value></data>
   <data name="PluginCatalogReady" xml:space="preserve"><value>已同步官方源</value></data>
@@ -590,7 +588,7 @@
   <data name="PluginThirdParty" xml:space="preserve"><value>官方源收录的第三方插件，请逐项确认所需权限</value></data>
   <data name="PluginDelisted" xml:space="preserve"><value>该插件已从官方源下架，建议卸载</value></data>
   <data name="PluginUpdateAvailable" xml:space="preserve"><value>有新版本：{0}</value></data>
-  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>请输入有效的目录基地址</value></data>
+  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>官方源暂时不可用，请稍后重试</value></data>
   <data name="PluginErrorHash" xml:space="preserve"><value>插件 SHA256 校验失败，下载已清理</value></data>
   <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>插件包与官方索引不一致，安装已中止</value></data>
   <data name="PluginErrorNotListed" xml:space="preserve"><value>该插件已不在当前官方索引中，请刷新后重试</value></data>
@@ -644,8 +642,7 @@
   <data name="PluginProxyInvalid" xml:space="preserve"><value>请输入有效的 HTTPS 代理地址</value></data>
   <data name="ActionBack" xml:space="preserve"><value>返回</value></data>
   <data name="ActionOpenPlugin" xml:space="preserve"><value>打开插件详情</value></data>
-  <data name="PluginSaveAddress" xml:space="preserve"><value>保存目录基地址</value></data>
-  <data name="PluginAddressSaved" xml:space="preserve"><value>目录基地址已保存，下次刷新生效。</value></data>
+  <data name="PluginPackageFileType" xml:space="preserve"><value>插件包</value></data>
   <data name="PluginCatalogFetchFailed" xml:space="preserve"><value>无法连接插件目录，请稍后刷新。</value></data>
   <data name="PluginCatalogStatusFailed" xml:space="preserve"><value>插件目录暂不可用，请稍后刷新。</value></data>
   <data name="PluginCatalogJsonFailed" xml:space="preserve"><value>插件目录响应格式无效。</value></data>

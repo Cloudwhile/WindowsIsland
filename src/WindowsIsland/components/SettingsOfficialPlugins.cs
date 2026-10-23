@@ -12,8 +12,6 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     private readonly PluginLibrary _library;
     private readonly Action<SettingsDetail> _open;
     private readonly TextBox _proxy = new() { MinWidth = 0 };
-    private readonly TextBox _address = new() { MinWidth = 0 };
-    private readonly IconActionButton _saveAddress = new(Symbol.Save, "PluginSaveAddress", "SavePluginSourceAddress");
     private readonly IconActionButton _save = new(Symbol.Save, "PluginSaveProxy", "SavePluginProxy");
     private readonly IconActionButton _refresh = new(Symbol.Refresh, "PluginRefreshCatalog", "RefreshPluginCatalog");
     private readonly IconActionButton _cancel = new(Symbol.Cancel, "PluginCancel", "CancelOfficialPlugin") { Visibility = Visibility.Collapsed };
@@ -26,7 +24,6 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     private PluginCatalogState? _rendered;
     private bool _renderedPrereleases;
     private string? _lastProxy;
-    private string? _lastAddress;
     private CancellationTokenSource? _operation;
     private ContentDialog? _dialog;
     private bool _disposed;
@@ -42,27 +39,16 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         toolbar.Children.Add(_refresh);
         toolbar.Children.Add(_cancel);
         _proxy.Text = library.Catalog.State.GitHubProxy;
-        _address.Text = library.Catalog.State.BaseUrl;
-        LocalizedUI.Label(_address, "PluginSourceAddress");
-        AutomationProperties.SetAutomationId(_address, "PluginSourceAddress");
         LocalizedUI.Label(_proxy, "PluginGitHubProxy");
         LocalizedUI.Bind(_proxy, () => _proxy.PlaceholderText = Localization.Get("PluginProxyDirect"));
         AutomationProperties.SetAutomationId(_proxy, "PluginGitHubProxy");
         _status.TextWrapping = TextWrapping.Wrap;
         var source = new SettingsContent();
-        source.Children.Add(_address);
         source.Children.Add(_status);
         source.Children.Add(_notice);
-        toolbar.Children.Insert(0, _saveAddress);
-        Children.Add(new SettingsSection("PluginOfficial", new SettingsRow(Symbol.World, "PluginSourceAddress", toolbar), source,
+        Children.Add(new SettingsSection("PluginOfficial", new SettingsRow(Symbol.World, "PluginOfficial", toolbar), source,
             new SettingsRow(Symbol.Link, "PluginGitHubProxy", _save), new SettingsContent(_proxy)));
         Children.Add(_plugins);
-        _saveAddress.Click += async (_, _) =>
-        {
-            try { await library.Catalog.ConfigureBaseAsync(_address.Text); Notice("PluginAddressSaved", InfoBarSeverity.Success); }
-            catch (Exception error) { Notice(PluginErrors.Key(error), InfoBarSeverity.Error); }
-            Refresh();
-        };
         _save.Click += async (_, _) => await RunAsync(async _ =>
         {
             await library.Catalog.ConfigureProxyAsync(_proxy.Text);
@@ -81,7 +67,6 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     {
         if (_disposed) return;
         var state = _library.Catalog.State;
-        if (_lastAddress != state.BaseUrl) { _lastAddress = state.BaseUrl; _address.Text = state.BaseUrl; }
         var installedPlugins = _library.Manager.Snapshot().Select(plugin => plugin.Definition.Metadata)
             .OfType<PluginMetadata>().Where(metadata => metadata.External is not null).ToArray();
         if (_lastProxy != state.GitHubProxy && _operation is null) { _lastProxy = state.GitHubProxy; _proxy.Text = state.GitHubProxy; }
@@ -112,7 +97,8 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
                         rows.Add(CreateEntry(entry, installed));
                     }
                 foreach (var metadata in removed) rows.Add(CreateDelisted(metadata));
-                var name = index?.Source.DeveloperName ?? removed[0].External!.Manifest.DeveloperName ?? developerId;
+                var name = developerId == PluginCatalogClient.OfficialDeveloperId ? PluginCatalogClient.OfficialDeveloperId
+                    : index?.Source.DeveloperName ?? removed[0].External!.Manifest.DeveloperName ?? developerId;
                 if (rows.Count > 0) _plugins.Children.Add(new SettingsSection(name, false, rows.ToArray()));
             }
         }

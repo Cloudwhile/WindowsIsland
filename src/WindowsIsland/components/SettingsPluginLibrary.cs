@@ -45,6 +45,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         {
             await Task.Yield();
             var file = await _pick();
+            operation.Token.ThrowIfCancellationRequested();
             if (file is null) return;
             using var prepared = await _library.Installer.PrepareAsync(file, token: operation.Token);
             try { await _library.Manager.InstallAsync(prepared, token: operation.Token); }

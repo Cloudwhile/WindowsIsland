@@ -28,21 +28,20 @@ internal static class PluginCatalogCacheChecks
         var original = catalog.State.Sources;
         foreach (var address in new[] { "relative", "https://@example.com/", "http://example.com/", "https://user:secret@example.com/", "https://example.com/?x", "https://example.com/#x", "file:///test", "https://example.com/?", " https://example.com/" })
         {
-            try { await catalog.ConfigureBaseAsync(address); Check(false, "C2"); }
+            try { PluginCatalogPolicy.BaseAddress(address); Check(false, "C2"); }
             catch (PluginException e) { Check(e.Code == PluginErrorCode.SourceAddress && ReferenceEquals(original,catalog.State.Sources), "C2: invalid base cannot be saved or alter cache: " + address.Split('@').Last()); }
         }
         foreach (var address in new[] { "http://localhost:8080/", "http://127.0.0.1/", "http://[::1]/", "https://example.com/sub///" })
             Check(PluginCatalogPolicy.BaseAddress(address).EndsWith('/') && !PluginCatalogPolicy.BaseAddress(address).EndsWith("//"), "C2/C5: HTTPS or loopback HTTP base normalizes trailing slashes");
-        await catalog.ConfigureBaseAsync("https://other.example/sub///");
-        Check(catalog.State.BaseUrl == "https://other.example/sub/" && catalog.State.Sources.Length == 0 && catalog.State.Known is null, "C1/C4: changing the base immediately invalidates every index and delisting evidence");
-        transport.Sources = Json(new[] { Source(address: catalog.State.BaseUrl) });
-        await catalog.RefreshAsync();
-        Check(!catalog.State.Unavailable && transport.Requests[^2].AbsoluteUri == "https://other.example/sub/api/sources"
-            && transport.Requests[^1].AbsoluteUri == "https://other.example/sub/api/sources/winiofficial/plugins", "C1/C5: next refresh uses the new exact endpoints without restart");
+        Check(!catalog.State.Unavailable && catalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl
+            && transport.Requests[^2].AbsoluteUri == PluginCatalogClient.DefaultBaseUrl + "api/sources"
+            && transport.Requests[^1].AbsoluteUri == PluginCatalogClient.DefaultBaseUrl + "api/sources/winiofficial/plugins",
+            "C1/C5: the host uses the fixed official source and exact endpoints");
         using (var restarted = new PluginCatalogService(paths))
         {
             await restarted.LoadAsync();
-            Check(restarted.State.BaseUrl == catalog.State.BaseUrl && restarted.State.Sources.Length == 1 && !restarted.State.Fresh, "C1/C32: configured base and indefinite cache persist without stale successful-refresh evidence");
+            Check(restarted.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && restarted.State.Sources.Length == 1 && !restarted.State.Fresh,
+                "C1/C32: the fixed source restores its valid cache without stale successful-refresh evidence");
         }
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var resume = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -55,16 +54,17 @@ internal static class PluginCatalogCacheChecks
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
         var merged = catalog.RefreshAsync();
         Check(ReferenceEquals(flight, merged), "C11: concurrent catalog refreshes share one flight");
-        await catalog.ConfigureBaseAsync("https://new.example/");
+        await catalog.ConfigureProxyAsync("https://proxy.example/");
         resume.TrySetResult(); await flight;
-        Check(catalog.State.BaseUrl == "https://new.example/" && catalog.State.Sources.Length == 0
-            && transport.Requests[^1].Host == "other.example", "C1/C4: in-progress refresh finishes at its old base and cannot repopulate the new cache");
+        Check(catalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && catalog.State.Sources.Length == 1
+            && catalog.State.GitHubProxy == "https://proxy.example/", "C1/C11: an in-progress refresh preserves the fixed source and latest proxy");
         transport.Send = null;
         transport.Sources = Json(new[] { Source(address: catalog.State.BaseUrl) });
         await catalog.RefreshAsync();
-        Check(catalog.State.Sources.Length == 1 && transport.Requests[^1].Host == "new.example", "C1: following refresh uses changed base");
+        Check(catalog.State.Sources.Length == 1 && transport.Requests[^1].Host == new Uri(PluginCatalogClient.DefaultBaseUrl).Host,
+            "C1: the proxy never replaces the catalog origin");
         var cache = Path.Combine(paths.Root, "sources.json");
-        foreach (var invalid in new JsonNode?[] { JsonValue.Create("http://unsafe.example/"), JsonValue.Create(17), null })
+        foreach (var invalid in new JsonNode?[] { JsonValue.Create("http://unsafe.example/"), JsonValue.Create("https://other.example/"), JsonValue.Create(17), null })
         {
             var json = JsonNode.Parse(await File.ReadAllTextAsync(cache))!.AsObject();
             json["baseUrl"] = invalid?.DeepClone();
@@ -72,18 +72,16 @@ internal static class PluginCatalogCacheChecks
             var fake = new Transport();
             using var damaged = new PluginCatalogService(paths, new PluginCatalogClient(fake));
             await damaged.LoadAsync();
+            Check(!damaged.State.Disabled && damaged.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl
+                && damaged.State.Sources.Length == 0 && damaged.State.Known is null && damaged.State.Listed is null
+                && damaged.State.GitHubProxy == "https://proxy.example/" && fake.Requests.Count == 0,
+                "C1/C3/C4: custom or damaged legacy source discards its indexes and delisting evidence while preserving the proxy");
             await damaged.RefreshAsync();
-            Check(damaged.State.Disabled && damaged.State.Failure == PluginErrorCode.SourceAddress && fake.Requests.Count == 0
-                && damaged.State.BaseUrl != PluginCatalogClient.DefaultBaseUrl, "C2/C3/C34: malformed stored base disables all directory requests and never falls back");
-            await damaged.ConfigureProxyAsync("https://proxy.example/");
-            Check(damaged.State.Disabled, "C3: changing a proxy does not repair an invalid base");
-            await damaged.ConfigureBaseAsync(PluginCatalogClient.DefaultBaseUrl);
-            await damaged.RefreshAsync();
-            Check(!damaged.State.Disabled && !damaged.State.Unavailable, "C3: explicit valid base correction restores the directory");
+            Check(!damaged.State.Unavailable && damaged.State.Sources.Length == 1 && fake.Requests.Count == 2
+                && fake.Requests.All(uri => uri.Host == new Uri(PluginCatalogClient.DefaultBaseUrl).Host),
+                "C3: the next refresh restores the official catalog without requesting a legacy source");
         }
-        var entries = Diagnostics.Store!.Snapshot();
-        Check(entries.Any(e => e.Operation == "Catalog.C2" && e.Errors.Any(x => x.HResult == (PluginException.ErrorBase | (int)PluginErrorCode.SourceAddress))), "C34: invalid base records a stable diagnostic HResult and C number");
-        var report = Diagnostics.Store.ReportJson();
+        var report = Diagnostics.Store!.ReportJson();
         Check(!report.Contains("unsafe.example") && !report.Contains("secret") && !report.Contains(root.Replace("\\", "\\\\")), "C12/C34: catalog diagnostics contain no URL, credentials or installation path");
         foreach (var code in new[] { PluginErrorCode.SourceAddress, PluginErrorCode.CatalogFetch, PluginErrorCode.CatalogStatus, PluginErrorCode.CatalogJson,
             PluginErrorCode.SourceMetadata, PluginErrorCode.IndexDuplicate, PluginErrorCode.IndexMetadata, PluginErrorCode.Hash, PluginErrorCode.SourceSize, PluginErrorCode.CatalogTimeout })

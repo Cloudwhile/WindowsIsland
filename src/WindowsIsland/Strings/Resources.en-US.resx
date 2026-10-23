@@ -579,9 +579,7 @@
   <data name="PluginErrorPath" xml:space="preserve"><value>The plugin package contains unsafe paths, links or special files.</value></data>
   <data name="PluginErrorSourceConflict" xml:space="preserve"><value>The plugin is installed from another source. Uninstall it first.</value></data>
   <data name="PluginErrorStart" xml:space="preserve"><value>The plugin failed to start. The previous version was restored.</value></data>
-  <data name="PluginSaveSource" xml:space="preserve"><value>Save catalog address</value></data>
   <data name="PluginRefreshCatalog" xml:space="preserve"><value>Refresh catalog</value></data>
-  <data name="PluginSourceAddress" xml:space="preserve"><value>Catalog base address</value></data>
   <data name="PluginCatalogEmpty" xml:space="preserve"><value>The catalog has no plugins</value></data>
   <data name="PluginCatalogUnavailable" xml:space="preserve"><value>Catalog unavailable. Cached information is retained</value></data>
   <data name="PluginCatalogReady" xml:space="preserve"><value>Catalog synchronized</value></data>
@@ -590,7 +588,7 @@
   <data name="PluginThirdParty" xml:space="preserve"><value>Third-party plugin listed in the catalog. Confirm each requested permission</value></data>
   <data name="PluginDelisted" xml:space="preserve"><value>This plugin has been removed from the catalog. Uninstalling is recommended</value></data>
   <data name="PluginUpdateAvailable" xml:space="preserve"><value>Update available: {0}</value></data>
-  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>Enter a valid catalog base address</value></data>
+  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>Catalog unavailable. Please try again later</value></data>
   <data name="PluginErrorHash" xml:space="preserve"><value>Plugin SHA256 verification failed. The download was removed</value></data>
   <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>The package does not match the catalog. Installation stopped</value></data>
   <data name="PluginErrorNotListed" xml:space="preserve"><value>The plugin is no longer in the current catalog. Refresh and retry</value></data>
@@ -644,8 +642,7 @@
   <data name="PluginProxyInvalid" xml:space="preserve"><value>Enter a valid HTTPS proxy address</value></data>
   <data name="ActionBack" xml:space="preserve"><value>Back</value></data>
   <data name="ActionOpenPlugin" xml:space="preserve"><value>Open plugin details</value></data>
-  <data name="PluginSaveAddress" xml:space="preserve"><value>Save catalog base address</value></data>
-  <data name="PluginAddressSaved" xml:space="preserve"><value>Catalog base address saved. It takes effect on the next refresh.</value></data>
+  <data name="PluginPackageFileType" xml:space="preserve"><value>Plugin package</value></data>
   <data name="PluginCatalogFetchFailed" xml:space="preserve"><value>Cannot reach the plugin catalog. Refresh later.</value></data>
   <data name="PluginCatalogStatusFailed" xml:space="preserve"><value>The plugin catalog is unavailable. Refresh later.</value></data>
   <data name="PluginCatalogJsonFailed" xml:space="preserve"><value>The plugin catalog response has an invalid format.</value></data>

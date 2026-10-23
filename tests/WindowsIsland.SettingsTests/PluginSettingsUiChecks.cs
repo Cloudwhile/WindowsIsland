@@ -36,7 +36,12 @@ internal static class PluginSettingsUiChecks
             store.Save(new(SetupCompleted: true, SystemNotifications: false, WeChat: false, Telegram: false, Power: false));
             Diagnostics.Initialize(Path.Combine(output, "verification-diagnostics"), true);
             var paths = new PluginPaths(Path.Combine(output, "verification-plugins"));
-            manager = new PluginManager([], store);
+            manager = new PluginManager([
+                new(BuiltInPluginDefinitions.System, () => throw new InvalidOperationException("Disabled source must not start")),
+                new(BuiltInPluginDefinitions.WeChat, () => throw new InvalidOperationException("Disabled source must not start")),
+                new(BuiltInPluginDefinitions.Telegram, () => throw new InvalidOperationException("Disabled source must not start")),
+                new(BuiltInPluginDefinitions.Power, () => throw new InvalidOperationException("Disabled source must not start"))
+            ], store);
             manager.ConfigureDirectories(paths);
             await manager.StartAsync();
             using var updates = new UpdateCheckService(store);
@@ -47,7 +52,10 @@ internal static class PluginSettingsUiChecks
             Directory.CreateDirectory(paths.Root);
             var catalogState = new PluginCatalogState(PluginCatalogClient.DefaultBaseUrl,
                 [new(new("example", "Example developer", catalogEntry.RepositoryUrl,
-                    PluginCatalogClient.DefaultBaseUrl + "api/sources/example/plugins"), [catalogEntry])]);
+                    PluginCatalogClient.DefaultBaseUrl + "api/sources/example/plugins"), [catalogEntry]),
+                 new(new(PluginCatalogClient.OfficialDeveloperId, "WINI", catalogEntry.RepositoryUrl,
+                    PluginCatalogClient.DefaultBaseUrl + "api/sources/winiofficial/plugins"),
+                    [catalogEntry with { Id = "wini_plugin_official_fixture", DeveloperId = PluginCatalogClient.OfficialDeveloperId }])]);
             File.WriteAllText(Path.Combine(paths.Root, "sources.json"), JsonSerializer.Serialize(catalogState, PluginManifestReader.Json));
             await library.Catalog.LoadAsync();
             window = new SettingsWindow(store, updates, () => new(NotificationAccess.Allowed, true, manager.Snapshot()),
@@ -61,6 +69,19 @@ internal static class PluginSettingsUiChecks
             window.Activate();
             await Task.Delay(200);
             Check(Tree(page).OfType<SettingsSources>().Any(), "Completed setup defaults to sources");
+            foreach (var id in new[] { BuiltInPluginIds.System, BuiltInPluginIds.WeChat, BuiltInPluginIds.Telegram, BuiltInPluginIds.Power })
+            {
+                var builtInRow = Tree(page).OfType<SettingsLinkRow>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + id);
+                Check(Tree(builtInRow).OfType<ToggleSwitch>().Single().Visibility == Visibility.Visible,
+                    "Built-in source is visible and retains its independent switch: " + id);
+            }
+            var systemRow = Tree(page).OfType<SettingsLinkRow>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + BuiltInPluginIds.System);
+            Invoke(Tree(systemRow).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + BuiltInPluginIds.System + ".Open"));
+            await Until(() => Tree(page).OfType<SettingsPluginDetails>().Any());
+            Check(Tree(page).OfType<TextBlock>().Any(e => AutomationProperties.GetAutomationId(e) == "PluginDetail." + BuiltInPluginIds.System + ".Author"
+                && e.Text == "winiofficial"), "System notification details show winiofficial as the official author");
+            Invoke(Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "BackToPluginList"));
+            await Until(() => Tree(page).OfType<SettingsSources>().Any());
             var manifest = new PluginManifest("wini_plugin_fixture", "Schema fixture", "1.0.0", "WindowsIsland.PluginFixture.dll",
                 "WindowsIsland.PluginFixture.SchemaSource", 1, ["notifications", "settings"]);
             store.SetPluginBoolean(manifest.Id, "Host.Enabled", false);
@@ -71,7 +92,7 @@ internal static class PluginSettingsUiChecks
             var refresh = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "RefreshSettings");
             ((IInvokeProvider)new ButtonAutomationPeer(refresh).GetPattern(PatternInterface.Invoke)).Invoke();
             await Until(() => Tree(page).OfType<SettingsLinkRow>().Any(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id));
-            Check(manager.Snapshot().Count == 1, "Manual refresh rescans and displays a new directory plugin");
+            Check(manager.Snapshot().Count == 5, "Manual refresh preserves all four built-ins and displays a new directory plugin");
             var sourceRow = Tree(page).OfType<SettingsLinkRow>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id);
             var open = Tree(sourceRow).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id + ".Open");
             ((IInvokeProvider)new ButtonAutomationPeer(open).GetPattern(PatternInterface.Invoke)).Invoke();
@@ -119,7 +140,7 @@ internal static class PluginSettingsUiChecks
                         if (width == 520 && language == "zh-CN" && theme == ElementTheme.Light)
                             await CaptureAsync(window, Path.Combine(output, "plugin-detail.png"));
                     }
-            using var details = new SettingsPluginDetails(manager.Snapshot().Single().Definition, settings: manager.GetSettingsAsync);
+            using var details = new SettingsPluginDetails(manager.Snapshot().Single(p => p.Definition.Id == manifest.Id).Definition, settings: manager.GetSettingsAsync);
             await details.ReadSizeAsync();
             Check(TreeLogical(details).OfType<TextBox>().Single().Text == "Edited in native WinUI"
                 && !TreeLogical(details).OfType<ToggleSwitch>().Single().IsOn, "Reopening details reads persisted values");
@@ -133,17 +154,13 @@ internal static class PluginSettingsUiChecks
             var navigation = Tree(page).OfType<NavigationView>().Single();
             navigation.SelectedItem = navigation.MenuItems.OfType<NavigationViewItem>().Single(item => item.Tag is "plugins");
             await Until(() => Tree(page).OfType<TextBox>().Any(e => AutomationProperties.GetAutomationId(e) == "PluginGitHubProxy"));
-            var address = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSourceAddress");
-            var saveAddress = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "SavePluginSourceAddress");
-            Check(address.Text == PluginCatalogClient.DefaultBaseUrl && saveAddress.IsEnabled, "C1: catalog base address is editable with an accessible save icon");
-            address.Text = "http://invalid.example/";
-            Invoke(saveAddress);
-            await Task.Delay(100);
-            Check(library.Catalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && library.Catalog.State.Sources.Length == 1,
-                "C2: invalid base save displays an error and preserves the configured base and listings");
-            address.Text = PluginCatalogClient.DefaultBaseUrl;
-            Invoke(saveAddress);
-            await Task.Delay(100);
+            Check(!Tree(page).OfType<TextBox>().Any(e => AutomationProperties.GetAutomationId(e) == "PluginSourceAddress")
+                && !Tree(page).OfType<Button>().Any(e => AutomationProperties.GetAutomationId(e) == "SavePluginSourceAddress")
+                && !Tree(page).OfType<TextBlock>().Any(e => e.Text.Contains(PluginCatalogClient.DefaultBaseUrl)),
+                "C1: the official source address is neither displayed nor editable");
+            Check(Tree(page).OfType<TextBlock>().Any(e => e.Text == "winiofficial")
+                && !Tree(page).OfType<TextBlock>().Any(e => e.Text == "WINI"), "The official catalog group displays winiofficial even with a legacy developer name");
+            await NativeFileDialogUiChecks.RunAsync(window, page, Check);
             var proxy = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginGitHubProxy");
             var save = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "SavePluginProxy");
             proxy.Text = "https://proxy.example/";
@@ -180,18 +197,11 @@ internal static class PluginSettingsUiChecks
             Check(Tree(page).OfType<SettingsLinkRow>().Any(e => AutomationProperties.GetAutomationId(e) == "OfficialPlugin." + catalogEntry.Id)
                 && (await manager.GetSettingsAsync(manifest.Id))!.Settings.GetString("message") == "Edited in native WinUI",
                 "Returning restores the official list and preserves plugin settings");
-            address = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSourceAddress");
-            saveAddress = Tree(page).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "SavePluginSourceAddress");
-            address.Text = "https://changed.example/catalog///";
-            Invoke(saveAddress);
-            await Until(() => library.Catalog.State.BaseUrl == "https://changed.example/catalog/" && library.Catalog.State.Sources.Length == 0);
-            Check(!Tree(page).OfType<SettingsLinkRow>().Any(e => AutomationProperties.GetAutomationId(e) == "OfficialPlugin." + catalogEntry.Id),
-                "C1/C4: saving a new base normalizes its address and clears catalog rows without restarting");
             using (var reloadedCatalog = new PluginCatalogService(paths))
             {
                 await reloadedCatalog.LoadAsync();
-                Check(reloadedCatalog.State.BaseUrl == "https://changed.example/catalog/" && reloadedCatalog.State.Sources.Length == 0,
-                    "C1/C4: changed base and cleared cache survive a reload");
+                Check(reloadedCatalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && reloadedCatalog.State.Sources.Length == 2,
+                    "C1/C4: the fixed official source and cache survive a reload");
             }
             File.WriteAllText(Path.Combine(output, "plugin-settings-ui.success"), results.Count.ToString());
         }

@@ -144,8 +144,8 @@ internal static class PluginSourceChecks
         using (var changed = new PluginCatalogService(paths))
         {
             await changed.LoadAsync();
-            Check(changed.State.Disabled && changed.State.BaseUrl == "http://untrusted.example/" && changed.State.Sources.Length == 0,
-                "C3: an invalid stored base disables the catalog without a silent fallback");
+            Check(!changed.State.Disabled && changed.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && changed.State.Sources.Length == 0,
+                "C3: a legacy custom base cannot replace the fixed official catalog or reuse its cache");
         }
         Check(GitHubDownloadProxy.AllowsRedirect(new Uri("https://proxy.example/result"), "https://proxy.example/")
             && GitHubDownloadProxy.AllowsRedirect(new Uri("https://release-assets.githubusercontent.com/file"), "")

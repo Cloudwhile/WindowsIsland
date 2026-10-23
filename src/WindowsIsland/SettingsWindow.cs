@@ -87,10 +87,6 @@ internal sealed class SettingsWindow : Window
         return await DiagnosticSaveDialog.PickAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), fileType, DateTime.Now);
     }
 
-    private async Task<string?> PickPluginFileAsync()
-    {
-        var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(AppWindow.Id);
-        picker.FileTypeFilter.Add(".zip");
-        return (await picker.PickSingleFileAsync())?.Path;
-    }
+    private Task<string?> PickPluginFileAsync() => NativeFileDialog.OpenPluginAsync(
+        WinRT.Interop.WindowNative.GetWindowHandle(this), Localization.Get("PluginPackageFileType"));
 }

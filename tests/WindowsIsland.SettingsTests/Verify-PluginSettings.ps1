@@ -14,6 +14,7 @@ $targets = @"
     <Compile Remove="App.xaml.cs" />
     <Compile Include="$runRoot/App.xaml.cs" />
     <Compile Include="$PSScriptRoot/PluginSettingsUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/NativeFileDialogUiChecks.cs" />
   </ItemGroup>
 </Project>
 "@
@@ -37,7 +38,7 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $runRoot 'app/fixture') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $repoRoot 'artifacts/bin/WindowsIsland.PluginFixture/Release/net10.0/WindowsIsland.PluginFixture.dll') -Destination (Join-Path $runRoot 'app/fixture')
     $process = Start-Process -FilePath (Join-Path $runRoot 'app/WindowsIsland.exe') -ArgumentList '--verify-local', '--verify-light' -WindowStyle Hidden -PassThru
-    if (-not $process.WaitForExit(45000)) { $process.Kill(); throw "UI verification timed out: $runRoot" }
+    if (-not $process.WaitForExit(60000)) { $process.Kill(); throw "UI verification timed out: $runRoot" }
     $failure = Join-Path $runRoot 'app/plugin-settings-ui.error'
     if (Test-Path -LiteralPath $failure) { throw (Get-Content -LiteralPath $failure -Raw) }
     if (-not (Test-Path -LiteralPath (Join-Path $runRoot 'app/plugin-settings-ui.success'))) { throw "UI verification did not complete: $runRoot" }

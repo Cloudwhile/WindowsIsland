@@ -37,7 +37,7 @@ internal static class PluginCatalogSecurityChecks
         await library.InstallOfficialAsync(library.Catalog.State.AvailableSources.Single().Plugins.Single(),[]);
         var installed = manager.Snapshot().Single().Definition.Metadata!;
         Check(installed.External!.Trust.Granted.Order().SequenceEqual((official ? Permissions : Permissions.Where(p => !PluginPermissions.IsHighRisk(p))).Order())
-            && installed.Author == (official ? "WINI" : "作者"), "C36: only winiofficial receives all declared permissions and official author display: " + developer);
+            && installed.Author == (official ? "winiofficial" : "作者"), "C36: only winiofficial receives all declared permissions and official author display: " + developer);
         if (official)
         {
             var hashDestination = Path.Combine(root,"uppercase.zip");
