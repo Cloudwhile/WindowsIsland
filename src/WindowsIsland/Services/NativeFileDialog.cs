@@ -9,27 +9,16 @@ internal static class NativeFileDialog
     private static readonly Guid SaveClientGuid = new("76EB5336-191A-42F4-96B7-D3B69DFBBE49");
     private static readonly Guid OpenClientGuid = new("7ED04063-9076-448A-B4DF-C1B0BCAC09DD");
 
-    public static Task<string?> SaveDiagnosticAsync(nint owner, string fileType, DateTime now) => RunAsync(() =>
-        Pick(owner, true, fileType, "json", "WindowsIsland-diagnostics-" + now.ToString("yyyyMMdd-HHmmss") + ".json"));
+    public static Task<string?> SaveDiagnosticAsync(nint owner, string fileType, DateTime now, CancellationToken token = default) =>
+        FileDialogProcess.PickAsync(owner, true, fileType, "WindowsIsland-diagnostics-" + now.ToString("yyyyMMdd-HHmmss") + ".json", token);
 
-    public static Task<string?> OpenPluginAsync(nint owner, string fileType) => RunAsync(() => Pick(owner, false, fileType, "zip", null));
+    public static Task<string?> OpenPluginAsync(nint owner, string fileType, CancellationToken token = default) =>
+        FileDialogProcess.PickAsync(owner, false, fileType, null, token);
 
-    private static Task<string?> RunAsync(Func<string?> pick)
+    public static string? Show(FileDialogRequest request, Action<nint> ready)
     {
-        var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() =>
-        {
-            try { completion.TrySetResult(pick()); }
-            catch (Exception error) { completion.TrySetException(error); }
-        })
-        { IsBackground = true, Name = "WindowsIsland.NativeFileDialog" };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        return completion.Task;
-    }
-
-    private static string? Pick(nint owner, bool save, string fileType, string extension, string? fileName)
-    {
+        var save = request.Save;
+        var extension = save ? "json" : "zip";
         var dialog = save ? (IFileDialog)new NativeFileSaveDialog() : (IFileDialog)new NativeFileOpenDialog();
         try
         {
@@ -39,10 +28,17 @@ internal static class NativeFileDialog
             ThrowIfFailed(dialog.SetOptions((uint)options));
             var clientGuid = save ? SaveClientGuid : OpenClientGuid;
             ThrowIfFailed(dialog.SetClientGuid(ref clientGuid));
-            ThrowIfFailed(dialog.SetFileTypes(1, [new FilterSpec(fileType + " (*." + extension + ")", "*." + extension)]));
+            ThrowIfFailed(dialog.SetFileTypes(1, [new FilterSpec(request.FileType + " (*." + extension + ")", "*." + extension)]));
             ThrowIfFailed(dialog.SetDefaultExtension(extension));
-            if (fileName is not null) ThrowIfFailed(dialog.SetFileName(fileName));
-            var result = dialog.Show(owner);
+            if (request.FileName is not null) ThrowIfFailed(dialog.SetFileName(request.FileName));
+            var reported = false;
+            using var owner = new FileDialogOwner(request, () =>
+            {
+                if (reported || ((IOleWindow)dialog).GetWindow(out var window) < 0 || window == 0 || !IsWindowVisible(window)) return;
+                reported = true;
+                ready(window);
+            });
+            var result = dialog.Show(owner.Handle);
             if (result == Cancelled) return null;
             ThrowIfFailed(result);
             ThrowIfFailed(dialog.GetResult(out var item));
@@ -86,6 +82,15 @@ internal static class NativeFileDialog
 
     [ComImport, Guid("DC1C5A9C-E88A-4DDE-A5A1-60F82A20AEF7")]
     private class NativeFileOpenDialog;
+
+    [ComImport, Guid("00000114-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IOleWindow
+    {
+        [PreserveSig] int GetWindow(out nint window);
+        [PreserveSig] int ContextSensitiveHelp([MarshalAs(UnmanagedType.Bool)] bool enterMode);
+    }
+
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(nint window);
 
     [ComImport, Guid("42F85136-DB7E-439C-85F1-E4075D135FC8"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IFileDialog

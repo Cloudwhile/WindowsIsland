@@ -68,7 +68,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         Func<Task> requestAccess, Action preview, Action close, Action exit, bool openUpdates = false, bool verification = false,
         Func<Task<string?>>? pickDiagnosticFile = null, Func<string, Task>? retrySource = null,
         Func<string, bool, Task>? setSourceEnabled = null, Func<string, Task>? removePlugin = null,
-        PluginLibrary? pluginLibrary = null, Func<Task<string?>>? pickPluginFile = null, Func<Task>? rescanPlugins = null,
+        PluginLibrary? pluginLibrary = null, Func<CancellationToken, Task<string?>>? pickPluginFile = null, Func<Task>? rescanPlugins = null,
         Func<string, Task<PluginSettingsModel?>>? pluginSettings = null)
     {
         _store = store;
@@ -156,7 +156,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _muteDuringFullScreen = Switch("MuteDuringFullScreen", "MuteDuringFullScreenToggle", settings => settings.MuteDuringFullScreen,
             (settings, value) => settings with { MuteDuringFullScreen = value });
         _fullScreenRow = new SettingsRow(Symbol.FullScreen, "MuteDuringFullScreen", _muteDuringFullScreen, "FullScreenStatus");
-        if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (() => Task.FromResult<string?>(null)), OpenDetail);
+        if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (_ => Task.FromResult<string?>(null)), OpenDetail);
         AddSection("plugins", "PluginList", _pluginLibrary ?? new StackPanel());
         AddSection("sources", "Sources", _sources,
             new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),

@@ -38,7 +38,15 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $runRoot 'app/fixture') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $repoRoot 'artifacts/bin/WindowsIsland.PluginFixture/Release/net10.0/WindowsIsland.PluginFixture.dll') -Destination (Join-Path $runRoot 'app/fixture')
     $process = Start-Process -FilePath (Join-Path $runRoot 'app/WindowsIsland.exe') -ArgumentList '--verify-local', '--verify-light' -WindowStyle Hidden -PassThru
-    if (-not $process.WaitForExit(60000)) { $process.Kill(); throw "UI verification timed out: $runRoot" }
+    $deadline = [DateTime]::UtcNow.AddSeconds(75)
+    $watchdog = Join-Path $runRoot 'app/file-dialog-watchdog'
+    while (-not $process.WaitForExit(250)) {
+        if ([DateTime]::UtcNow -gt $deadline -or ((Test-Path -LiteralPath $watchdog) -and
+            [DateTime]::UtcNow -gt (Get-Item -LiteralPath $watchdog).LastWriteTimeUtc.AddSeconds(12))) {
+            $process.Kill($true)
+            throw "The independent watchdog stopped the isolated UI verification: $runRoot"
+        }
+    }
     $failure = Join-Path $runRoot 'app/plugin-settings-ui.error'
     if (Test-Path -LiteralPath $failure) { throw (Get-Content -LiteralPath $failure -Raw) }
     if (-not (Test-Path -LiteralPath (Join-Path $runRoot 'app/plugin-settings-ui.success'))) { throw "UI verification did not complete: $runRoot" }

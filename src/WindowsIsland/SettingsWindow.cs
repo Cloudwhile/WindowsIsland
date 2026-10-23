@@ -13,6 +13,7 @@ namespace WindowsIsland;
 internal sealed class SettingsWindow : Window
 {
     private readonly DispatcherQueueTimer _refresh;
+    private readonly CancellationTokenSource _dialogs = new();
 
     public SettingsWindow(SettingsStore settings, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false,
@@ -58,7 +59,7 @@ internal sealed class SettingsWindow : Window
         _refresh.Interval = TimeSpan.FromSeconds(1);
         _refresh.Tick += (_, _) => page.Refresh();
         _refresh.Start();
-        Closed += (_, _) => { _refresh.Stop(); page.Dispose(); };
+        Closed += (_, _) => { _dialogs.Cancel(); _dialogs.Dispose(); _refresh.Stop(); page.Dispose(); };
     }
 
     private void RefreshCaptionTheme(TitleBar titleBar)
@@ -84,9 +85,13 @@ internal sealed class SettingsWindow : Window
     private async Task<string?> PickDiagnosticFileAsync()
     {
         var fileType = Localization.Get("DiagnosticsFileType");
-        return await DiagnosticSaveDialog.PickAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), fileType, DateTime.Now);
+        return await DiagnosticSaveDialog.PickAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), fileType, DateTime.Now, _dialogs.Token);
     }
 
-    private Task<string?> PickPluginFileAsync() => NativeFileDialog.OpenPluginAsync(
-        WinRT.Interop.WindowNative.GetWindowHandle(this), Localization.Get("PluginPackageFileType"));
+    private async Task<string?> PickPluginFileAsync(CancellationToken token)
+    {
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(token, _dialogs.Token);
+        return await NativeFileDialog.OpenPluginAsync(WinRT.Interop.WindowNative.GetWindowHandle(this),
+            Localization.Get("PluginPackageFileType"), lifetime.Token);
+    }
 }

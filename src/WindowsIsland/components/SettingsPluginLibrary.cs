@@ -8,7 +8,7 @@ namespace WindowsIsland.Components;
 internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
 {
     private readonly PluginLibrary _library;
-    private readonly Func<Task<string?>> _pick;
+    private readonly Func<CancellationToken, Task<string?>> _pick;
     private readonly IconActionButton _install = new(Symbol.Add, "PluginInstall", "InstallPlugin");
     private readonly IconActionButton _cancel = new(Symbol.Cancel, "PluginCancel", "CancelPluginInstallation") { Visibility = Visibility.Collapsed };
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
@@ -18,7 +18,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
     private string? _noticeKey;
     private bool _disposed;
 
-    public SettingsPluginLibrary(PluginLibrary library, Func<Task<string?>> pick, Action<SettingsDetail> open)
+    public SettingsPluginLibrary(PluginLibrary library, Func<CancellationToken, Task<string?>> pick, Action<SettingsDetail> open)
     {
         _library = library;
         _pick = pick;
@@ -44,7 +44,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         try
         {
             await Task.Yield();
-            var file = await _pick();
+            var file = await _pick(operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             if (file is null) return;
             using var prepared = await _library.Installer.PrepareAsync(file, token: operation.Token);

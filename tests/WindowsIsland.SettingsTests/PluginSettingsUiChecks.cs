@@ -21,6 +21,7 @@ internal static class PluginSettingsUiChecks
     {
         var output = AppContext.BaseDirectory;
         Window? window = null;
+        MainWindow? host = null;
         SettingsPage? page = null;
         PluginManager? manager = null;
         var results = new List<string>();
@@ -35,6 +36,11 @@ internal static class PluginSettingsUiChecks
             var store = new SettingsStore(Path.Combine(output, "verification-settings.json"));
             store.Save(new(SetupCompleted: true, SystemNotifications: false, WeChat: false, Telegram: false, Power: false));
             Diagnostics.Initialize(Path.Combine(output, "verification-diagnostics"), true);
+            var hostStore = new SettingsStore(Path.Combine(output, "verification-host-settings.json"));
+            hostStore.Save(new(SetupCompleted: true, SystemNotifications: false, WeChat: true, Telegram: true, Power: true));
+            host = new MainWindow(hostStore, verification: true);
+            await host.StartListeningAsync();
+            Check(true, "The real island host, tray, timers and isolated source backends run during file dialog checks");
             var paths = new PluginPaths(Path.Combine(output, "verification-plugins"));
             manager = new PluginManager([
                 new(BuiltInPluginDefinitions.System, () => throw new InvalidOperationException("Disabled source must not start")),
@@ -203,6 +209,9 @@ internal static class PluginSettingsUiChecks
                 Check(reloadedCatalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && reloadedCatalog.State.Sources.Length == 2,
                     "C1/C4: the fixed official source and cache survive a reload");
             }
+            await NativeFileDialogUiChecks.CheckWindowCloseAsync(window, page, Check);
+            window = null;
+            page = null;
             File.WriteAllText(Path.Combine(output, "plugin-settings-ui.success"), results.Count.ToString());
         }
         catch (Exception error)
@@ -216,6 +225,7 @@ internal static class PluginSettingsUiChecks
             if (manager is not null) await manager.ShutdownAsync();
             Diagnostics.Shutdown();
             window?.Close();
+            host?.ExitApplication();
             app.Exit();
         }
     }
