@@ -65,7 +65,7 @@ internal static class StatusChecks
                 && DiagnosticPresentation.Title(Entry("RejectPinnedXaml")) == "固定内容面板未加载",
                 "Plugin lifecycle and pinned panel events have translated titles");
             check(DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.PowerPlugin }) == "系统通知"
-                && DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.Application, PluginId = "wini_fixture_plugin" }) == "插件",
+                && DiagnosticPresentation.Area(Entry("Start") with { Area = DiagnosticArea.Application, PluginId = "wini_plugin_fixture" }) == "插件",
                 "Built-in and external plugin diagnostic areas have readable names");
             check(DiagnosticPresentation.Outcome(enabled with { Errors = error.Errors }) == DiagnosticOutcome.Failure
                 && DiagnosticPresentation.Outcome(enabled with { Fatal = true }) == DiagnosticOutcome.Failure

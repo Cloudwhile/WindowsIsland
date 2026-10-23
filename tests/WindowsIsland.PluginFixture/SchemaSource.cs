@@ -8,7 +8,7 @@ public sealed class SchemaSource : IIslandPlugin, IPluginSettingsSchema, IPlugin
     private string? _log;
     private string? _code;
     private bool _failUninstall;
-    public string Id => "wini_fixture_plugin";
+    public string Id => "wini_plugin_fixture";
     public string DisplayName => "Schema fixture";
     public IReadOnlyList<PluginSetting> SettingsSchema =>
     [

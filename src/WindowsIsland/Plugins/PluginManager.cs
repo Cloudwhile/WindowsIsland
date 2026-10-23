@@ -46,7 +46,7 @@ internal sealed partial class PluginManager : IDisposable
         var items = registrations.ToArray();
         if (items.Any(item => !PluginId.IsValid(item.Definition.Id))
             || items.Select(item => item.Definition.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != items.Length)
-            throw new ArgumentException("Plugin identifiers must follow wini_<name>_plugin and be unique.", nameof(registrations));
+            throw new ArgumentException("Plugin identifiers must follow wini_plugin_<name> and be unique.", nameof(registrations));
         _entries = items.Select(item => new Entry(item)).ToArray();
         _store = store;
         foreach (var entry in Entries)

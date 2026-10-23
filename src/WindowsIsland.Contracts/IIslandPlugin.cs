@@ -4,7 +4,7 @@ namespace WindowsIsland.Contracts;
 /// <remarks>宿主依次初始化、启动和停止插件，最后释放插件；同一实例可以在停止后重新启动。</remarks>
 public interface IIslandPlugin : IDisposable
 {
-    /// <summary>获取全局唯一且与清单一致的插件标识，格式为 wini_名称_plugin。</summary>
+    /// <summary>获取全局唯一且与清单一致的插件标识，格式为 wini_plugin_名称。</summary>
     string Id { get; }
 
     /// <summary>获取插件的显示名称。</summary>

@@ -62,10 +62,10 @@ internal static class PluginEvolutionChecks
         Check(manager.Snapshot().Count == 0, "Initial scan has no external entries");
         store.SetPluginBoolean(manifest.Id, "Host.Enabled", false);
         WritePlugin(code, manifest);
-        WritePlugin(paths.Code(PluginSourceKind.Official, "wini_rejected_plugin"), Manifest with { Id = "wini_rejected_plugin", EntryType = "Missing.Type" });
+        WritePlugin(paths.Code(PluginSourceKind.Official, "wini_plugin_rejected"), Manifest with { Id = "wini_plugin_rejected", EntryType = "Missing.Type" });
         await manager.RescanAsync();
         Check(manager.Snapshot().Single().Definition.Id == manifest.Id, "Public rescan discovers a new valid directory and rejects invalid PE metadata independently");
-        Check(Diagnostics.Store!.Snapshot().Any(e => e.PluginId == "wini_rejected_plugin"), "Invalid rescan entries produce diagnostics");
+        Check(Diagnostics.Store!.Snapshot().Any(e => e.PluginId == "wini_plugin_rejected"), "Invalid rescan entries produce diagnostics");
         var model = (await manager.GetSettingsAsync(manifest.Id))!;
         Check(model.Fields.Count == 2 && model.Fields[0].DefaultValue is "default message" && !File.Exists(log),
             "Disabled lifecycle-only plugin exposes schema without initialization or starting");

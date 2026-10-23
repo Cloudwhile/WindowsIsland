@@ -7,7 +7,7 @@ public sealed class PowerSource : IMessageSource, IPluginStatusProvider
 {
     private IPluginContext? _context;
     private Timer? _timer;
-    public string Id => "wini_fixture_plugin";
+    public string Id => "wini_plugin_fixture";
     public string DisplayName => "外部电源来源";
     public PluginStatus Status => new(PluginConnectionState.Connected);
     public event Action<PluginNotification>? NotificationReceived { add { } remove { } }
@@ -26,7 +26,7 @@ public sealed class PowerSource : IMessageSource, IPluginStatusProvider
 public sealed class BrokenSource : IMessageSource
 {
     public BrokenSource() => throw new InvalidOperationException("fixture constructor failure");
-    public string Id => "wini_fixture_plugin";
+    public string Id => "wini_plugin_fixture";
     public string DisplayName => "启动失败夹具";
     public event Action<PluginNotification>? NotificationReceived { add { } remove { } }
     public Task InitializeAsync(IPluginContext context) => Task.CompletedTask;

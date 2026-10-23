@@ -7,7 +7,7 @@ using WindowsIsland.Services;
 internal sealed class PinnedSourceFixture(TimeProvider time, int initialValue = 12)
     : IMessageSource, IPluginPolling, IPluginRetry
 {
-    public const string PluginId = "wini_pinned_fixture_plugin";
+    public const string PluginId = "wini_plugin_pinned_fixture";
     public const string ContentId = "sample";
     public static readonly NotificationPluginDefinition Definition = new(PluginId, "Fixture", "FixtureToggle", 0,
         DiagnosticArea.Application, settings => settings.Power, (settings, enabled) => settings with { Power = enabled },

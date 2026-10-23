@@ -27,7 +27,7 @@ internal static class PluginCatalogChecks
             check(blocked && manager.Snapshot().Count == 1, "Reserved built-in identity cannot be removed: " + definition.Id);
         }
 
-        var id = "wini_example_plugin";
+        var id = "wini_plugin_example";
         var definitionExternal = BuiltInPluginDefinitions.WeChat with
         { Id = id, Metadata = new(false, "1.2.3", Path.Combine(root, "example.dll"), "Example") };
         var path = Path.Combine(root, "removed-plugin.json");
@@ -73,7 +73,7 @@ internal static class PluginCatalogChecks
 
         var corrupt = Path.Combine(root, "removed-corrupt.json");
         File.WriteAllText(corrupt, """
-            {"WeChat":false,"Animations":false,"RemovedPlugins":[17,null,"wrong","wini_example_plugin","wini_power_plugin"]}
+            {"WeChat":false,"Animations":false,"RemovedPlugins":[17,null,"wrong","wini_plugin_example","wini_plugin_power"]}
             """);
         var damaged = new SettingsStore(corrupt);
         using var damagedManager = new PluginManager([new(definitionExternal, () => new Source(id)),

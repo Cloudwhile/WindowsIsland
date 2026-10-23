@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -49,7 +49,7 @@ internal static class PluginSettingsUiChecks
             window.Activate();
             await Task.Delay(200);
             Check(Tree(page).OfType<SettingsSources>().Any(), "Completed setup defaults to sources");
-            var manifest = new PluginManifest("wini_fixture_plugin", "Schema fixture", "1.0.0", "WindowsIsland.PluginFixture.dll",
+            var manifest = new PluginManifest("wini_plugin_fixture", "Schema fixture", "1.0.0", "WindowsIsland.PluginFixture.dll",
                 "WindowsIsland.PluginFixture.SchemaSource", 1, ["notifications", "settings"]);
             store.SetPluginBoolean(manifest.Id, "Host.Enabled", false);
             var code = paths.Code(PluginSourceKind.Manual, manifest.Id);

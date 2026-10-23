@@ -101,7 +101,7 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
                         if (!ids.Add(id)) throw new PluginException(PluginErrorCode.DuplicateId, "插件标识重复。");
                         result.Add(Registration(manifest, directory));
                     }
-                    catch (Exception error) { new PluginDiagnostics(PluginId.IsValid(id) ? id : "wini_loader_plugin", DiagnosticArea.Application).Capture(error, "Discover"); }
+                    catch (Exception error) { new PluginDiagnostics(PluginId.IsValid(id) ? id : "wini_plugin_loader", DiagnosticArea.Application).Capture(error, "Discover"); }
                 }
             }
             catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Application, error, "ScanPlugins"); }

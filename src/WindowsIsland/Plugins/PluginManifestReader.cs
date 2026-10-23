@@ -9,8 +9,8 @@ internal static class PluginManifestReader
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     public static bool Reserved(string id) => BuiltInPluginIds.IsReserved(id);
-    // 开发者标识采用与插件名称相同的小写字符和单下划线规则，不带插件类型后缀。
-    public static bool DeveloperIdValid(string? id) => id is { Length: > 0 and <= 64 } && PluginId.IsValid("wini_" + id + "_plugin");
+    // 开发者标识采用与插件名称相同的小写字符和单下划线规则，不带固定插件前缀。
+    public static bool DeveloperIdValid(string? id) => id is { Length: > 0 and <= 64 } && PluginId.IsValid(PluginId.Prefix + id);
     public static bool GitHubRepository(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
         && uri.Scheme == "https" && uri.Host == "github.com" && uri.IsDefaultPort && uri.UserInfo.Length == 0
         && uri.Query.Length == 0 && uri.Fragment.Length == 0 && uri.AbsolutePath.Trim('/').Split('/') is [var owner, var repo]

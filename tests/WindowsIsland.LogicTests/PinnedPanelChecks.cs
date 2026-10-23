@@ -85,7 +85,7 @@ internal static class PinnedPanelChecks
                 && store.GetPluginString(pin.PluginId, "SampleInterval", null) == "90",
                 "Slider interaction changes the sample interval and publishes the updated control snapshot");
 
-            var manualId = "wini_manual_panel_plugin";
+            var manualId = "wini_plugin_manual_panel";
             var paths = new PluginPaths(root);
             var manifest = new PluginManifest(manualId, "手动面板", "1.0.0", "fixture.dll", "Fixture", 1, [PluginPermissions.Notifications]);
             var external = new ExternalPlugin(paths, manifest, paths.Code(PluginSourceKind.Manual, manualId));

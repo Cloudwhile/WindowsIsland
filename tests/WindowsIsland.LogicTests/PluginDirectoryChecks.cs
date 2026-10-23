@@ -8,7 +8,7 @@ namespace WindowsIsland.LogicTests;
 
 internal static class PluginDirectoryChecks
 {
-    public static readonly PluginManifest Manifest = new("wini_fixture_plugin", "外部电源来源", "1.0.0",
+    public static readonly PluginManifest Manifest = new("wini_plugin_fixture", "外部电源来源", "1.0.0",
         "WindowsIsland.PluginFixture.dll", "WindowsIsland.PluginFixture.PowerSource", 1, ["notifications"], DeveloperId: "example");
 
     public static void Check(bool value, string message)
@@ -33,11 +33,11 @@ internal static class PluginDirectoryChecks
         Diagnostics.Initialize(Path.Combine(root, "diagnostics"), true);
         var code = paths.Code(PluginSourceKind.Manual, Manifest.Id);
         WritePlugin(code, Manifest);
-        var broken = paths.Code(PluginSourceKind.Manual, "wini_broken_plugin");
+        var broken = paths.Code(PluginSourceKind.Manual, "wini_plugin_broken");
         Directory.CreateDirectory(broken);
         File.WriteAllText(Path.Combine(broken, "manifest.json"), "{broken");
-        WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_version_plugin"), Manifest with { Id = "wini_version_plugin", ContractVersion = 2 });
-        WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_entry_plugin"), Manifest with { Id = "wini_entry_plugin", EntryType = "Missing.Type" });
+        WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_plugin_version"), Manifest with { Id = "wini_plugin_version", ContractVersion = 2 });
+        WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_plugin_entry"), Manifest with { Id = "wini_plugin_entry", EntryType = "Missing.Type" });
         var loader = new PluginDirectoryLoader(paths, store);
         Check(loader.Scan().Count == 1, "Directory discovery isolates corrupt manifests and incompatible contracts");
         using var manager = new PluginManager([], store);
@@ -47,10 +47,10 @@ internal static class PluginDirectoryChecks
         await manager.StartAsync();
         await arrived.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Check(manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).StatusKey == "Connected"
-            && manager.Snapshot().All(s => s.Definition.Id != "wini_entry_plugin"),
+            && manager.Snapshot().All(s => s.Definition.Id != "wini_plugin_entry"),
             "Collectible external source publishes through the existing manager; missing entry fails alone");
         var failures = Diagnostics.Store!.Snapshot();
-        Check(new[] { "wini_broken_plugin", "wini_version_plugin", "wini_entry_plugin" }.All(id => failures.Any(f => f.PluginId == id)),
+        Check(new[] { "wini_plugin_broken", "wini_plugin_version", "wini_plugin_entry" }.All(id => failures.Any(f => f.PluginId == id)),
             "Corrupt manifests, incompatible contracts and missing entries each produce isolated diagnostic records");
         var external = manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).Definition.Metadata!.External!;
         var data = paths.Data(Manifest.Id);
@@ -67,10 +67,20 @@ internal static class PluginDirectoryChecks
             Check(rejected, "Unsafe plugin path is rejected: " + path);
         }
         var old = JsonSerializer.Deserialize<PluginManifest>("""
-            {"id":"wini_legacy_plugin","name":"旧清单","version":"1.0.0","entryAssembly":"a.dll","entryType":"A","contractVersion":1,"permissions":[]}
+            {"id":"wini_plugin_legacy","name":"旧清单","version":"1.0.0","entryAssembly":"a.dll","entryType":"A","contractVersion":1,"permissions":[]}
             """, PluginManifestReader.Json)!;
         Check(old.DeveloperId == "" && old.SourceKind == PluginSourceKind.Manual && old.DeveloperName is null,
             "Old manifests retain defaults for new developer and source metadata");
+        foreach (var id in new[] { "wini_fixture_plugin", "wini_plugin_system", "wini_plugin_countdown" })
+        {
+            var rejected = false;
+            try { PluginManifestReader.Validate(Manifest with { Id = id }); }
+            catch (PluginException) { rejected = true; }
+            Check(rejected, "External manifests reject old-format and reserved identifiers: " + id);
+        }
+        Check(PluginManifestReader.DeveloperIdValid("example_studio2")
+            && !PluginManifestReader.DeveloperIdValid("Example") && !PluginManifestReader.DeveloperIdValid("example__studio"),
+            "Developer identifiers retain their name rules after the plugin prefix changes");
         await manager.ShutdownAsync();
         Diagnostics.Shutdown();
     }
