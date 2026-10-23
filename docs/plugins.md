@@ -7,23 +7,22 @@
 | [创建第一个插件](./plugins/getting-started.md) | 项目、完整入口示例与首次安装 |
 | [清单与标识](./plugins/manifest.md) | `manifest.json`、`wini_plugin_<name>` 与字段说明 |
 | [通知与元数据](./plugins/notifications.md) | DTO、事件、去重、头像补全和点击激活 |
-| [生命周期与设置](./plugins/lifecycle.md) | 启停、取消、设置声明与迁移 |
+| [生命周期与设置](./plugins/lifecycle.md) | 启停、取消与设置声明 |
 | [固定内容与交互](./plugins/pinned-content.md) | 持续显示、详情、控件与交互回调 |
 | [权限与诊断](./plugins/permissions.md) | 能力声明、信任边界与结构化诊断 |
-| [打包、分发与迁移](./plugins/packaging.md) | ZIP 结构、分发与旧标识迁移 |
+| [打包与分发](./plugins/packaging.md) | ZIP 结构、校验与发布检查 |
 
 插件只引用 `WindowsIsland.Contracts`，入口实现 `IIslandPlugin`，通知来源可实现
 `IMessageSource`。宿主负责调度和窗口，插件经 `IPluginContext` 提交通知及固定内容。
 
-## 兼容与能力发现
+## 合约与能力发现
 
 `PluginContract.IsCompatible` 只接受相同且为正整数的合约大版本。一个大版本内
 不得向现有接口增加必填方法。新的宿主能力通过 `context.GetService<T>()` 查询，
 未提供时返回 `null`，插件应保留无此能力时的降级路径；固定内容服务是现有范例。
-新插件侧扩展采用可选接口，旧插件无需实现。新大版本发布必须附迁移说明，列明
-破坏性变更、替代 API、适用版本及迁移示例。
+插件侧扩展采用可选接口，按所需能力实现。
 
-`context.HostVersion` 是宿主的完整版本字符串；旧宿主默认返回空字符串。
+`context.HostVersion` 是宿主的完整版本字符串。
 `context.PreviousVersion` 是安装操作替换的插件版本，首次安装为 `null`。
 这两个属性均提供默认实现，不要求插件实现宿主上下文，也不改变合约大版本。
 
@@ -41,7 +40,7 @@ public IReadOnlyList<PluginSetting> SettingsSchema =>
 ```
 
 键必须非空白且不超过 128 字符，同一 schema 不得重复。默认值必须是对应的
-string（可为 null）或 bool。标题、默认值、业务校验和迁移归插件负责，宿主不把
+string（可为 null）或 bool。标题、默认值和业务校验归插件负责，宿主不把
 这些内容写进清单。schema 在初始化前即可读取，读取不能依赖监听已启动。
 宿主详情使用原生文本框和开关，设置停用时仍可编辑，变更立即写入
 `IPluginSettings`，运行实例读同一存储，不因编辑重启。无设置页自定义 XAML。
@@ -56,8 +55,7 @@ string（可为 null）或 bool。标题、默认值、业务校验和迁移归�
 
 卸载在删除代码前调用可选的 `OnUninstallAsync`。钩子失败记本机诊断，继续删除；
 插件数据仍按现有流程保留。已停用插件会创建并初始化清理实例，但不会启动监听。
-更新时旧实例收到 `Updating`，新实例初始化时可用 `PreviousVersion` 迁移自己的设置；
-初始化应使迁移幂等，支持重试和回滚。
+更新时当前实例收到 `Updating`，替换后的实例通过 `PreviousVersion` 取得此次安装替换的版本。
 
 ## 权限声明与程序集隔离
 

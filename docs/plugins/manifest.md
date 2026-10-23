@@ -17,7 +17,7 @@ wini_plugin_<name>
 
 | 有效示例 | 无效示例 | 原因 |
 | --- | --- | --- |
-| `wini_plugin_example` | `wini_example_plugin` | 旧的前后缀排列 |
+| `wini_plugin_example` | `plugin_example` | 缺少固定前缀 |
 | `wini_plugin_weather2` | `wini_plugin_Weather` | 包含大写字母 |
 | `wini_plugin_my_source` | `wini_plugin_2source` | 名称以数字开头 |
 | `wini_plugin_example_notifications` | `wini_plugin_my__source` | 连续下划线 |
@@ -74,5 +74,3 @@ wini_plugin_<name>
 ## 来源归属
 
 `PluginManifest` 也包含 `SourceKind`，但安装器和扫描器按实际安装来源设置它。手动填写 `sourceKind` 无法获得官方身份、权限或自定义面板资格。
-
-旧标识的迁移步骤见[打包、分发与迁移](./packaging.md#迁移旧标识)。

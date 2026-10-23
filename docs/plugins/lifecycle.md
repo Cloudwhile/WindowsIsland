@@ -5,7 +5,7 @@
 | 阶段 | 插件负责的工作 |
 | --- | --- |
 | 构造函数 | 创建轻量本地状态，不访问宿主服务 |
-| `InitializeAsync(context)` | 保存上下文，读取设置，执行幂等迁移 |
+| `InitializeAsync(context)` | 保存上下文，读取设置，准备资源 |
 | `StartAsync()` | 建立监听基线和后台订阅，完成启动后返回 |
 | `OnStoppingAsync(reason)` | 可选，了解停止原因 |
 | `StopAsync()` | 取消后台任务、等待退出、释放本轮订阅 |
@@ -40,7 +40,7 @@ var endpoint = context.Settings.GetString("endpoint", "https://example.com");
 var enabled = context.Settings.GetBoolean("enabled", true);
 context.Settings.SetString("endpoint", endpoint);
 context.Settings.SetBoolean("enabled", enabled);
-context.Settings.SetString("obsoleteKey", null);
+context.Settings.SetString("optionalLabel", null);
 ```
 
 键为非空白字符串，最长 128 字符。只支持字符串和布尔值；读取不存在或类型损坏的字段会返回指定默认值，写入字符串 `null` 会删除该键。
@@ -78,8 +78,6 @@ if (storage is not null)
 
 数据目录与代码目录分开，卸载代码时保留。`settings` 权限控制此服务，不关闭 `context.Settings`，也不阻止插件直接调用文件 API。
 
-## 更新迁移
+## 版本上下文
 
-新实例初始化时，`context.PreviousVersion` 表示此次安装替换的版本，首次安装为 `null`。用它识别需要迁移的旧数据；`context.HostVersion` 可辅助判断宿主版本，但旧宿主可能返回空字符串。
-
-迁移应能重复执行，保留可恢复的旧数据，以支持初始化重试和安装回滚。更换插件标识会改变设置范围和数据目录，不能只修改清单后假定旧数据自动迁移，见[标识迁移](./packaging.md#迁移旧标识)。
+`context.HostVersion` 提供宿主的完整版本字符串，`context.PreviousVersion` 表示此次安装替换的插件版本，首次安装为 `null`。

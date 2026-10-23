@@ -1,20 +1,27 @@
 import { defineConfig } from 'vitepress'
 import { sidebar } from './navigation.mjs'
 
+const base = process.env.DOCS_BASE || '/'
+
 export default defineConfig({
   lang: 'zh-CN',
   title: '消息岛',
   description: '消息岛使用指南、下载与插件开发文档。',
-  base: process.env.DOCS_BASE || '/',
+  base,
   srcExclude: ['node_modules/**'],
-  head: [['meta', { name: 'theme-color', content: '#168b8f' }]],
+  head: [
+    ['meta', { name: 'theme-color', content: '#168b8f' }],
+    ['link', { rel: 'icon', type: 'image/x-icon', href: `${base}favicon.ico` }]
+  ],
   markdown: {
     lineNumbers: true
   },
   themeConfig: {
     siteTitle: '消息岛文档',
+    logo: { src: '/logo.png', alt: '消息岛' },
     nav: [
-      { text: '使用', link: '/', activeMatch: '^/(?:guide/|$)' },
+      { text: '首页', link: '/', activeMatch: '^/$' },
+      { text: '使用', link: '/guide/getting-started', activeMatch: '^/guide/' },
       { text: '下载', link: '/download/', activeMatch: '^/download/' },
       { text: '插件开发', link: '/plugins', activeMatch: '^/plugins(?:[/.]|$)' }
     ],

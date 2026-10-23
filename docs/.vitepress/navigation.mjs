@@ -2,7 +2,7 @@ export const sidebar = [
   {
     text: '使用',
     items: [
-      { text: '快速开始', link: '/' },
+      { text: '快速开始', link: '/guide/getting-started' },
       { text: '消息来源', link: '/guide/sources' },
       { text: '通知与固定内容', link: '/guide/notifications' },
       { text: '外观与偏好', link: '/guide/settings' },
@@ -28,7 +28,7 @@ export const sidebar = [
       { text: '生命周期与设置', link: '/plugins/lifecycle' },
       { text: '固定内容与交互', link: '/plugins/pinned-content' },
       { text: '权限与诊断', link: '/plugins/permissions' },
-      { text: '打包、分发与迁移', link: '/plugins/packaging' }
+      { text: '打包与分发', link: '/plugins/packaging' }
     ]
   }
 ]
