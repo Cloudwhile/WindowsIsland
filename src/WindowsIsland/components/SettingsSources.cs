@@ -19,6 +19,10 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     private readonly Action<SettingsDetail> _open;
     private readonly Dictionary<string, Controls> _rows = [];
     private readonly HashSet<string> _changing = [];
+    private NotificationPluginStatus[]? _shown;
+    private AppSettings? _shownSettings;
+    private string? _shownLanguage;
+    private bool _shownBusy;
     private bool _syncing, _disposed;
 
     public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
@@ -37,6 +41,14 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     public void Refresh(IReadOnlyList<NotificationPluginStatus> plugins, bool busy)
     {
         if (_disposed) return;
+        var settings = _store.Current;
+        if (_shown is { } shown && shown.Length == plugins.Count && ReferenceEquals(_shownSettings, settings)
+            && _shownLanguage == Localization.Language && _shownBusy == busy && _changing.Count == 0
+            && Enumerable.Range(0, plugins.Count).All(index => shown[index] == plugins[index])) return;
+        _shown = plugins.ToArray();
+        _shownSettings = settings;
+        _shownLanguage = Localization.Language;
+        _shownBusy = busy;
         _syncing = true;
         try
         {
@@ -74,14 +86,13 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                         catch (Exception error) { _failed(error); }
                         finally
                         {
-                            _changing.Remove(definition.Id);
                             if (!_disposed)
                             {
                                 _syncing = true;
                                 try { toggle.IsOn = definition.IsEnabled(_store.Current); }
                                 finally { _syncing = false; }
-                                toggle.IsEnabled = true;
                             }
+                            FinishChange(definition.Id);
                         }
                     };
                     var retry = new IconActionButton(Symbol.Refresh, definition.RetryLabelKey, "SourceRetry." + definition.Id)
@@ -92,7 +103,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                         retry.IsEnabled = false;
                         try { await _retry(definition.Id); }
                         catch (Exception error) { _failed(error); }
-                        finally { _changing.Remove(definition.Id); if (!_disposed) retry.IsEnabled = true; }
+                        finally { FinishChange(definition.Id); }
                     };
                     var row = new SettingsLinkRow(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
                         definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle);
@@ -129,5 +140,13 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     public void Dispose()
     {
         _disposed = true;
+    }
+
+    private void FinishChange(string id)
+    {
+        _changing.Remove(id);
+        _shown = null;
+        if (!_disposed && _rows.TryGetValue(id, out var controls))
+            controls.Toggle.IsEnabled = controls.Retry.IsEnabled = !_shownBusy;
     }
 }
