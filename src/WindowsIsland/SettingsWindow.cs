@@ -14,6 +14,7 @@ internal sealed class SettingsWindow : Window
 {
     private readonly DispatcherQueueTimer _refresh;
     private readonly CancellationTokenSource _dialogs = new();
+    private bool _closed;
 
     public SettingsWindow(SettingsStore settings, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false,
@@ -36,6 +37,7 @@ internal sealed class SettingsWindow : Window
         if (mica) layout.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         LocalizedUI.Bind(layout, () =>
         {
+            if (_closed) return;
             Title = Localization.Get("WindowSettingsTitle");
             layout.Language = Localization.Language;
         });
@@ -61,17 +63,17 @@ internal sealed class SettingsWindow : Window
         _refresh.Interval = TimeSpan.FromSeconds(1);
         _refresh.Tick += (_, _) => page.Refresh();
         _refresh.Start();
-        Closed += (_, _) => { AppWindow.Changed -= OnWindowChanged; _dialogs.Cancel(); _dialogs.Dispose(); _refresh.Stop(); page.Dispose(); };
+        Closed += (_, _) => { _closed = true; AppWindow.Changed -= OnWindowChanged; _dialogs.Cancel(); _dialogs.Dispose(); _refresh.Stop(); page.Dispose(); };
     }
 
     private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
     {
-        if (args.DidSizeChange || args.DidPositionChange) ApplyMinimumSize();
+        if (!_closed && (args.DidSizeChange || args.DidPositionChange)) ApplyMinimumSize();
     }
 
     private void ApplyMinimumSize()
     {
-        if (AppWindow.Presenter is not OverlappedPresenter presenter) return;
+        if (_closed || AppWindow.Presenter is not OverlappedPresenter presenter) return;
         var scale = NativeWindow.GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96d;
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
         presenter.PreferredMinimumWidth = Math.Min((int)(520 * scale), area.Width);
@@ -80,6 +82,7 @@ internal sealed class SettingsWindow : Window
 
     private void RefreshCaptionTheme(TitleBar titleBar)
     {
+        if (_closed) return;
         var caption = AppWindow.TitleBar;
         if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast)
         {
