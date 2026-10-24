@@ -45,17 +45,25 @@ internal static class SourceStateUiChecks
             await UntilAsync(() => Tree(sources).OfType<ToggleSwitch>().Any());
             var toggle = Tree(sources).OfType<ToggleSwitch>().Single(item => AutomationProperties.GetAutomationId(item) == definition.ToggleId);
             var retry = Tree(sources).OfType<Button>().Single(item => AutomationProperties.GetAutomationId(item) == "SourceRetry." + definition.Id);
+            var progress = Tree(sources).OfType<ProgressRing>().Single(item => AutomationProperties.GetAutomationId(item) == "SourceProgress." + definition.Id);
             var row = Tree(sources).OfType<SettingsLinkRow>().Single();
             check(toggle.IsOn && row.Header.Status == Localization.Get("TelegramNotDetected"),
                 "An enabled source keeps its switch on while the connection reports client not detected");
+            check(progress.Visibility == Visibility.Collapsed && !progress.IsActive && !progress.IsTabStop
+                && progress.Width == 20 && progress.Height == 20 && AutomationProperties.GetName(progress) == Localization.Get("Busy"),
+                "Source progress starts hidden, inactive and outside keyboard navigation with a localized accessibility name");
 
             toggle.IsOn = false;
             await UntilAsync(() => enabledCalls == 1);
+            check(progress.Visibility == Visibility.Visible && progress.IsActive && !toggle.IsEnabled && !retry.IsEnabled,
+                "A pending source toggle immediately shows progress and prevents another source operation");
             sources.Refresh(snapshot, busy: true);
-            check(!toggle.IsEnabled && !retry.IsEnabled, "Global busy disables both controls while a source toggle is pending");
+            check(!toggle.IsEnabled && !retry.IsEnabled && progress.Visibility == Visibility.Visible && progress.IsActive,
+                "Global busy disables both controls and preserves progress while a source toggle is pending");
             enabledGate.SetResult();
-            await UntilAsync(() => !store.Current.Telegram && !toggle.IsOn);
-            await Task.Delay(50);
+            await UntilAsync(() => !store.Current.Telegram && !toggle.IsOn && !progress.IsActive && progress.Visibility == Visibility.Collapsed);
+            check(!progress.IsActive && progress.Visibility == Visibility.Collapsed,
+                "Completing a source toggle stops and collapses its progress while global busy remains active");
             check(!toggle.IsEnabled && !retry.IsEnabled,
                 "Completing a source toggle preserves the active global busy restriction");
             sources.Refresh(snapshot, busy: true);
@@ -71,10 +79,16 @@ internal static class SourceStateUiChecks
             check(toggle.IsOn && retry.Visibility == Visibility.Visible, "An enabled disconnected source exposes its retry action");
             ((IInvokeProvider)new ButtonAutomationPeer(retry).GetPattern(PatternInterface.Invoke)).Invoke();
             await UntilAsync(() => retryCalls == 1);
+            check(progress.Visibility == Visibility.Visible && progress.IsActive && !toggle.IsEnabled && !retry.IsEnabled
+                && row.Header.Status == Localization.Get("TelegramNotDetected"),
+                "A pending source retry shows progress while retaining its connection result and blocking repeated operations");
             sources.Refresh(snapshot, busy: true);
-            check(!toggle.IsEnabled && !retry.IsEnabled, "Global busy disables both controls while source retry is pending");
+            check(!toggle.IsEnabled && !retry.IsEnabled && progress.Visibility == Visibility.Visible && progress.IsActive,
+                "Global busy disables both controls and preserves progress while source retry is pending");
             retryGate.SetResult();
-            await Task.Delay(50);
+            await UntilAsync(() => !progress.IsActive && progress.Visibility == Visibility.Collapsed);
+            check(!progress.IsActive && progress.Visibility == Visibility.Collapsed,
+                "Completing source retry stops and collapses its progress without ending global busy");
             check(!toggle.IsEnabled && !retry.IsEnabled,
                 "Completing source retry preserves the active global busy restriction");
             sources.Refresh(snapshot, busy: true);

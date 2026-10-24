@@ -9,7 +9,7 @@ namespace WindowsIsland.Components;
 internal sealed class SettingsSources : StackPanel, IDisposable
 {
     private sealed record Controls(SettingsLinkRow Row, NotificationPluginDefinition Definition, ToggleSwitch Toggle,
-        IconActionButton Retry);
+        IconActionButton Retry, ProgressRing Progress);
     private readonly SettingsStore _store;
     private readonly Action<Exception> _failed;
     private readonly Func<string, Task> _retry;
@@ -73,6 +73,10 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                 }
                 if (!_rows.TryGetValue(definition.Id, out var controls))
                 {
+                    var progress = new ProgressRing { Width = 20, Height = 20, IsActive = false,
+                        IsTabStop = false, Visibility = Visibility.Collapsed };
+                    AutomationProperties.SetAutomationId(progress, "SourceProgress." + definition.Id);
+                    LocalizedUI.SetAutomationName(progress, "Busy");
                     var toggle = new ToggleSwitch { OnContent = null, OffContent = null, MinWidth = 0,
                         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
                     if (definition.Metadata?.External is null) LocalizedUI.Label(toggle, definition.TitleKey);
@@ -80,8 +84,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     AutomationProperties.SetAutomationId(toggle, definition.ToggleId);
                     toggle.Toggled += async (_, _) =>
                     {
-                        if (_syncing || _disposed || !_changing.Add(definition.Id)) return;
-                        toggle.IsEnabled = false;
+                        if (_syncing || !StartChange(definition.Id)) return;
                         try { await _setEnabled(definition.Id, toggle.IsOn); }
                         catch (Exception error) { _failed(error); }
                         finally
@@ -99,14 +102,13 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     { Visibility = Visibility.Collapsed };
                     retry.Click += async (_, _) =>
                     {
-                        if (_disposed || !_changing.Add(definition.Id)) return;
-                        retry.IsEnabled = false;
+                        if (!StartChange(definition.Id)) return;
                         try { await _retry(definition.Id); }
                         catch (Exception error) { _failed(error); }
                         finally { FinishChange(definition.Id); }
                     };
                     var row = new SettingsLinkRow(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
-                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle);
+                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, progress, retry, toggle);
                     row.OpenRequested += async () =>
                     {
                         if (_disposed) return;
@@ -116,13 +118,15 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                             () => _rows.TryGetValue(definition.Id, out var current) && ReferenceEquals(current.Definition.Metadata, definition.Metadata)));
                         await details.ReadSizeAsync();
                     };
-                    controls = new(row, definition, toggle, retry);
+                    controls = new(row, definition, toggle, retry, progress);
                     _rows.Add(definition.Id, controls);
                     Children.Add(controls.Row);
                     structureChanged = true;
                 }
+                var changing = _changing.Contains(definition.Id);
                 controls.Toggle.IsOn = definition.IsEnabled(_store.Current);
-                controls.Toggle.IsEnabled = !busy && !_changing.Contains(definition.Id);
+                controls.Toggle.IsEnabled = !busy && !changing;
+                ShowProgress(controls.Progress, changing);
                 var title = definition.Metadata?.External is null ? Localization.Get(definition.TitleKey) : definition.TitleKey;
                 AutomationProperties.SetName(controls.Toggle, Localization.Format(controls.Toggle.IsOn ? "SourceEnabledLabel" : "SourceDisabledLabel", title));
                 var key = controls.Toggle.IsOn ? plugin.StatusKey : "Off";
@@ -130,7 +134,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                 controls.Row.Header.Tone = SourceStatus.Tone(key);
                 controls.Row.Header.Detail = SourceStatus.DetailKey(definition.Id, key, systemAvailable) is { } detail ? Localization.Get(detail) : "";
                 controls.Retry.Visibility = controls.Toggle.IsOn && plugin.CanRetry ? Visibility.Visible : Visibility.Collapsed;
-                controls.Retry.IsEnabled = !busy && !_changing.Contains(definition.Id);
+                controls.Retry.IsEnabled = !busy && !changing;
             }
             if (structureChanged) SettingsSection.UpdateSeparators(this);
         }
@@ -140,13 +144,34 @@ internal sealed class SettingsSources : StackPanel, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        foreach (var controls in _rows.Values) ShowProgress(controls.Progress, false);
+    }
+
+    private bool StartChange(string id)
+    {
+        if (_disposed || !_changing.Add(id)) return false;
+        if (_rows.TryGetValue(id, out var controls))
+        {
+            controls.Toggle.IsEnabled = controls.Retry.IsEnabled = false;
+            ShowProgress(controls.Progress, true);
+        }
+        return true;
     }
 
     private void FinishChange(string id)
     {
         _changing.Remove(id);
         _shown = null;
-        if (!_disposed && _rows.TryGetValue(id, out var controls))
-            controls.Toggle.IsEnabled = controls.Retry.IsEnabled = !_shownBusy;
+        if (_rows.TryGetValue(id, out var controls))
+        {
+            ShowProgress(controls.Progress, false);
+            if (!_disposed) controls.Toggle.IsEnabled = controls.Retry.IsEnabled = !_shownBusy;
+        }
+    }
+
+    private static void ShowProgress(ProgressRing progress, bool active)
+    {
+        progress.IsActive = active;
+        progress.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
     }
 }
