@@ -652,4 +652,20 @@
   <data name="PluginCatalogEntryInvalid" xml:space="preserve"><value>The plugin catalog entry information is invalid.</value></data>
   <data name="PluginCatalogResponseTooLarge" xml:space="preserve"><value>The plugin catalog response exceeds the size limit.</value></data>
   <data name="PluginCatalogCacheFailed" xml:space="preserve"><value>Cannot read or save the plugin catalog cache.</value></data>
+  <data name="PluginManagement" xml:space="preserve"><value>Plugins</value></data>
+  <data name="PluginInstalledView" xml:space="preserve"><value>Installed</value></data>
+  <data name="PluginDiscoverView" xml:space="preserve"><value>Discover</value></data>
+  <data name="PluginInstalledEmpty" xml:space="preserve"><value>No installed plugins</value></data>
+  <data name="PluginInstalledEmptyHint" xml:space="preserve"><value>Choose a plugin package with the install button, or browse Discover.</value></data>
+  <data name="PluginAdvanced" xml:space="preserve"><value>Advanced</value></data>
+  <data name="PluginBasicInformation" xml:space="preserve"><value>Basic information</value></data>
+  <data name="PluginPermissionGroup" xml:space="preserve"><value>Permissions and capabilities</value></data>
+  <data name="PluginInstallationInformation" xml:space="preserve"><value>Installation information</value></data>
+  <data name="PluginSettingsGroup" xml:space="preserve"><value>Plugin settings</value></data>
+  <data name="PluginCatalogLoading" xml:space="preserve"><value>Loading plugin catalog</value></data>
+  <data name="PluginRemoveQuestion" xml:space="preserve"><value>Uninstall this plugin? Its data and settings will be retained.</value></data>
+  <data name="PluginRemovedSuccess" xml:space="preserve"><value>Plugin uninstalled. Its data and settings were retained.</value></data>
+  <data name="PluginCopyIdentifier" xml:space="preserve"><value>Copy plugin identifier</value></data>
+  <data name="PluginCopyLocation" xml:space="preserve"><value>Copy file location</value></data>
+  <data name="PluginOperationFailed" xml:space="preserve"><value>The operation could not be completed. Try again.</value></data>
 </root>

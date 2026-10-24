@@ -652,4 +652,20 @@
   <data name="PluginCatalogEntryInvalid" xml:space="preserve"><value>插件目录条目信息无效。</value></data>
   <data name="PluginCatalogResponseTooLarge" xml:space="preserve"><value>插件目录响应超过大小限制。</value></data>
   <data name="PluginCatalogCacheFailed" xml:space="preserve"><value>无法读取或保存插件目录缓存。</value></data>
+  <data name="PluginManagement" xml:space="preserve"><value>插件管理</value></data>
+  <data name="PluginInstalledView" xml:space="preserve"><value>已安装</value></data>
+  <data name="PluginDiscoverView" xml:space="preserve"><value>发现插件</value></data>
+  <data name="PluginInstalledEmpty" xml:space="preserve"><value>暂无已安装插件</value></data>
+  <data name="PluginInstalledEmptyHint" xml:space="preserve"><value>使用安装按钮选择插件包，或前往发现插件。</value></data>
+  <data name="PluginAdvanced" xml:space="preserve"><value>高级设置</value></data>
+  <data name="PluginBasicInformation" xml:space="preserve"><value>基本信息</value></data>
+  <data name="PluginPermissionGroup" xml:space="preserve"><value>权限与能力</value></data>
+  <data name="PluginInstallationInformation" xml:space="preserve"><value>安装信息</value></data>
+  <data name="PluginSettingsGroup" xml:space="preserve"><value>插件设置</value></data>
+  <data name="PluginCatalogLoading" xml:space="preserve"><value>正在加载插件目录</value></data>
+  <data name="PluginRemoveQuestion" xml:space="preserve"><value>卸载此插件？插件数据与设置将保留。</value></data>
+  <data name="PluginRemovedSuccess" xml:space="preserve"><value>插件已卸载，数据与设置已保留。</value></data>
+  <data name="PluginCopyIdentifier" xml:space="preserve"><value>复制插件标识</value></data>
+  <data name="PluginCopyLocation" xml:space="preserve"><value>复制文件位置</value></data>
+  <data name="PluginOperationFailed" xml:space="preserve"><value>操作未完成，请重试。</value></data>
 </root>

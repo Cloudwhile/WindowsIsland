@@ -16,6 +16,7 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
     private long? _bytes;
     private readonly Func<string, Task<PluginSettingsModel?>>? _settings;
     private readonly string _id;
+    private SettingsContent _fields = null!;
 
     /// <summary>创建可选择和复制的插件详情。</summary>
     public SettingsPluginDetails(NotificationPluginDefinition definition, PluginCatalogService? catalog = null,
@@ -24,11 +25,12 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
         _id = definition.Id;
         _settings = settings;
         _metadata = definition.Metadata;
+        Group("PluginBasicInformation");
         Field("PluginVersion", _metadata?.Version, definition.Id + ".Version");
         var type = Field("PluginType", null, definition.Id + ".Type", placeholder: false);
         LocalizedUI.Bind(type, () => type.Text = Localization.Get(_metadata?.IsBuiltIn != false ? "PluginBuiltIn" : "PluginInstalled"));
         Field("PluginAuthor", _metadata?.Author, definition.Id + ".Author");
-        Field("PluginIdentifier", definition.Id, definition.Id + ".Id");
+        _fields.Children.Add(new PluginCopyField("PluginIdentifier", definition.Id, "PluginDetail." + definition.Id + ".Id", "PluginCopyIdentifier"));
         if (_metadata?.External is { } external)
         {
             var source = Field("PluginSource", null, definition.Id + ".Source", placeholder: false);
@@ -37,23 +39,32 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
                 && external.Manifest.DeveloperId == PluginCatalogClient.OfficialDeveloperId ? PluginCatalogClient.OfficialDeveloperId
                 : external.Manifest.DeveloperName ?? external.Manifest.DeveloperId, definition.Id + ".Developer");
             Field("PluginRepository", external.Manifest.RepositoryUrl, definition.Id + ".Repository");
+            Group("PluginPermissionGroup");
             var trust = external.Trust;
             var granted = PermissionField("PluginPermissionsGranted", trust.Granted, definition.Id + ".Granted");
             var denied = PermissionField("PluginPermissionsDenied", trust.Denied, definition.Id + ".Denied");
             var permissions = new SettingsColumns(granted, denied);
             AutomationProperties.SetAutomationId(permissions, "PluginPermissions." + definition.Id);
-            Children.Add(permissions);
+            _fields.Children.Add(permissions);
             var notice = new SettingsField(null, "", placeholder: false);
             LocalizedUI.Bind(notice, () => notice.Value.Text = Localization.Get("PluginPermissionNotice"));
-            Children.Add(notice);
+            _fields.Children.Add(notice);
         }
-        Field("PluginLocation", _metadata?.Location, definition.Id + ".Location");
+        Group("PluginInstallationInformation");
+        _fields.Children.Add(new PluginCopyField("PluginLocation", _metadata?.Location,
+            "PluginDetail." + definition.Id + ".Location", "PluginCopyLocation"));
         _size = Field("PluginFileSize", null, definition.Id + ".Size", placeholder: false);
         LocalizedUI.Bind(_size, RefreshSize);
         _catalogNotice = new PluginCatalogNotice(catalog, _metadata?.External?.Manifest);
         AutomationProperties.SetAutomationId(_catalogNotice, "PluginCatalogNotice." + definition.Id);
-        Children.Add(_catalogNotice);
+        _fields.Children.Add(_catalogNotice);
         RefreshCatalog();
+    }
+
+    private void Group(string title)
+    {
+        _fields = new SettingsContent(false);
+        Children.Add(new SettingsSection(title, _fields));
     }
 
     public void RefreshCatalog() => _catalogNotice.Refresh();
@@ -68,7 +79,7 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
     private TextBlock Field(string label, string? value, string id, bool placeholder = true)
     {
         var group = new SettingsField(label, value, "PluginDetail." + id, placeholder);
-        Children.Add(group);
+        _fields.Children.Add(group);
         return group.Value;
     }
 
@@ -82,7 +93,8 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
             var bytes = _metadata is null ? null : await _metadata.ReadSizeAsync();
             var model = _settings is null ? null : await _settings(_id);
             if (_disposed) return;
-            if (model is { Fields.Count: > 0 }) Children.Add(new PluginSettingsEditor(_id, model));
+            if (model is { Fields.Count: > 0 })
+                Children.Add(new SettingsSection("PluginSettingsGroup", new PluginSettingsEditor(_id, model)));
             _bytes = bytes;
             _read = true;
             RefreshSize();

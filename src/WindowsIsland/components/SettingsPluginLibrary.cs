@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using WindowsIsland.Plugins;
 using WindowsIsland.Services;
@@ -13,25 +14,63 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
     private readonly IconActionButton _cancel = new(Symbol.Cancel, "PluginCancel", "CancelPluginInstallation") { Visibility = Visibility.Collapsed };
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
     private readonly SettingsOfficialPlugins _official;
+    private readonly SettingsInstalledPlugins _installed;
+    private readonly SelectorBar _views = new();
+    private readonly SelectorBarItem _installedTab = new();
+    private readonly SelectorBarItem _discoverTab = new();
+    private readonly ProgressRing _progress = new() { Width = 20, Height = 20, IsActive = false, Visibility = Visibility.Collapsed };
     private CancellationTokenSource? _operation;
     private ContentDialog? _dialog;
     private string? _noticeKey;
     private bool _disposed;
 
-    public SettingsPluginLibrary(PluginLibrary library, Func<CancellationToken, Task<string?>> pick, Action<SettingsDetail> open)
+    public SettingsPluginLibrary(PluginLibrary library, Func<CancellationToken, Task<string?>> pick, Action<SettingsDetail> open,
+        Action? openDiagnostics = null)
     {
         _library = library;
         _pick = pick;
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = SettingsTokens.ControlSpacing };
+        actions.Children.Add(_progress);
         actions.Children.Add(_install);
         actions.Children.Add(_cancel);
-        Children.Add(new SettingsSection("PluginInstallation", new SettingsRow(Symbol.Add, "PluginInstall", actions)));
+        var toolbar = new Grid { ColumnSpacing = SettingsTokens.ControlSpacing };
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition());
+        toolbar.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _views.Items.Add(_installedTab);
+        _views.Items.Add(_discoverTab);
+        _views.SelectedItem = _installedTab;
+        AutomationProperties.SetAutomationId(_views, "PluginLibraryViews");
+        AutomationProperties.SetAutomationId(_installedTab, "PluginInstalledView");
+        AutomationProperties.SetAutomationId(_discoverTab, "PluginDiscoverView");
+        toolbar.Children.Add(_views);
+        Grid.SetColumn(actions, 1);
+        toolbar.Children.Add(actions);
+        Children.Add(toolbar);
         Children.Add(SettingsContent.Wrap(_notice));
+        _installed = new SettingsInstalledPlugins(library, open, openDiagnostics);
+        Children.Add(_installed);
         _official = new SettingsOfficialPlugins(library, open);
         Children.Add(_official);
+        _views.SelectionChanged += (_, _) => UpdateView();
         _install.Click += async (_, _) => await ImportAsync();
         _cancel.Click += (_, _) => _operation?.Cancel();
-        LocalizedUI.Bind(this, () => { if (_noticeKey is { } key) _notice.Message = Localization.Get(key); });
+        LocalizedUI.Bind(this, () =>
+        {
+            _installedTab.Text = Localization.Get("PluginInstalledView");
+            _discoverTab.Text = Localization.Get("PluginDiscoverView");
+            AutomationProperties.SetName(_installedTab, _installedTab.Text);
+            AutomationProperties.SetName(_discoverTab, _discoverTab.Text);
+            if (_noticeKey is { } key) _notice.Message = Localization.Get(key);
+        });
+        UpdateView();
+    }
+
+    private void UpdateView()
+    {
+        var installed = ReferenceEquals(_views.SelectedItem, _installedTab);
+        _installed.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
+        _official.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
+        Refresh();
     }
 
     private async Task ImportAsync()
@@ -39,6 +78,8 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         if (_operation is not null || _disposed) return;
         using var operation = _operation = new CancellationTokenSource();
         _install.IsEnabled = false;
+        _progress.IsActive = true;
+        _progress.Visibility = Visibility.Visible;
         _cancel.Visibility = Visibility.Visible;
         _notice.Visibility = Visibility.Collapsed;
         try
@@ -55,6 +96,9 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
                 await _library.Manager.InstallAsync(prepared, overwrite: true, token: operation.Token);
             }
             Show("PluginInstalledSuccess", InfoBarSeverity.Success);
+            if (_disposed) return;
+            _views.SelectedItem = _installedTab;
+            _installed.Refresh();
         }
         catch (OperationCanceledException) { Show("PluginInstallCanceled", InfoBarSeverity.Informational); }
         catch (Exception error)
@@ -65,7 +109,12 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         finally
         {
             _operation = null;
-            if (!_disposed) { _install.IsEnabled = true; _cancel.Visibility = Visibility.Collapsed; }
+            if (!_disposed)
+            {
+                _install.IsEnabled = true;
+                _cancel.Visibility = _progress.Visibility = Visibility.Collapsed;
+                _progress.IsActive = false;
+            }
         }
     }
 
@@ -89,6 +138,11 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         _notice.Visibility = Visibility.Visible;
     }
 
-    public void Refresh() => _official.Refresh();
-    public void Dispose() { _disposed = true; _dialog?.Hide(); _operation?.Cancel(); _official.Dispose(); }
+    public void Refresh()
+    {
+        if (_disposed) return;
+        _installed.Refresh();
+        _official.Refresh();
+    }
+    public void Dispose() { _disposed = true; _dialog?.Hide(); _operation?.Cancel(); _installed.Dispose(); _official.Dispose(); }
 }
