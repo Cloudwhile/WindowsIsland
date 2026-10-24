@@ -714,4 +714,9 @@
   <data name="OverviewSourceFailures" xml:space="preserve"><value>{0} 个来源连接失败，可前往消息来源重试。</value></data>
   <data name="OverviewSourceDisconnected" xml:space="preserve"><value>{0} 个来源尚未连接，可检查客户端与授权。</value></data>
   <data name="OverviewUpdateAvailable" xml:space="preserve"><value>可更新至 {0}</value></data>
+  <data name="NavigationRuntime" xml:space="preserve"><value>运行管理</value></data>
+  <data name="NavigationPreferences" xml:space="preserve"><value>偏好设置</value></data>
+  <data name="NavigationMaintenance" xml:space="preserve"><value>应用维护</value></data>
+  <data name="ActionToggleNavigation" xml:space="preserve"><value>展开或收起导航</value></data>
+  <data name="SettingsOperationCancelled" xml:space="preserve"><value>操作已取消，可以重试。</value></data>
 </root>

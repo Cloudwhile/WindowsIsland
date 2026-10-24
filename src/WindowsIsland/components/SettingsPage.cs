@@ -2,6 +2,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using WindowsIsland.Services;
 using WindowsIsland.Plugins;
 
@@ -14,7 +15,6 @@ internal sealed class SettingsPage : Grid, IDisposable
 {
     private readonly SettingsStore _store;
     private readonly Func<SettingsSnapshot> _snapshot;
-    private readonly Action _close;
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false };
     private readonly ProgressRing _progress = new() { Width = 20, Height = 20, Visibility = Visibility.Collapsed };
     private readonly IconActionButton _initialize = new(Symbol.Download, "ActionInitialize", "InitializeApplication");
@@ -24,7 +24,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     // Page-specific toolbar: preview where notification appearance matters, refresh where status is shown.
     private readonly IconActionButton _previewButton = new(0xE7E7, "ActionPreview", "PreviewNotification");
     private readonly IconActionButton _refreshButton = new(Symbol.Refresh, "ActionRefreshStatus", "RefreshSettings");
-    private static readonly HashSet<string> PreviewSections = ["sources", "appearance"], RefreshSections = ["setup", "sources", "plugins"];
+    private static readonly HashSet<string> PreviewSections = ["sources", "appearance"], RefreshSections = ["overview", "setup", "sources", "plugins"];
     private readonly SettingsRow _initializationRow, _permissionRow;
     private readonly SettingsSources _sources;
     private readonly SettingsPluginLibrary? _pluginLibrary;
@@ -35,13 +35,16 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly ToggleSwitch _startup;
     private readonly WindowsSettingsService _windowsSettings;
     private readonly DoNotDisturbSettings _doNotDisturbSettings;
-    private readonly SettingsRow _positionRow;
+    private readonly NotificationAppearancePreview _appearancePreview;
     private readonly NotificationPositionPicker _position = new();
     private readonly SettingsLanguagePicker _language = new();
     private readonly SettingsHeader _header;
-    private readonly SettingsSetup _setup;
+    private readonly SettingsSetupFlow _setup;
+    private readonly SettingsOverview _overview;
+    private readonly IconActionButton _setupCheck = new(Symbol.Refresh, "ActionRefreshStatus", "VerifySetupStatus");
     private readonly SettingsNavigation _navigation = new();
     private readonly SettingsUpdates _updates;
+    private readonly UpdateCheckService _updateChecks;
     private readonly SettingsDiagnostics _diagnostics;
     private readonly ScrollViewer _content = new()
     {
@@ -55,11 +58,12 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _cancelled, _disposed;
     private string _cancelledKey = "StartupPermissionCancelled";
-    private bool? _ready;
-    private string _selectedSection = "setup";
-    private string? _operationSection;
+    private string _selectedSection = "overview";
     private SettingsDetail? _detail;
     private double _returnOffset;
+    private readonly Dictionary<string, double> _offsets = [];
+    private long _navigationRevision;
+    private string? _operationSection;
     private string _errorKey = "ErrorSettingsSave";
     private StartupState _startupState;
     private bool _windowsReading, _windowsAvailable;
@@ -73,30 +77,36 @@ internal sealed class SettingsPage : Grid, IDisposable
         Func<string, Task<PluginSettingsModel?>>? pluginSettings = null)
     {
         _store = store;
+        _updateChecks = updates;
         AutomationProperties.SetAutomationId(_content, "SettingsContentScroll");
         retrySource ??= _ => Task.CompletedTask;
         _snapshot = snapshot;
-        _close = close;
         _windowsSettings = new WindowsSettingsService(verification);
-        var layout = new Grid { MaxWidth = 720 };
+        var layout = new Grid { MaxWidth = 960 };
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         layout.RowDefinitions.Add(new RowDefinition());
         _refreshButton.Click += async (_, _) =>
         {
+            await RefreshSourcesAsync();
+        };
+        async Task RefreshSourcesAsync()
+        {
             if (rescanPlugins is not null) await RunAsync(rescanPlugins, "ErrorRefreshPlugins");
             else { _failed = _cancelled = false; Refresh(); }
-        };
+        }
         _previewButton.Click += (_, _) => preview();
-        _header = new SettingsHeader(_progress, _previewButton, _refreshButton, _complete) { MaxWidth = 720 };
+        _header = new SettingsHeader(_progress, _previewButton, _refreshButton);
         _header.BackRequested += ReturnFromDetail;
         layout.Children.Add(_header);
-        _notice.Margin = new Thickness(16, 0, 16, 12);
+        _notice.Margin = new Thickness(SettingsTokens.PagePadding, 0, SettingsTokens.PagePadding, 12);
         Grid.SetRow(_notice, 1);
         layout.Children.Add(_notice);
         _initializationRow = new SettingsRow(Symbol.Download, "Initialization", _initialize);
         _permissionRow = new SettingsRow(Symbol.Permissions, "NotificationAccess", _permission);
-        _setup = new SettingsSetup(_initializationRow, _permissionRow, new PortableRegistrationSettings(exit, verification));
+        _setup = new SettingsSetupFlow(_initializationRow, _permissionRow, _setupCheck, _complete, new PortableRegistrationSettings(exit, verification));
+        _setupCheck.Click += async (_, _) => await RefreshSourcesAsync();
+        AddSection("setup", "Setup", _setup);
         _startup = new ToggleSwitch { OnContent = null, OffContent = null, MinWidth = 0,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetAutomationId(_startup, "StartupToggle");
@@ -115,12 +125,9 @@ internal sealed class SettingsPage : Grid, IDisposable
             }, "ErrorStartupSettings");
         };
         _actions.Add(_startup);
-        if (!verification && InstallationMode.IsPortable()) AddSection("setup", "Setup", _setup);
-        else AddSection("setup", "Setup", _setup, new SettingsSection("General", _startupRow));
         _animations = Switch("Animations", "AnimationsToggle", settings => settings.Animations,
             (settings, value) => settings with { Animations = value });
         _animationsRow = new SettingsRow(Symbol.Play, "Animations", _animations);
-        _positionRow = new SettingsRow(Symbol.Map, "NotificationPosition", _position);
         _position.Selected += position =>
         {
             try { _store.Save(_store.Current with { Position = position }); _failed = false; Refresh(); }
@@ -136,8 +143,10 @@ internal sealed class SettingsPage : Grid, IDisposable
         {
             try { _store.Save(update(_store.Current)); _failed = false; Refresh(); }
             catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorSettingsSave"); Refresh(); }
-        });
-        AddSection("appearance", "Appearance", new SettingsRow(Symbol.World, "Language", _language), _positionRow, _animationsRow, _appearance);
+        }, _animationsRow);
+        _appearancePreview = new NotificationAppearancePreview(store, _position, preview);
+        AddSection("appearance", "Appearance", new SettingsSection("AppearanceBasics", new SettingsRow(Symbol.World, "Language", _language)),
+            new SettingsSection("AppearancePosition", _appearancePreview), _appearance);
         _doNotDisturbSettings = new DoNotDisturbSettings(_windowsSettings.DoNotDisturb, (action, message) => RunAsync(action, message));
         _doNotDisturbSettings.OpenSettings.Click += async (_, _) => await RunAsync(async () =>
         {
@@ -157,21 +166,29 @@ internal sealed class SettingsPage : Grid, IDisposable
         _muteDuringFullScreen = Switch("MuteDuringFullScreen", "MuteDuringFullScreenToggle", settings => settings.MuteDuringFullScreen,
             (settings, value) => settings with { MuteDuringFullScreen = value });
         _fullScreenRow = new SettingsRow(Symbol.FullScreen, "MuteDuringFullScreen", _muteDuringFullScreen, "FullScreenStatus");
-        if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (_ => Task.FromResult<string?>(null)), OpenDetail);
-        AddSection("plugins", "PluginList", _pluginLibrary ?? new StackPanel());
-        AddSection("sources", "Sources", _sources,
+        if (pluginLibrary is not null) _pluginLibrary = new SettingsPluginLibrary(pluginLibrary, pickPluginFile ?? (_ => Task.FromResult<string?>(null)), OpenDetail, () => Navigate("diagnostics"), store);
+        AddSection("plugins", "PluginManagement", _pluginLibrary ?? new StackPanel());
+        AddSection("sources", "Sources", _sources);
+        AddSection("behavior", "NotificationBehavior",
             new SettingsSection("NotificationBehavior", _gameModeRow, _fullScreenRow),
-            new SettingsSection("NotificationDisplay", _doNotDisturbSettings));
+            new SettingsSection("NotificationDisplay", _doNotDisturbSettings),
+            !verification && InstallationMode.IsPortable() ? new StackPanel() : new SettingsSection("General", _startupRow));
         _updates = new SettingsUpdates(store, updates, exit);
         AddSection("updates", "Updates", _updates);
         _diagnostics = new SettingsDiagnostics(store, pickDiagnosticFile ?? (() => Task.FromResult<string?>(null)));
         AddSection("diagnostics", "DiagnosticsTitle", _diagnostics);
+        _overview = new SettingsOverview(() => SelectSection("setup"), () => Navigate("sources"), preview, () =>
+        {
+            Navigate("updates");
+            _ = _updateChecks.CheckAsync();
+        });
+        AddSection("overview", "Overview", _overview);
         Grid.SetRow(_content, 2);
         layout.Children.Add(_content);
         _navigation.Content = layout;
         _navigation.SectionSelected += SelectSection;
         Children.Add(_navigation);
-        _actions.AddRange([_initialize, _permission, _refreshButton, _complete, _previewButton, _installSettings]);
+        _actions.AddRange([_initialize, _permission, _refreshButton, _setupCheck, _complete, _previewButton, _installSettings]);
         _initialize.Click += async (_, _) => await RunAsync(initialize, "ErrorInitialize", showInstallSettings: true);
         _permission.Click += async (_, _) => await RunAsync(requestAccess, "ErrorAccess");
         _installSettings.Click += async (_, _) => await RunAsync(async () =>
@@ -185,7 +202,13 @@ internal sealed class SettingsPage : Grid, IDisposable
         AutomationProperties.SetAutomationId(_notice, "SetupStatus");
         LocalizedUI.Bind(this, RefreshLanguage);
         Refresh();
-        _navigation.Select(openUpdates ? "updates" : store.Current.SetupCompleted ? "sources" : "setup");
+        Navigate(openUpdates ? "updates" : "overview");
+    }
+
+    private void Navigate(string section)
+    {
+        _navigation.Select(section);
+        if (_selectedSection != section || _detail is not null || _content.Content is null) SelectSection(section);
     }
 
     private void AddSection(string id, string title, params UIElement[] rows)
@@ -197,22 +220,28 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     private void SelectSection(string section)
     {
+        if (_disposed) return;
+        if (_selectedSection == section && _detail is null && ReferenceEquals(_content.Content, _sections[section].Content)) return;
+        _navigationRevision++;
+        if (_detail is null) _offsets[_selectedSection] = _content.VerticalOffset;
         _detail?.Close?.Invoke();
         _detail = null;
         _header.HasBack = false;
+        if (_selectedSection != section && !_busy) _failed = _cancelled = false;
         _selectedSection = section;
         var selected = _sections[section];
         _header.Title = Localization.Get(selected.Title);
         _previewButton.Visibility = PreviewSections.Contains(section) ? Visibility.Visible : Visibility.Collapsed;
         _refreshButton.Visibility = RefreshSections.Contains(section) ? Visibility.Visible : Visibility.Collapsed;
         _content.Content = selected.Content;
-        _content.ChangeView(null, 0, null, disableAnimation: true);
+        RestoreOffset(_offsets.GetValueOrDefault(section));
         Refresh();
     }
 
     private void OpenDetail(SettingsDetail detail)
     {
         if (_disposed) { detail.Close?.Invoke(); return; }
+        _navigationRevision++;
         _detail?.Close?.Invoke();
         _returnOffset = _content.VerticalOffset;
         _detail = detail;
@@ -221,13 +250,25 @@ internal sealed class SettingsPage : Grid, IDisposable
         _previewButton.Visibility = _refreshButton.Visibility = Visibility.Collapsed;
         _content.Content = detail.Content;
         _content.ChangeView(null, 0, null, disableAnimation: true);
+        Refresh();
     }
 
     private void ReturnFromDetail()
     {
         var offset = _returnOffset;
         SelectSection(_selectedSection);
-        DispatcherQueue.TryEnqueue(() => { if (!_disposed && _detail is null) _content.ChangeView(null, offset, null, true); });
+        RestoreOffset(offset);
+    }
+
+    private void RestoreOffset(double offset)
+    {
+        var content = _content.Content;
+        var revision = _navigationRevision;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_disposed && _detail is null && revision == _navigationRevision && ReferenceEquals(_content.Content, content))
+                _content.ChangeView(null, offset, null, true);
+        });
     }
 
     private ToggleSwitch Switch(string label, string id, Func<AppSettings, bool> read,
@@ -254,7 +295,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     {
         if (_busy || _disposed) return;
         _busy = true;
-        _operationSection = _selectedSection;
+        var origin = _operationSection = _selectedSection;
         _failed = false;
         _cancelled = false;
         _notice.ActionButton = null;
@@ -271,13 +312,14 @@ internal sealed class SettingsPage : Grid, IDisposable
             if (!_disposed)
             {
                 _cancelled = true;
-                _cancelledKey = message == "ErrorInitialize" ? "InitializationPermissionCancelled" : "StartupPermissionCancelled";
+                _cancelledKey = message is "ErrorInitialize" or "ErrorAccess" ? "InitializationPermissionCancelled"
+                    : message == "ErrorStartupSettings" ? "StartupPermissionCancelled" : "SettingsOperationCancelled";
             }
         }
         catch (Exception error)
         {
             Diagnostics.Capture(DiagnosticArea.Settings, error, message); Trace.WriteLine(error);
-            if (!_disposed) ShowError(InitializationRegistration.IsSideLoadingDisabled(error) ? "NeedsDeveloperMode" : message, showInstallSettings);
+            if (!_disposed) ShowError(InitializationRegistration.IsSideLoadingDisabled(error) ? "NeedsDeveloperMode" : message, showInstallSettings, origin);
         }
         finally
         {
@@ -299,15 +341,16 @@ internal sealed class SettingsPage : Grid, IDisposable
             Refresh();
             return;
         }
-        try { _store.Save(_store.Current with { SetupCompleted = true }); _close(); }
+        try { _store.Save(_store.Current with { SetupCompleted = true }); Navigate("overview"); }
         catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Settings, error); Trace.WriteLine(error); ShowError("ErrorSetupSave"); }
     }
 
-    private void ShowError(string message, bool showInstallSettings = false)
+    private void ShowError(string message, bool showInstallSettings = false, string? section = null)
     {
         _failed = true;
-        _operationSection = _selectedSection;
+        _operationSection = section ?? _selectedSection;
         _errorKey = message;
+        if (_operationSection != _selectedSection) return;
         _header.Status = Localization.Get("NeedsAttention");
         _notice.Visibility = Visibility.Visible;
         _notice.Title = Localization.Get("Incomplete");
@@ -327,78 +370,86 @@ internal sealed class SettingsPage : Grid, IDisposable
 
     public void Refresh()
     {
-        _pluginLibrary?.Refresh();
         if (_disposed) return;
-        _diagnostics.Refresh();
-        _appearance.Refresh(!_busy);
+        if (_selectedSection == "plugins") _pluginLibrary?.Refresh();
+        if (_selectedSection == "diagnostics") _diagnostics.Refresh();
+        if (_selectedSection == "appearance") { _appearance.Refresh(!_busy); _appearancePreview.Refresh(!_busy); }
         var state = _snapshot();
         var settings = _store.Current;
         _syncing = true;
         try
         {
-            _sources.Refresh(state.Sources, _busy);
+            if (_selectedSection == "sources") _sources.Refresh(state.Sources, _busy);
+            if (_selectedSection == "overview") _overview.Refresh(state, settings, _busy, _updateChecks.State);
             if (_detail?.IsCurrent?.Invoke() == false) ReturnFromDetail();
             _detail?.Refresh?.Invoke();
-            _animations.IsOn = settings.Animations;
-            _muteDuringGames.IsOn = settings.MuteDuringGames;
-            _muteDuringFullScreen.IsOn = settings.MuteDuringFullScreen;
-            _startup.IsOn = _startupState == StartupState.Enabled;
-            _position.Select(settings.Position);
-            _language.Select(settings.Language);
+            if (_selectedSection == "appearance")
+            {
+                _animations.IsOn = settings.Animations;
+                _position.Select(settings.Position);
+                _language.Select(settings.Language);
+                _animationsRow.Status = Localization.Get(settings.Animations ? "On" : "Off");
+            }
+            if (_selectedSection == "behavior")
+            {
+                _muteDuringGames.IsOn = settings.MuteDuringGames;
+                _muteDuringFullScreen.IsOn = settings.MuteDuringFullScreen;
+                _startup.IsOn = _startupState == StartupState.Enabled;
+            }
         }
         finally { _syncing = false; }
         foreach (var action in _actions) action.IsEnabled = !_busy;
-        _startup.IsEnabled = !_busy && _windowsAvailable;
-        _doNotDisturbSettings.SetEnabled(!_busy);
-        _startupRow.Status = Localization.Get(!_windowsAvailable ? "Unavailable" : _startupState switch
+        if (_selectedSection == "behavior")
         {
-            StartupState.Enabled => "On",
-            StartupState.Blocked => "StartupDisabledInWindows",
-            StartupState.OtherInstallation => "StartupOtherInstallation",
-            _ => "Off"
-        });
-        if (!_busy) _ = RefreshWindowsAsync();
-        _position.SetEnabled(!_busy);
-        _positionRow.Status = NotificationPlacement.Label(settings.Position);
-        _initializationRow.Status = Localization.Get(state.Initialized ? "Complete" : AppInitialization.NeedsDeveloperMode
-            ? "NeedsDeveloperMode" : settings.SystemNotifications ? "Pending" : "Optional");
-        _permissionRow.Status = Localization.Get(state.Access switch
-        {
-            NotificationAccess.Allowed => "Allowed",
-            NotificationAccess.Denied => "Denied",
-            NotificationAccess.NeedsRegistration => "NeedsSetup",
-            NotificationAccess.Unavailable => "Unavailable",
-            _ => "AwaitingPermission"
-        });
-        _permissionRow.Tone = state.Access switch
-        {
-            NotificationAccess.Allowed => StatusTone.Success,
-            NotificationAccess.Denied or NotificationAccess.Unavailable => StatusTone.Critical,
-            _ => StatusTone.Neutral
-        };
-        _initialize.IsEnabled = !_busy && !state.Initialized && settings.SystemNotifications;
-        _permission.IsEnabled = !_busy && state.Initialized && settings.SystemNotifications;
-        _permission.SetAction(state.Access == NotificationAccess.Allowed ? Symbol.Setting : Symbol.Permissions,
-            state.Access == NotificationAccess.Allowed ? "ActionManageAccess" : "ActionAllowAccess");
+            _startup.IsEnabled = !_busy && _windowsAvailable;
+            _doNotDisturbSettings.SetEnabled(!_busy);
+            _startupRow.Status = Localization.Get(!_windowsAvailable ? "Unavailable" : _startupState switch
+            {
+                StartupState.Enabled => "On",
+                StartupState.Blocked => "StartupDisabledInWindows",
+                StartupState.OtherInstallation => "StartupOtherInstallation",
+                _ => "Off"
+            });
+            if (!_busy) _ = RefreshWindowsAsync();
+            _gameModeRow.Status = Localization.Get(!settings.MuteDuringGames ? "Off"
+                : state.MuteReason.HasFlag(NotificationMuteReason.Game) ? "GameModeMuted" : "On");
+            _fullScreenRow.Status = Localization.Get(!settings.MuteDuringFullScreen ? "Off"
+                : state.MuteReason.HasFlag(NotificationMuteReason.FullScreen) ? "FullScreenMuted" : "On");
+        }
+        if (_selectedSection == "appearance") _position.SetEnabled(!_busy);
         var ready = !settings.SystemNotifications || state.Initialized && state.Access == NotificationAccess.Allowed;
-        if (_ready != ready) _setup.IsExpanded = !ready;
-        _ready = ready;
-        _setup.Status = Localization.Get(ready ? "Complete" : "Pending");
-        _setup.Tone = ready ? StatusTone.Success : StatusTone.Neutral;
-        _complete.IsEnabled = !_busy && ready;
-        _complete.Visibility = settings.SetupCompleted ? Visibility.Collapsed : Visibility.Visible;
-        _complete.SetAction(Symbol.Accept, settings.SetupCompleted ? "ActionCloseSettings" : "ActionCompleteSetup");
-        _animationsRow.Status = Localization.Get(settings.Animations ? "On" : "Off");
-        _gameModeRow.Status = Localization.Get(!settings.MuteDuringGames ? "Off"
-            : state.MuteReason.HasFlag(NotificationMuteReason.Game) ? "GameModeMuted" : "On");
-        _fullScreenRow.Status = Localization.Get(!settings.MuteDuringFullScreen ? "Off"
-            : state.MuteReason.HasFlag(NotificationMuteReason.FullScreen) ? "FullScreenMuted" : "On");
-        // One global summary with information instead of repeating "ready" on every page.
+        if (_selectedSection == "setup")
+        {
+            _initializationRow.Status = Localization.Get(state.Initialized ? "Complete" : AppInitialization.NeedsDeveloperMode
+                ? "NeedsDeveloperMode" : settings.SystemNotifications ? "Pending" : "Optional");
+            _permissionRow.Status = Localization.Get(state.Access switch
+            {
+                NotificationAccess.Allowed => "Allowed",
+                NotificationAccess.Denied => "Denied",
+                NotificationAccess.NeedsRegistration => "NeedsSetup",
+                NotificationAccess.Unavailable => "Unavailable",
+                _ => "AwaitingPermission"
+            });
+            _permissionRow.Tone = state.Access switch
+            {
+                NotificationAccess.Allowed => StatusTone.Success,
+                NotificationAccess.Denied or NotificationAccess.Unavailable => StatusTone.Critical,
+                _ => StatusTone.Neutral
+            };
+            _initialize.IsEnabled = !_busy && !state.Initialized && settings.SystemNotifications;
+            _permission.IsEnabled = !_busy && state.Initialized && settings.SystemNotifications;
+            _permission.SetAction(state.Access == NotificationAccess.Allowed ? Symbol.Setting : Symbol.Permissions,
+                state.Access == NotificationAccess.Allowed ? "ActionManageAccess" : "ActionAllowAccess");
+            _setup.Refresh(state, settings, _busy);
+            _complete.IsEnabled = !_busy && ready;
+            _complete.SetAction(Symbol.Accept, "SetupFinish");
+        }
         var running = state.Sources.Count(source => SourceStatus.IsRunning(source.StatusKey));
-        var summary = _selectedSection == "setup"
-            ? !ready ? Localization.Get("IncompleteSetup") : Localization.Format("SourcesRunning", running) : "";
+        var summary = "";
         if (_busy && _operationSection == _selectedSection)
         {
+            _notice.Visibility = Visibility.Visible;
+            _notice.Severity = InfoBarSeverity.Informational;
             _header.Status = _notice.Title = Localization.Get("Busy");
             _notice.Message = Localization.Get("PleaseWait");
             return;
@@ -414,6 +465,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         }
         if (_failed && _operationSection == _selectedSection)
         {
+            _notice.Visibility = Visibility.Visible;
+            _notice.Severity = InfoBarSeverity.Error;
             _header.Status = Localization.Get("NeedsAttention");
             _notice.Title = Localization.Get("Incomplete");
             _notice.Message = Localization.Get(_errorKey);
@@ -423,8 +476,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         var explainSetup = !ready && _selectedSection == "setup" && _detail is null;
         _notice.Visibility = explainSetup ? Visibility.Visible : Visibility.Collapsed;
         _notice.ActionButton = null;
-        _notice.Title = !explainSetup ? "" : Localization.Get("IncompleteSetup");
-        _notice.Message = !explainSetup ? "" : Localization.Get(state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess");
+        _notice.Title = explainSetup ? Localization.Get("IncompleteSetup") : "";
+        _notice.Message = explainSetup ? Localization.Get(state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess") : "";
         _notice.Severity = InfoBarSeverity.Informational;
     }
 
@@ -460,6 +513,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _navigationRevision++;
         _detail?.Close?.Invoke();
         _detail = null;
         _header.BackRequested -= ReturnFromDetail;
@@ -469,6 +523,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _sources.Dispose();
         _pluginLibrary?.Dispose();
         _appearance.Dispose();
+        _appearancePreview.Dispose();
         _doNotDisturbSettings.Dispose();
         _navigation.Dispose();
     }

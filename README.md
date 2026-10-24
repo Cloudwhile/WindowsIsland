@@ -35,12 +35,12 @@ Download Windows Island from [Releases](https://github.com/Cloudwhile/WindowsIsl
 | Windows installer (.exe) | Allow administrator access, choose a folder, then open Windows Island from the Start menu |
 | Portable ZIP | Extract and run WindowsIsland.exe |
 
-1. In **Setup**, click the icon beside **App initialization**.
-2. Click the icon beside **Notification access** and allow access in the Windows prompt.
-3. Choose your sources in **Sources**. Use the preview to check the island, then select its position and animation in **Appearance**.
-4. Click the completion icon in the upper right. The app remains available in the system tray.
+1. Choose the sources you need in **Sources**.
+2. To use Windows notifications, open **Setup** from **Overview**, follow the initialization and notification access steps, then check the result and return to Overview.
+3. Select position and animation in **Appearance**. The monitor illustration follows your choices; use the notification preview to check the desktop result.
+4. Close the settings window. The app remains available in the system tray.
 
-Before deleting a portable copy, open **Setup**, select **Unregister notification package**, confirm, and wait for Windows Island to exit. First use of system notifications may require administrator access once. The portable package creates no Start menu, startup, or uninstall entry.
+Before deleting a portable copy, open **Setup** from **Overview**, select **Unregister notification package**, confirm, and wait for Windows Island to exit. First use of system notifications may require administrator access once. The portable package creates no Start menu, startup, or uninstall entry.
 
 Settings save automatically. Click the tray icon to reopen settings, or right-click it to check status and exit. If notification access needs attention, use the Windows settings shortcut in Setup, then refresh or retry.
 
@@ -76,19 +76,19 @@ System notifications require initialization and notification access. Connected s
 
 ## Plugins
 
-Import a plugin ZIP from a trusted developer in **Plugins**, then manage its switch, status and settings in **Sources**. Click a plugin to open its details and use the back icon to return. Removing an external plugin keeps its settings and data for reinstallation. Plugins run with the app's system permissions, so only install code you trust.
+Use the install icon in **Plugin management** to import a plugin ZIP from a trusted developer. **Installed** shows installed plugins and their details; **Discover** provides the official catalog and advanced proxy settings. Manage source switches, connection status and settings in **Sources**. Click a plugin to open its details and use the back icon to return. To uninstall an external plugin, open its installed details and confirm removal; its settings and data remain available for reinstallation. Plugins run with the app's system permissions, so only install code you trust.
 
 The [open platform](https://wini-plugins.abszero.cc/) is reserved for the official catalog and is not available yet. Use manual ZIP import for now. Developers can use the [plugin guide](https://wini-docs.abszero.cc/plugins) to build notification sources, pinned content and interactive controls.
 
 ## Settings
 
-The sidebar contains **Setup**, **Sources**, **Plugins**, **Appearance**, **Updates**, and **Diagnostics & feedback**.
+Settings open on **Overview**. The grouped sidebar contains **Overview**, **Sources**, **Plugin management**, **Appearance**, **Notification behavior**, **Updates**, and **Diagnostics & feedback**. Open the system notification setup flow from Overview when needed.
 
 | Setting | What you can choose |
 | --- | --- |
-| Launch at startup | Enable in Setup and approve the Windows administrator prompt to launch in the background when you sign in |
-| Game and full-screen mute | Control the two switches independently in Sources; both are enabled by default |
-| Windows do not disturb | Toggle in Sources to quiet Windows banners while Windows Island continues receiving messages; Windows priority exceptions still apply |
+| Launch at startup | Enable under General in Notification behavior and approve the Windows administrator prompt to launch in the background when you sign in |
+| Game and full-screen mute | Control the two switches independently in Notification behavior; both are enabled by default |
+| Windows do not disturb | Toggle in Notification behavior to quiet Windows banners while Windows Island continues receiving messages; Windows priority exceptions still apply |
 | Position and animation | Choose a screen position, toggle animation and preview a notification in Appearance |
 | Background | Adjust acrylic, background transparency and opacity transitions in Appearance |
 | Language | Choose Simplified Chinese, English or the system language in Appearance; the app defaults to Simplified Chinese |
