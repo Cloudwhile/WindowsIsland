@@ -696,4 +696,18 @@
   <data name="AppearancePositionCurrent" xml:space="preserve"><value>Current position: {0}</value></data>
   <data name="SourceEnabledLabel" xml:space="preserve"><value>{0} · Enabled</value></data>
   <data name="SourceDisabledLabel" xml:space="preserve"><value>{0} · Disabled</value></data>
+  <data name="UpdateApplicationSection" xml:space="preserve"><value>Application version</value></data>
+  <data name="UpdateChannelSection" xml:space="preserve"><value>Update channel</value></data>
+  <data name="UpdateCheckSection" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="UpdateReleaseNotes" xml:space="preserve"><value>Release notes</value></data>
+  <data name="DiagnosticsOverview" xml:space="preserve"><value>Diagnostic overview</value></data>
+  <data name="DiagnosticsActions" xml:space="preserve"><value>Report actions</value></data>
+  <data name="DiagnosticsLatestFailure" xml:space="preserve"><value>Latest failure: {0}</value></data>
+  <data name="DiagnosticsNoFailures" xml:space="preserve"><value>No recent failures</value></data>
+  <data name="DiagnosticsClearConfirmTitle" xml:space="preserve"><value>Clear local diagnostic records?</value></data>
+  <data name="DiagnosticsClearConfirmMessage" xml:space="preserve"><value>This clears locally saved records and the current report preview. Previously exported files are kept.</value></data>
+  <data name="DiagnosticsConfirmClear" xml:space="preserve"><value>Clear records</value></data>
+  <data name="DiagnosticsFeedbackOpened" xml:space="preserve"><value>The feedback page is open. Review the report before submitting.</value></data>
+  <data name="DiagnosticsExportCanceled" xml:space="preserve"><value>Export canceled. Existing files were kept.</value></data>
+  <data name="DiagnosticsRecords" xml:space="preserve"><value>Record summary</value></data>
 </root>

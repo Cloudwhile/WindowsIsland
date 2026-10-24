@@ -24,7 +24,9 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
     private readonly InfoBar _status = new() { IsClosable = false, IsOpen = false, Visibility = Visibility.Collapsed };
     private readonly SettingsRow _recordRow, _recentRow, _feedbackRow;
     private readonly SettingsDiagnosticEntries _entries = new();
-    private readonly SettingsSection _events;
+    private readonly SettingsEmptyState _empty = new(Symbol.Document, "DiagnosticsEmpty");
+    private readonly ProgressRing _working = new() { Width = 20, Height = 20, Visibility = Visibility.Collapsed };
+    private ContentDialog? _dialog;
     private bool _syncing, _busy, _disposed;
     private string? _statusKey;
 
@@ -32,23 +34,16 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
     {
         _settings = settings;
         _pickFile = pickFile;
-        _recordRow = new SettingsRow(Symbol.Document, "DiagnosticsRecord", _record);
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        actions.Children.Add(_generate); actions.Children.Add(_view); actions.Children.Add(_export); actions.Children.Add(_clear);
-        _recentRow = new SettingsRow(Symbol.Important, "DiagnosticsRecent", actions, "DiagnosticsSummary");
-        Children.Add(_recordRow);
-        Children.Add(_recentRow);
-        Children.Add(SettingsContent.Wrap(_details));
-        var feedback = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        feedback.Children.Add(_copy); feedback.Children.Add(_feedback);
-        _feedbackRow = new SettingsRow(Symbol.Send, "DiagnosticsFeedbackTitle", feedback);
-        Children.Add(_feedbackRow);
+        _recordRow = new SettingsRow(Symbol.Document, "DiagnosticsRecord", _record) { ShowSeparator = false };
+        _recentRow = new SettingsRow(Symbol.Important, "DiagnosticsRecords", new Grid(), "DiagnosticsSummary") { ShowSeparator = false };
         var privacy = LocalizedUI.Text("DiagnosticsPrivacy", 12, secondary: true);
         privacy.TextWrapping = TextWrapping.Wrap;
-        Children.Add(new SettingsContent(privacy));
-        Children.Add(SettingsContent.Wrap(_status));
-        _events = new SettingsSection("DiagnosticsEvents", _entries);
-        Children.Add(_events);
+        Children.Add(new SettingsSection("DiagnosticsOverview", _recordRow, new SettingsContent(privacy), _recentRow));
+        var actions = new SettingsContent(new SettingsMaintenanceActions(_generate, _view, _copy, _export, _clear, _working));
+        Children.Add(new SettingsSection("DiagnosticsActions", actions, SettingsContent.Wrap(_details), SettingsContent.Wrap(_status)));
+        Children.Add(new SettingsSection("DiagnosticsEvents", _entries, SettingsContent.Wrap(_empty)));
+        _feedbackRow = new SettingsRow(Symbol.Send, "DiagnosticsFeedback", _feedback) { ShowSeparator = false };
+        Children.Add(new SettingsSection("DiagnosticsFeedbackTitle", _feedbackRow));
         AutomationProperties.SetAutomationId(_record, "LocalDiagnosticsToggle");
         AutomationProperties.SetAutomationId(_details, "DiagnosticDetails");
         AutomationProperties.SetAutomationId(_status, "DiagnosticStatus");
@@ -83,7 +78,8 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         _export.Click += async (_, _) => await RunAsync(async () =>
         {
             var path = await _pickFile();
-            if (path is null || _disposed) return;
+            if (_disposed) return;
+            if (path is null) { Show("DiagnosticsExportCanceled", severity: InfoBarSeverity.Informational); return; }
             var store = Diagnostics.Store ?? throw new InvalidOperationException("Diagnostics unavailable.");
             await store.ExportAsync(path);
             if (!_disposed) Show("DiagnosticsExported");
@@ -99,6 +95,7 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         });
         _clear.Click += async (_, _) => await RunAsync(async () =>
         {
+            if (!await ConfirmClearAsync() || _disposed) return;
             await Task.Run(() => Diagnostics.Store?.Clear());
             if (_disposed) return;
             _details.Text = "";
@@ -109,6 +106,7 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         {
             if (!await Windows.System.Launcher.LaunchUriAsync(DiagnosticReports.FeedbackUri()))
                 throw new InvalidOperationException("Feedback page did not open.");
+            if (!_disposed) Show("DiagnosticsFeedbackOpened");
         });
         _settings.Changed += SettingsChanged;
         LocalizedUI.Bind(this, Refresh);
@@ -129,20 +127,35 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
         var failures = entries.Count(entry => DiagnosticPresentation.Outcome(entry) == DiagnosticOutcome.Failure);
         _recentRow.Status = entries.Length == 0 ? Localization.Get("DiagnosticsEmpty") : Localization.Format("DiagnosticsRecordCount", entries.Length, failures);
         _recentRow.Tone = failures > 0 ? StatusTone.Critical : StatusTone.Neutral;
+        _recentRow.Detail = entries.Where(entry => DiagnosticPresentation.Outcome(entry) == DiagnosticOutcome.Failure)
+            .Select(entry => (DateTimeOffset?)entry.LastSeen).Max() is { } latest
+            ? Localization.Format("DiagnosticsLatestFailure", latest.ToLocalTime().ToString("g", Localization.Culture))
+            : Localization.Get("DiagnosticsNoFailures");
         _entries.Refresh(entries.Reverse().ToArray());
-        _events.Visibility = entries.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _empty.Visibility = entries.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         _record.IsEnabled = !_busy;
         _generate.IsEnabled = _view.IsEnabled = _export.IsEnabled = _copy.IsEnabled = !_busy && store is not null;
         _clear.IsEnabled = !_busy && entries.Length > 0;
         _feedback.IsEnabled = !_busy;
+        _working.IsActive = _busy;
+        _working.Visibility = _busy ? Visibility.Visible : Visibility.Collapsed;
         if (_statusKey is not null) _status.Message = Localization.Get(_statusKey);
         _feedbackRow.Status = Localization.Get("DiagnosticsFeedbackHint");
+        if (_dialog is { } dialog)
+        {
+            dialog.Title = Localization.Get("DiagnosticsClearConfirmTitle");
+            dialog.Content = Localization.Get("DiagnosticsClearConfirmMessage");
+            dialog.PrimaryButtonText = Localization.Get("DiagnosticsConfirmClear");
+            dialog.CloseButtonText = Localization.Get("ActionCancel");
+        }
     }
 
     private async Task RunAsync(Func<Task> action)
     {
         if (_busy || _disposed) return;
         _busy = true;
+        _statusKey = null;
+        _status.Visibility = Visibility.Collapsed;
         Refresh();
         try { await action(); }
         catch (OperationCanceledException) { }
@@ -157,14 +170,29 @@ internal sealed class SettingsDiagnostics : StackPanel, IDisposable
     private static Task<string> ReportAsync() => Diagnostics.Store?.Reports.GetAsync()
         ?? throw new InvalidOperationException("Diagnostics unavailable.");
 
-    private void Show(string key, bool error = false)
+    private async Task<bool> ConfirmClearAsync()
+    {
+        if (_disposed || XamlRoot is null) return false;
+        _dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot, Title = Localization.Get("DiagnosticsClearConfirmTitle"),
+            Content = Localization.Get("DiagnosticsClearConfirmMessage"),
+            PrimaryButtonText = Localization.Get("DiagnosticsConfirmClear"), CloseButtonText = Localization.Get("ActionCancel"),
+            DefaultButton = ContentDialogButton.Close
+        };
+        AutomationProperties.SetAutomationId(_dialog, "ClearDiagnosticsConfirmation");
+        try { return await _dialog.ShowAsync() == ContentDialogResult.Primary; }
+        finally { _dialog = null; }
+    }
+
+    private void Show(string key, bool error = false, InfoBarSeverity severity = InfoBarSeverity.Success)
     {
         _statusKey = key;
         _status.IsOpen = true;
         _status.Visibility = Visibility.Visible;
         _status.Message = Localization.Get(key);
-        _status.Severity = error ? InfoBarSeverity.Error : InfoBarSeverity.Success;
+        _status.Severity = error ? InfoBarSeverity.Error : severity;
     }
     private void SettingsChanged(AppSettings _) => Refresh();
-    public void Dispose() { _disposed = true; _settings.Changed -= SettingsChanged; }
+    public void Dispose() { _disposed = true; _dialog?.Hide(); _settings.Changed -= SettingsChanged; }
 }

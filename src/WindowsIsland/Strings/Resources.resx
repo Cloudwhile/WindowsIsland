@@ -696,4 +696,18 @@
   <data name="AppearancePositionCurrent" xml:space="preserve"><value>当前位置：{0}</value></data>
   <data name="SourceEnabledLabel" xml:space="preserve"><value>{0} · 已启用</value></data>
   <data name="SourceDisabledLabel" xml:space="preserve"><value>{0} · 已关闭</value></data>
+  <data name="UpdateApplicationSection" xml:space="preserve"><value>应用版本</value></data>
+  <data name="UpdateChannelSection" xml:space="preserve"><value>更新通道</value></data>
+  <data name="UpdateCheckSection" xml:space="preserve"><value>检查更新</value></data>
+  <data name="UpdateReleaseNotes" xml:space="preserve"><value>更新说明</value></data>
+  <data name="DiagnosticsOverview" xml:space="preserve"><value>诊断概览</value></data>
+  <data name="DiagnosticsActions" xml:space="preserve"><value>报告操作</value></data>
+  <data name="DiagnosticsLatestFailure" xml:space="preserve"><value>最近异常：{0}</value></data>
+  <data name="DiagnosticsNoFailures" xml:space="preserve"><value>最近没有异常记录</value></data>
+  <data name="DiagnosticsClearConfirmTitle" xml:space="preserve"><value>清除本机诊断记录？</value></data>
+  <data name="DiagnosticsClearConfirmMessage" xml:space="preserve"><value>这会清除本机保存的记录和当前报告预览。此前导出的文件会保留。</value></data>
+  <data name="DiagnosticsConfirmClear" xml:space="preserve"><value>清除记录</value></data>
+  <data name="DiagnosticsFeedbackOpened" xml:space="preserve"><value>问题反馈页面已打开。提交前请检查报告内容。</value></data>
+  <data name="DiagnosticsExportCanceled" xml:space="preserve"><value>已取消导出，现有文件未改动。</value></data>
+  <data name="DiagnosticsRecords" xml:space="preserve"><value>记录汇总</value></data>
 </root>

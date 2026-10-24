@@ -33,6 +33,7 @@ internal sealed class SettingsDiagnosticEntries : StackPanel
             Row.Header.Title = title;
             AutomationProperties.SetName(Row, title);
             Row.Header.Status = DiagnosticPresentation.Summary(entry);
+            Row.Header.Detail = entry.LastSeen.ToLocalTime().ToString("g", Localization.Culture) + " · " + DiagnosticPresentation.Area(entry);
             Row.Header.Tone = DiagnosticPresentation.Outcome(entry) == DiagnosticOutcome.Success ? StatusTone.Success : StatusTone.Critical;
             _details.Children.Clear();
             Detail(Localization.Format("DiagnosticTime", entry.FirstSeen.ToLocalTime().ToString("g", Localization.Culture),
@@ -51,9 +52,14 @@ internal sealed class SettingsDiagnosticEntries : StackPanel
     }
 
     private readonly Dictionary<string, EntryView> _rows = [];
+    private DiagnosticEntry[] _previous = [];
+    private string? _language;
 
     public void Refresh(DiagnosticEntry[] entries)
     {
+        if (_language == Localization.Language && _previous.SequenceEqual(entries)) return;
+        _previous = entries;
+        _language = Localization.Language;
         var ids = entries.Select(entry => entry.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var id in _rows.Keys.Where(id => !ids.Contains(id)).ToArray())
         {
