@@ -40,6 +40,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _syncing = true;
         try
         {
+            var structureChanged = false;
             var systemAvailable = plugins.Any(plugin => plugin.Definition.Id == BuiltInPluginIds.System && SourceStatus.IsRunning(plugin.StatusKey));
             var ids = plugins.Select(plugin => plugin.Definition.Id).ToHashSet(StringComparer.Ordinal);
             foreach (var id in _rows.Keys.Where(id => !ids.Contains(id)).ToArray())
@@ -47,6 +48,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                 var removed = _rows[id];
                 Children.Remove(removed.Row);
                 _rows.Remove(id);
+                structureChanged = true;
             }
             foreach (var plugin in plugins)
             {
@@ -55,6 +57,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                 {
                     Children.Remove(old.Row);
                     _rows.Remove(definition.Id);
+                    structureChanged = true;
                 }
                 if (!_rows.TryGetValue(definition.Id, out var controls))
                 {
@@ -105,6 +108,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     controls = new(row, definition, toggle, retry);
                     _rows.Add(definition.Id, controls);
                     Children.Add(controls.Row);
+                    structureChanged = true;
                 }
                 controls.Toggle.IsOn = definition.IsEnabled(_store.Current);
                 controls.Toggle.IsEnabled = !busy && !_changing.Contains(definition.Id);
@@ -117,6 +121,7 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                 controls.Retry.Visibility = controls.Toggle.IsOn && plugin.CanRetry ? Visibility.Visible : Visibility.Collapsed;
                 controls.Retry.IsEnabled = !busy && !_changing.Contains(definition.Id);
             }
+            if (structureChanged) SettingsSection.UpdateSeparators(this);
         }
         finally { _syncing = false; }
     }

@@ -45,11 +45,13 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
     {
         if (_disposed) return;
         var plugins = _library.Manager.Snapshot();
+        var structureChanged = false;
         var ids = plugins.Select(item => item.Definition.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var id in _entries.Keys.Where(id => !ids.Contains(id)).ToArray())
         {
             _list.Children.Remove(_entries[id].Row);
             _entries.Remove(id);
+            structureChanged = true;
         }
         foreach (var plugin in plugins)
         {
@@ -58,6 +60,7 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
             {
                 _list.Children.Remove(old.Row);
                 _entries.Remove(definition.Id);
+                structureChanged = true;
             }
             if (!_entries.TryGetValue(definition.Id, out var entry))
             {
@@ -71,12 +74,14 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
                 entry = new(definition, row, catalogNotice);
                 _entries.Add(definition.Id, entry);
                 _list.Children.Add(row);
+                structureChanged = true;
             }
             entry.Row.Header.Status = Localization.Get(plugin.StatusKey);
             entry.Row.Header.Tone = SourceStatus.Tone(plugin.StatusKey);
             entry.Row.Header.Detail = Summary(definition.Metadata);
             entry.Notice.Refresh();
         }
+        if (structureChanged) SettingsSection.UpdateSeparators(_list);
         _empty.Visibility = plugins.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
