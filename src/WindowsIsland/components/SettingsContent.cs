@@ -11,8 +11,8 @@ internal class SettingsContent : StackPanel
 
     public SettingsContent(bool inset, params UIElement[] children)
     {
-        Spacing = 12;
-        if (inset) Margin = new Thickness(52, 8, 12, 16);
+        Spacing = SettingsTokens.RowPadding;
+        if (inset) Margin = SettingsTokens.DetailMargin;
         foreach (var child in children) Children.Add(child);
     }
 

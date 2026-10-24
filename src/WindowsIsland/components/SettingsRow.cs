@@ -18,6 +18,10 @@ internal sealed class SettingsRow : Grid
     };
     private readonly TextBlock _detail = IslandTheme.Text("", 12, secondary: true);
     private readonly TextBlock _name;
+    private readonly Border _divider;
+    private readonly FrameworkElement _action;
+    private readonly StackPanel _text;
+    public bool ShowSeparator { set => _divider.Visibility = value ? Visibility.Visible : Visibility.Collapsed; }
     public string Title { get => _name.Text; set => _name.Text = value; }
     private StatusTone _tone;
     private string _status = "";
@@ -25,7 +29,7 @@ internal sealed class SettingsRow : Grid
     public string Status
     {
         get => _status;
-        set { _status = value ?? ""; Apply(); }
+        set { if (_status == value) return; _status = value ?? ""; Apply(); }
     }
 
     public StatusTone Tone
@@ -49,10 +53,13 @@ internal sealed class SettingsRow : Grid
 
     public SettingsRow(IconElement icon, string title, FrameworkElement action, string? statusId = null, bool localizeTitle = true)
     {
-        MinHeight = 52;
-        Padding = new Thickness(12, 8, 12, 8);
-        ColumnSpacing = 16;
-        ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+        MinHeight = SettingsTokens.RowMinHeight;
+        Padding = new Thickness(SettingsTokens.RowPadding, 10, SettingsTokens.RowPadding, 10);
+        ColumnSpacing = SettingsTokens.RowPadding;
+        RowSpacing = SettingsTokens.ControlSpacing;
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SettingsTokens.IconColumnWidth) });
         ColumnDefinitions.Add(new ColumnDefinition());
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         icon.VerticalAlignment = VerticalAlignment.Center;
@@ -61,7 +68,7 @@ internal sealed class SettingsRow : Grid
         var name = _name = localizeTitle ? LocalizedUI.Text(title) : IslandTheme.Text(title);
         name.TextWrapping = TextWrapping.Wrap;
         name.FontWeight = FontWeights.SemiBold;
-        var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var text = _text = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(name);
         foreach (var status in _statuses.Values)
         {
@@ -79,12 +86,28 @@ internal sealed class SettingsRow : Grid
         Grid.SetColumn(action, 2);
         Children.Add(text);
         Children.Add(action);
-        var divider = (Border)XamlReader.Load("<Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Background='{ThemeResource DividerStrokeColorDefaultBrush}' />");
+        _action = action;
+        action.VerticalAlignment = VerticalAlignment.Center;
+        var divider = _divider = (Border)XamlReader.Load("<Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Background='{ThemeResource DividerStrokeColorDefaultBrush}' />");
         divider.Height = 1;
-        divider.Margin = new Thickness(40, 0, 0, -8);
+        divider.Margin = new Thickness(36, 0, 0, -10);
         divider.VerticalAlignment = VerticalAlignment.Bottom;
         Grid.SetColumnSpan(divider, 3);
+        Grid.SetRow(divider, 1);
         Children.Add(divider);
+        SizeChanged += (_, _) => ArrangeAction();
+        action.SizeChanged += (_, _) => ArrangeAction();
+    }
+
+    private void ArrangeAction()
+    {
+        var available = ActualWidth - Padding.Left - Padding.Right;
+        // Complex toolbars and selectors move below the label instead of squeezing it away.
+        var stacked = available > 0 && available - _action.ActualWidth < 180;
+        Grid.SetRow(_action, stacked ? 1 : 0);
+        Grid.SetColumn(_action, stacked ? 1 : 2);
+        Grid.SetColumnSpan(_action, stacked ? 2 : 1);
+        Grid.SetColumnSpan(_text, stacked ? 2 : 1);
     }
 
     private void Apply()
