@@ -15,12 +15,13 @@ internal sealed class SettingsAppearance : StackPanel, IDisposable
     private readonly Slider _transparency = new()
     {
         Minimum = 0, Maximum = 80, StepFrequency = 1, SmallChange = 5, LargeChange = 10,
-        Width = 144, VerticalAlignment = VerticalAlignment.Center
+        Width = 180, MaxWidth = 240, VerticalAlignment = VerticalAlignment.Center
     };
     private readonly SettingsRow _acrylicRow, _transitionsRow, _transparencyRow;
     private bool _syncing, _disposed;
 
-    public SettingsAppearance(SettingsStore store, Action<Func<AppSettings, AppSettings>> save)
+    public SettingsAppearance(SettingsStore store, Action<Func<AppSettings, AppSettings>> save,
+        SettingsRow? animationsRow = null)
     {
         _store = store;
         _save = save;
@@ -29,9 +30,10 @@ internal sealed class SettingsAppearance : StackPanel, IDisposable
         _acrylicRow = new SettingsRow(Symbol.View, "Acrylic", _acrylic);
         _transitionsRow = new SettingsRow(Symbol.SlideShow, "OpacityTransitions", _transitions);
         _transparencyRow = new SettingsRow(Symbol.Edit, "BackgroundTransparency", _transparency, "BackgroundTransparencyValue");
-        Children.Add(_acrylicRow);
-        Children.Add(_transparencyRow);
-        Children.Add(_transitionsRow);
+        Children.Add(animationsRow is null
+            ? new SettingsSection("AppearanceMotion", _transitionsRow)
+            : new SettingsSection("AppearanceMotion", animationsRow, _transitionsRow));
+        Children.Add(new SettingsSection("AppearanceSurface", _acrylicRow, _transparencyRow));
         _acrylic.Toggled += OnAcrylicChanged;
         _transitions.Toggled += OnTransitionsChanged;
         _transparency.ValueChanged += OnTransparencyChanged;

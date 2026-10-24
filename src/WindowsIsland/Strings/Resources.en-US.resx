@@ -686,4 +686,12 @@
   <data name="SetupFinish" xml:space="preserve"><value>Finish and return to overview</value></data>
   <data name="SetupReturnOverview" xml:space="preserve"><value>Setup is ready</value></data>
   <data name="SetupFinishPending" xml:space="preserve"><value>Initialize and grant access, or turn off system notifications in Sources.</value></data>
+  <data name="AppearanceBasics" xml:space="preserve"><value>Language and preferences</value></data>
+  <data name="AppearancePosition" xml:space="preserve"><value>Position and preview</value></data>
+  <data name="AppearanceMotion" xml:space="preserve"><value>Motion and transitions</value></data>
+  <data name="AppearanceSurface" xml:space="preserve"><value>Background material and transparency</value></data>
+  <data name="AppearanceSimulatedPreview" xml:space="preserve"><value>Display simulation</value></data>
+  <data name="AppearancePreviewHint" xml:space="preserve"><value>Position and appearance simulation. Preview a notification for the actual result.</value></data>
+  <data name="ActionPreviewActual" xml:space="preserve"><value>Preview actual notification</value></data>
+  <data name="AppearancePositionCurrent" xml:space="preserve"><value>Current position: {0}</value></data>
 </root>

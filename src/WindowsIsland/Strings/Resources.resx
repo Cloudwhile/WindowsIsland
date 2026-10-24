@@ -686,4 +686,12 @@
   <data name="SetupFinish" xml:space="preserve"><value>完成并返回概览</value></data>
   <data name="SetupReturnOverview" xml:space="preserve"><value>配置已就绪</value></data>
   <data name="SetupFinishPending" xml:space="preserve"><value>请先完成系统通知初始化与授权，或在消息来源中关闭系统通知。</value></data>
+  <data name="AppearanceBasics" xml:space="preserve"><value>语言与基础偏好</value></data>
+  <data name="AppearancePosition" xml:space="preserve"><value>位置与预览</value></data>
+  <data name="AppearanceMotion" xml:space="preserve"><value>动画与过渡</value></data>
+  <data name="AppearanceSurface" xml:space="preserve"><value>背景材质与透明度</value></data>
+  <data name="AppearanceSimulatedPreview" xml:space="preserve"><value>显示器示意</value></data>
+  <data name="AppearancePreviewHint" xml:space="preserve"><value>位置与外观示意，实际效果请预览通知。</value></data>
+  <data name="ActionPreviewActual" xml:space="preserve"><value>预览实际通知</value></data>
+  <data name="AppearancePositionCurrent" xml:space="preserve"><value>当前位置：{0}</value></data>
 </root>
