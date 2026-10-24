@@ -27,5 +27,6 @@ internal sealed class SettingsSummaryTile : Grid
         surface.Child = content;
         Children.Add(surface);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(_value, id);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(_detail, id + ".Detail");
     }
 }

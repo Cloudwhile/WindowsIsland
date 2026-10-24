@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using WindowsIsland.Services;
+using WindowsIsland.Plugins;
 
 namespace WindowsIsland.Components;
 
@@ -13,6 +14,7 @@ internal sealed class SettingsOverview : StackPanel
     private readonly SettingsSummaryTile _version = new(Symbol.AllApps, "UpdateCurrentVersion", "OverviewVersion");
     private readonly Grid _metrics = new() { ColumnSpacing = SettingsTokens.ControlSpacing, RowSpacing = SettingsTokens.ControlSpacing };
     private readonly IconActionButton _preview;
+    private readonly SettingsRow _sourceHealth;
 
     public SettingsOverview(Action setup, Action sources, Action preview, Action updates)
     {
@@ -33,6 +35,11 @@ internal sealed class SettingsOverview : StackPanel
         Children.Add(_metrics);
         var sourceAction = new IconActionButton(Symbol.Message, "Sources", "OverviewManageSources");
         sourceAction.Click += (_, _) => sources();
+        var inspectSources = new IconActionButton(0xE72A, "Sources", "OverviewInspectSources");
+        inspectSources.Click += (_, _) => sources();
+        _sourceHealth = new SettingsRow(Symbol.Message, "OverviewSourceAttention", inspectSources, "OverviewSourceHealth")
+            { Visibility = Visibility.Collapsed, ShowSeparator = false };
+        Children.Add(_sourceHealth);
         _preview = new IconActionButton(0xE7E7, "ActionPreview", "OverviewPreview");
         _preview.Click += (_, _) => preview();
         var updateAction = new IconActionButton(Symbol.Download, "ActionCheckUpdates", "OverviewUpdates");
@@ -54,13 +61,30 @@ internal sealed class SettingsOverview : StackPanel
         };
     }
 
-    public void Refresh(SettingsSnapshot snapshot, AppSettings settings, bool busy)
+    public void Refresh(SettingsSnapshot snapshot, AppSettings settings, bool busy, UpdateCheckState? updates = null)
     {
         var enabled = snapshot.Sources.Count(source => source.Definition.IsEnabled(settings));
         var running = snapshot.Sources.Count(source => source.Definition.IsEnabled(settings) && SourceStatus.IsRunning(source.StatusKey));
         _sources.Value = $"{running} / {snapshot.Sources.Count}";
         _sources.Detail = Localization.Format("OverviewEnabledSources", enabled);
         var ready = !settings.SystemNotifications || snapshot.Initialized && snapshot.Access == NotificationAccess.Allowed;
+        var disconnected = snapshot.Sources.Where(source => source.Definition.IsEnabled(settings)
+            && !SourceStatus.IsRunning(source.StatusKey) && (ready || source.Definition.Id != BuiltInPluginIds.System)).ToArray();
+        var failures = disconnected.Count(source => SourceStatus.Tone(source.StatusKey) == StatusTone.Critical);
+        _sourceHealth.Visibility = disconnected.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        _sourceHealth.Status = disconnected.Length == 0 ? "" : Localization.Format(
+            failures > 0 ? "OverviewSourceFailures" : "OverviewSourceDisconnected", failures > 0 ? failures : disconnected.Length);
+        _sourceHealth.Tone = failures > 0 ? StatusTone.Critical : StatusTone.Neutral;
+        _version.Detail = updates switch
+        {
+            { Busy: true } => Localization.Get("UpdateChecking"),
+            { ErrorKey: { } error } => Localization.Get(error),
+            { Canceled: true } => Localization.Get("UpdateCheckCanceled"),
+            { Candidate: { } candidate } => Localization.Format("OverviewUpdateAvailable", candidate.Tag),
+            { Checked: true } => Localization.Get("UpdateNone"),
+            not null => Localization.Get("UpdateNotChecked"),
+            _ => ""
+        };
         _notice.IsOpen = !ready;
         _notice.Visibility = ready ? Visibility.Collapsed : Visibility.Visible;
         _notice.Title = ready ? "" : Localization.Get("OverviewSetupNeeded");

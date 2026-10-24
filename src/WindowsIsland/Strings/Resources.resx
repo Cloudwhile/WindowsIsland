@@ -710,4 +710,8 @@
   <data name="DiagnosticsFeedbackOpened" xml:space="preserve"><value>问题反馈页面已打开。提交前请检查报告内容。</value></data>
   <data name="DiagnosticsExportCanceled" xml:space="preserve"><value>已取消导出，现有文件未改动。</value></data>
   <data name="DiagnosticsRecords" xml:space="preserve"><value>记录汇总</value></data>
+  <data name="OverviewSourceAttention" xml:space="preserve"><value>部分来源尚未连接</value></data>
+  <data name="OverviewSourceFailures" xml:space="preserve"><value>{0} 个来源连接失败，可前往消息来源重试。</value></data>
+  <data name="OverviewSourceDisconnected" xml:space="preserve"><value>{0} 个来源尚未连接，可检查客户端与授权。</value></data>
+  <data name="OverviewUpdateAvailable" xml:space="preserve"><value>可更新至 {0}</value></data>
 </root>

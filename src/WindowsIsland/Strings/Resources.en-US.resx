@@ -710,4 +710,8 @@
   <data name="DiagnosticsFeedbackOpened" xml:space="preserve"><value>The feedback page is open. Review the report before submitting.</value></data>
   <data name="DiagnosticsExportCanceled" xml:space="preserve"><value>Export canceled. Existing files were kept.</value></data>
   <data name="DiagnosticsRecords" xml:space="preserve"><value>Record summary</value></data>
+  <data name="OverviewSourceAttention" xml:space="preserve"><value>Some sources are not connected</value></data>
+  <data name="OverviewSourceFailures" xml:space="preserve"><value>{0} sources failed to connect. Open Sources to retry.</value></data>
+  <data name="OverviewSourceDisconnected" xml:space="preserve"><value>{0} sources are not connected. Check the client and permissions.</value></data>
+  <data name="OverviewUpdateAvailable" xml:space="preserve"><value>Update available: {0}</value></data>
 </root>
