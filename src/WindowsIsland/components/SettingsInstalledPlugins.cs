@@ -17,7 +17,7 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
     private readonly SettingsStore? _settings;
     private readonly Dictionary<string, Entry> _entries = [];
     private readonly StackPanel _list = new();
-    private readonly SettingsContent _empty = new(false);
+    private readonly SettingsEmptyState _empty = new(Symbol.AllApps, "PluginInstalledEmpty", "PluginInstalledEmptyHint");
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
     private ContentDialog? _dialog;
     private string? _noticeKey;
@@ -30,12 +30,6 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
         _open = open;
         _openDiagnostics = openDiagnostics;
         _settings = settings;
-        var icon = new SymbolIcon(Symbol.AllApps) { HorizontalAlignment = HorizontalAlignment.Left };
-        _empty.Children.Add(icon);
-        _empty.Children.Add(SettingsSection.Heading("PluginInstalledEmpty"));
-        var hint = LocalizedUI.Text("PluginInstalledEmptyHint", SettingsTokens.DescriptionTextSize, secondary: true);
-        hint.TextWrapping = TextWrapping.Wrap;
-        _empty.Children.Add(hint);
         Children.Add(SettingsContent.Wrap(_notice));
         Children.Add(_empty);
         Children.Add(_list);

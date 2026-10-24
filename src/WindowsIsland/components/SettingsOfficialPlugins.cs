@@ -18,7 +18,7 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     private readonly StackPanel _plugins = new();
     private readonly TextBlock _status = LocalizedUI.Text("PluginCatalogEmpty", 12, secondary: true);
     private readonly ProgressRing _progress = new() { Width = 20, Height = 20, IsActive = false, Visibility = Visibility.Collapsed };
-    private readonly SettingsContent _empty = new(false);
+    private readonly SettingsEmptyState _empty = new(Symbol.AllApps, "PluginCatalogEmpty");
     private readonly InfoBar _notice = new() { IsOpen = true, IsClosable = false, Visibility = Visibility.Collapsed };
     private readonly List<(IconActionButton Button, SettingsRow Row)> _actions = [];
     private readonly List<PluginCatalogNotice> _notices = [];
@@ -49,8 +49,6 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         _status.TextWrapping = TextWrapping.Wrap;
         Children.Add(new SettingsSection("PluginOfficial", new SettingsRow(Symbol.World, "PluginOfficial", toolbar),
             SettingsContent.Wrap(_status), SettingsContent.Wrap(_notice)));
-        _empty.Children.Add(new SymbolIcon(Symbol.AllApps) { HorizontalAlignment = HorizontalAlignment.Left });
-        _empty.Children.Add(SettingsSection.Heading("PluginCatalogEmpty"));
         AutomationProperties.SetAutomationId(_empty, "PluginCatalogEmptyState");
         Children.Add(_empty);
         Children.Add(_plugins);
