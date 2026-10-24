@@ -28,7 +28,7 @@ internal static class PluginSettingsUiChecks
         void Check(bool value, string message)
         {
             if (!value) throw new InvalidOperationException(message);
-            results.Add("PASS " + message);
+            results.Add(message.StartsWith("SKIP ", StringComparison.Ordinal) ? message : "PASS " + message);
             File.WriteAllLines(Path.Combine(output, "plugin-settings-ui.log"), results);
         }
         try
@@ -74,7 +74,36 @@ internal static class PluginSettingsUiChecks
             window.AppWindow.Show();
             window.Activate();
             await Task.Delay(200);
-            Check(Tree(page).OfType<SettingsSources>().Any(), "Completed setup defaults to sources");
+            Check(Tree(page).OfType<SettingsOverview>().Any(), "Completed setup defaults to overview");
+            var only = Environment.GetCommandLineArgs().FirstOrDefault(argument => argument.StartsWith("--verify-ui-check=", StringComparison.Ordinal))?[18..];
+            if (only is not null and not "All")
+            {
+                Check(true, "Focused verification scope: " + only);
+                switch (only)
+                {
+                    case "Layout": await SettingsLayoutUiChecks.RunAsync((SettingsWindow)window, page, store, Check); break;
+                    case "HostPreview": await HostPreviewUiChecks.RunAsync(host, hostStore, Check); break;
+                    case "SourceState": await SourceStateUiChecks.RunAsync(Check); break;
+                    default: throw new InvalidOperationException("Unknown private verification scope.");
+                }
+                File.WriteAllText(Path.Combine(output, "plugin-settings-ui.success"), results.Count.ToString());
+                return;
+            }
+            await MaintenanceUiChecks.RunAsync((SettingsWindow)window, page, store, Check);
+            await SetupFlowUiChecks.RunAsync(Check);
+            await SourceStateUiChecks.RunAsync(Check);
+            await ListSeparatorsUiChecks.RunAsync(Check);
+            await OverviewUiChecks.RunAsync(Check);
+            await MotionUiChecks.RunAsync(Check);
+            await NavigationContextUiChecks.RunAsync(Check);
+            await PluginLifecycleUiChecks.RunAsync(Check);
+            window.Activate();
+            await SettingsLayoutUiChecks.RunAsync((SettingsWindow)window, page, store, Check);
+            await HostPreviewUiChecks.RunAsync(host, hostStore, Check);
+            window.Activate();
+            var initialNavigation = Tree(page).OfType<NavigationView>().Single();
+            initialNavigation.SelectedItem = initialNavigation.MenuItems.OfType<NavigationViewItem>().Single(item => item.Tag is "sources");
+            await Until(() => Tree(page).OfType<SettingsSources>().Any());
             foreach (var id in new[] { BuiltInPluginIds.System, BuiltInPluginIds.WeChat, BuiltInPluginIds.Telegram, BuiltInPluginIds.Power })
             {
                 var builtInRow = Tree(page).OfType<SettingsLinkRow>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + id);
@@ -157,8 +186,16 @@ internal static class PluginSettingsUiChecks
             await Until(() => Tree(page).OfType<SettingsSources>().Any());
             Check(!Tree(page).OfType<SettingsPluginDetails>().Any() && !Tree(page).OfType<SettingsExpander>().Any(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id),
                 "Back restores the source list without inline plugin expanders");
+            await InstalledPluginsUiChecks.RunAsync(page, manager, manifest.Id, Check);
             var navigation = Tree(page).OfType<NavigationView>().Single();
             navigation.SelectedItem = navigation.MenuItems.OfType<NavigationViewItem>().Single(item => item.Tag is "plugins");
+            await Until(() => Tree(page).OfType<SelectorBar>().Any());
+            var views = Tree(page).OfType<SelectorBar>().Single();
+            Check(Tree(page).OfType<SettingsInstalledPlugins>().Any(), "Plugin management defaults to installed plugins");
+            views.SelectedItem = views.Items.Single(item => AutomationProperties.GetAutomationId(item) == "PluginDiscoverView");
+            await Until(() => Tree(page).OfType<SettingsOfficialPlugins>().Any());
+            var advanced = Tree(page).OfType<SettingsExpander>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginAdvancedSettings");
+            advanced.IsExpanded = true;
             await Until(() => Tree(page).OfType<TextBox>().Any(e => AutomationProperties.GetAutomationId(e) == "PluginGitHubProxy"));
             Check(!Tree(page).OfType<TextBox>().Any(e => AutomationProperties.GetAutomationId(e) == "PluginSourceAddress")
                 && !Tree(page).OfType<Button>().Any(e => AutomationProperties.GetAutomationId(e) == "SavePluginSourceAddress")
@@ -209,6 +246,8 @@ internal static class PluginSettingsUiChecks
                 Check(reloadedCatalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl && reloadedCatalog.State.Sources.Length == 2,
                     "C1/C4: the fixed official source and cache survive a reload");
             }
+            navigation.SelectedItem = navigation.MenuItems.OfType<NavigationViewItem>().Single(item => item.Tag is "plugins");
+            await Until(() => Tree(page).OfType<SettingsPluginLibrary>().Any());
             await NativeFileDialogUiChecks.CheckWindowCloseAsync(window, page, Check);
             window = null;
             page = null;
@@ -231,7 +270,9 @@ internal static class PluginSettingsUiChecks
     }
     private static void Invoke(Button button) => ((IInvokeProvider)new ButtonAutomationPeer(button).GetPattern(PatternInterface.Invoke)).Invoke();
     private static IEnumerable<ContentDialog> OpenDialogs(FrameworkElement page) => VisualTreeHelper.GetOpenPopupsForXamlRoot(page.XamlRoot)
-        .Where(popup => popup.Child is not null).SelectMany(popup => Tree(popup.Child)).OfType<ContentDialog>();
+        .Where(popup => popup.Child is not null).SelectMany(popup => Tree(popup.Child)).OfType<ContentDialog>()
+        .Where(dialog => dialog.IsLoaded && dialog.ActualWidth > 0 && dialog.ActualHeight > 0
+            && Tree(dialog).OfType<Button>().Any(button => button.Name == "CloseButton" && button.IsLoaded && button.ActualWidth > 0));
     private static async Task CaptureAsync(Window window, string path)
     {
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(window);

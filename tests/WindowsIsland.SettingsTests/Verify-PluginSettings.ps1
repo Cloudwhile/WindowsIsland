@@ -1,4 +1,4 @@
-﻿param([switch]$WithoutMica)
+param([switch]$WithoutMica, [ValidateSet('All', 'Layout', 'HostPreview', 'SourceState')][string]$Only = 'All')
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $runRoot = Join-Path $repoRoot ('artifacts/verification/plugin-settings-ui/' + [Guid]::NewGuid().ToString('N'))
@@ -15,6 +15,18 @@ $targets = @"
     <Compile Include="$runRoot/App.xaml.cs" />
     <Compile Include="$PSScriptRoot/PluginSettingsUiChecks.cs" />
     <Compile Include="$PSScriptRoot/NativeFileDialogUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/SettingsLayoutUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/MaintenanceUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/InstalledPluginsUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/SetupFlowUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/NativeSettingsInput.cs" />
+    <Compile Include="$PSScriptRoot/SourceStateUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/OverviewUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/MotionUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/NavigationContextUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/PluginLifecycleUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/ListSeparatorsUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/HostPreviewUiChecks.cs" />
   </ItemGroup>
 </Project>
 "@
@@ -37,8 +49,8 @@ try {
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $runRoot 'build.log') -Tail 20; throw 'UI verification build failed.' }
     New-Item -ItemType Directory -Path (Join-Path $runRoot 'app/fixture') -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $repoRoot 'artifacts/bin/WindowsIsland.PluginFixture/Release/net10.0/WindowsIsland.PluginFixture.dll') -Destination (Join-Path $runRoot 'app/fixture')
-    $process = Start-Process -FilePath (Join-Path $runRoot 'app/WindowsIsland.exe') -ArgumentList '--verify-local', '--verify-light' -WindowStyle Hidden -PassThru
-    $deadline = [DateTime]::UtcNow.AddSeconds(75)
+    $process = Start-Process -FilePath (Join-Path $runRoot 'app/WindowsIsland.exe') -ArgumentList '--verify-local', '--verify-light', "--verify-ui-check=$Only" -WindowStyle Hidden -PassThru
+    $deadline = [DateTime]::UtcNow.AddSeconds(240)
     $watchdog = Join-Path $runRoot 'app/file-dialog-watchdog'
     while (-not $process.WaitForExit(250)) {
         if ([DateTime]::UtcNow -gt $deadline -or ((Test-Path -LiteralPath $watchdog) -and
