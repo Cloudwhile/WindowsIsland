@@ -33,6 +33,7 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
     private Storyboard? _animation;
     private AppSettings? _applied;
     private SystemAppearance _systemAppearance = new(true, false, false);
+    private int _demonstration;
     private bool _disposed, _observing, _effectsSubscribed, _animationsSubscribed, _contrastSubscribed, _wide;
 
     public NotificationAppearancePreview(SettingsStore store, Action preview)
@@ -142,6 +143,8 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         _picker.Select(settings.Position);
         _positionLabel.Text = Localization.Format("AppearancePositionCurrent", NotificationPlacement.Label(settings.Position));
         var first = _applied is null;
+        var demonstrate = _applied is not null && settings.Animations
+            && (_applied.Animations != settings.Animations || _applied.OpacityTransitions != settings.OpacityTransitions);
         var changed = _applied is not null && (_applied.Position != settings.Position
             || _applied.BackgroundOpacity != settings.BackgroundOpacity || _applied.Acrylic != settings.Acrylic
             || _applied.Animations != settings.Animations || _applied.OpacityTransitions != settings.OpacityTransitions);
@@ -150,14 +153,24 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         var systemChanged = systemAppearance != _systemAppearance;
         _systemAppearance = systemAppearance;
         if (first || changed || systemChanged) Present(changed && IsLoaded && !systemChanged);
+        if (demonstrate && IsLoaded)
+        {
+            // 等本轮设置事件更新父页的附加策略后，只播放一次示意；不修改位置或弹出真实通知。
+            var demonstration = ++_demonstration;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_disposed && IsLoaded && demonstration == _demonstration) Present(true, demonstrate: true);
+            });
+        }
+        else if (!settings.Animations) _demonstration++;
     }
 
-    private void Present(bool animate)
+    private void Present(bool animate, bool demonstrate = false)
     {
         if (_disposed || _applied is not { } settings) return;
         var highContrast = _systemAppearance.HighContrast;
         var effects = _systemAppearance.Effects;
-        var animations = _systemAppearance.Animations && settings.Animations;
+        var animations = !highContrast && settings.Animations && SettingsMotion.Allow(this);
         var opacity = effects ? AppSettings.NormalizeBackgroundOpacity(settings.BackgroundOpacity) : 1;
         _sampleBackground.Background = highContrast ? _highContrast : settings.Acrylic && effects ? _acrylic : _solid;
         var width = Math.Max(1, Math.Min(SampleWidth, _screen.ActualWidth - ScreenInset * 2));
@@ -173,27 +186,37 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         _position.X = target.X;
         _position.Y = target.Y;
         _sampleBackground.Opacity = opacity;
+        _sample.Opacity = 1;
         if (!animate || !animations) return;
+        if (demonstrate)
+        {
+            var maximum = Math.Max(ScreenInset, _screen.ActualHeight - SampleHeight - ScreenInset);
+            fromY = Math.Clamp(target.Y + (target.Y <= maximum / 2 ? 8 : -8), ScreenInset, maximum);
+        }
         var storyboard = new Storyboard();
         Animate(storyboard, _position, "X", fromX, target.X);
         Animate(storyboard, _position, "Y", fromY, target.Y);
         if (settings.OpacityTransitions) Animate(storyboard, _sampleBackground, "Opacity", fromOpacity, opacity);
+        if (demonstrate) Animate(storyboard, _sample, "Opacity", 0.6, 1);
         if (storyboard.Children.Count == 0) return;
         _animation = storyboard;
+        storyboard.Completed += (_, _) =>
+        {
+            if (!ReferenceEquals(_animation, storyboard)) return;
+            _animation = null;
+            storyboard.Stop();
+            _position.X = target.X;
+            _position.Y = target.Y;
+            _sampleBackground.Opacity = opacity;
+            _sample.Opacity = 1;
+        };
         storyboard.Begin();
     }
 
     private static void Animate(Storyboard storyboard, DependencyObject target, string property, double from, double to)
     {
         if (Math.Abs(from - to) < 0.001) return;
-        var animation = new DoubleAnimation
-        {
-            From = from, To = to, Duration = new Duration(TimeSpan.FromMilliseconds(160)),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-        };
-        Storyboard.SetTarget(animation, target);
-        Storyboard.SetTargetProperty(animation, property);
-        storyboard.Children.Add(animation);
+        storyboard.Children.Add(SettingsMotion.CreateAnimation(target, property, from, to));
     }
 
     private void OnLayoutSizeChanged(object sender, SizeChangedEventArgs args)
@@ -234,6 +257,7 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
     {
         if (_disposed || _observing) return;
         _observing = true;
+        SettingsMotion.Changed += OnMotionPolicyChanged;
         _effectsSubscribed = TrySubscribe(() => _system.AdvancedEffectsEnabledChanged += OnEffectsChanged);
         _animationsSubscribed = TrySubscribe(() => _system.AnimationsEnabledChanged += OnAnimationsChanged);
         _contrastSubscribed = TrySubscribe(() => _accessibility.HighContrastChanged += OnHighContrastChanged);
@@ -245,6 +269,9 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
     {
         _animation?.Stop();
         _animation = null;
+        _demonstration++;
+        _sample.Opacity = 1;
+        SettingsMotion.Changed -= OnMotionPolicyChanged;
         _observing = false;
         TryUnsubscribe(ref _effectsSubscribed, () => _system.AdvancedEffectsEnabledChanged -= OnEffectsChanged);
         TryUnsubscribe(ref _animationsSubscribed, () => _system.AnimationsEnabledChanged -= OnAnimationsChanged);
@@ -278,6 +305,18 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
     private void OnEffectsChanged(UISettings sender, object args) => QueueRefresh(systemChanged: true);
     private void OnAnimationsChanged(UISettings sender, UISettingsAnimationsEnabledChangedEventArgs args) => QueueRefresh(systemChanged: true);
     private void OnHighContrastChanged(AccessibilitySettings sender, object args) => QueueRefresh(systemChanged: true);
+
+    private void OnMotionPolicyChanged()
+    {
+        void Apply()
+        {
+            if (_disposed || SettingsMotion.Allow(this)) return;
+            _demonstration++;
+            Present(false);
+        }
+        if (DispatcherQueue.HasThreadAccess) Apply();
+        else DispatcherQueue.TryEnqueue(Apply);
+    }
 
     public void Dispose()
     {

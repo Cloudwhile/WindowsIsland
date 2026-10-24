@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using WindowsIsland.Services;
 using WindowsIsland.Plugins;
 
@@ -58,6 +59,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly ToggleSwitch _animations, _muteDuringGames, _muteDuringFullScreen;
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _cancelled, _disposed;
+    private bool _motionEnabled;
     private string _cancelledKey = "StartupPermissionCancelled";
     private string _selectedSection = "overview";
     private SettingsDetail? _detail;
@@ -69,6 +71,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private RoutedEventHandler? _pendingFocusLoaded;
     private long _navigationRevision;
     private string? _operationSection;
+    private readonly Storyboard _transition = new();
     private string _errorKey = "ErrorSettingsSave";
     private StartupState _startupState;
     private bool _windowsReading, _windowsAvailable;
@@ -83,6 +86,8 @@ internal sealed class SettingsPage : Grid, IDisposable
     {
         _store = store;
         _updateChecks = updates;
+        _motionEnabled = store.Current.Animations;
+        SettingsMotion.SetEnabled(this, _motionEnabled);
         AutomationProperties.SetAutomationId(_content, "SettingsContentScroll");
         _content.GotFocus += OnContentFocus;
         retrySource ??= _ => Task.CompletedTask;
@@ -245,6 +250,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _refreshButton.Visibility = RefreshSections.Contains(section) ? Visibility.Visible : Visibility.Collapsed;
         _content.Content = selected.Content;
         RestoreOffset(_offsets.GetValueOrDefault(section));
+        AnimateContent();
         Refresh();
     }
 
@@ -265,6 +271,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _previewButton.Visibility = _refreshButton.Visibility = Visibility.Collapsed;
         _content.Content = detail.Content;
         _content.ChangeView(null, 0, null, disableAnimation: true);
+        AnimateContent();
         DispatcherQueue.TryEnqueue(() => { if (!_disposed && _detail == detail) _header.FocusTitle(); });
         Refresh();
     }
@@ -333,6 +340,17 @@ internal sealed class SettingsPage : Grid, IDisposable
         for (DependencyObject? element = target; element is not null; element = VisualTreeHelper.GetParent(element))
             if (ReferenceEquals(element, content)) return true;
         return false;
+    }
+
+    private void AnimateContent()
+    {
+        _transition.Stop();
+        _transition.Children.Clear();
+        _content.Opacity = 1;
+        if (!SettingsMotion.Allow(this)) return;
+        var fade = SettingsMotion.CreateAnimation(_content, "Opacity", 0.6, 1);
+        _transition.Children.Add(fade);
+        _transition.Begin();
     }
 
     private void OnKeyDown(object sender, KeyRoutedEventArgs args)
@@ -449,6 +467,12 @@ internal sealed class SettingsPage : Grid, IDisposable
         if (_selectedSection == "appearance") { _appearance.Refresh(!_busy); _appearancePreview.Refresh(!_busy); }
         var state = _snapshot();
         var settings = _store.Current;
+        if (_motionEnabled != settings.Animations)
+        {
+            _motionEnabled = settings.Animations;
+            SettingsMotion.SetEnabled(this, _motionEnabled);
+            if (!_motionEnabled) { _transition.Stop(); _transition.Children.Clear(); _content.Opacity = 1; }
+        }
         _syncing = true;
         try
         {
@@ -588,6 +612,8 @@ internal sealed class SettingsPage : Grid, IDisposable
         _disposed = true;
         _navigationRevision++;
         CancelPendingFocus();
+        _transition.Stop();
+        _transition.Children.Clear();
         KeyDown -= OnKeyDown;
         _detail?.Close?.Invoke();
         _detail = null;
