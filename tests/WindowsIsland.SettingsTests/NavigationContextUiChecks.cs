@@ -123,6 +123,30 @@ internal static class NavigationContextUiChecks
                 && Math.Abs(scroll.VerticalOffset - offset) <= 2,
                 "Navigating through appearance preserves the source list and its nonzero scroll position");
             RecordContext(directory, "after appearance round trip", page, scroll);
+            var differentOffset = offset > scroll.ScrollableHeight / 2
+                ? Math.Max(24, offset - 120) : Math.Min(scroll.ScrollableHeight - 24, offset + 120);
+            scroll.ChangeView(null, differentOffset, null, true);
+            await SettleAsync(page);
+            var sidebarOffset = scroll.VerticalOffset;
+            check(sidebarOffset > 20 && Math.Abs(sidebarOffset - offset) > 20,
+                "The direct-sidebar regression starts at a new offset distinct from the previous saved list position");
+            var sidebarAction = rows.SelectMany(row => Tree(row).OfType<IconActionButton>())
+                .First(button => AutomationProperties.GetAutomationId(button).EndsWith(".Open", StringComparison.Ordinal)
+                    && Bounds(button, page).Top >= viewport.Top + 2 && Bounds(button, page).Bottom <= viewport.Bottom - 2);
+            RecordContext(directory, "before leaving details through sidebar", page, scroll);
+            Invoke(sidebarAction);
+            await UntilAsync(() => Tree(page).OfType<SettingsPluginDetails>().Any(), "Source details did not open for the direct-sidebar regression.");
+            await SettleAsync(page);
+            await SelectAsync(page, "appearance");
+            check(!Tree(page).OfType<SettingsPluginDetails>().Any(),
+                "Selecting appearance directly from source details closes the old details view");
+            await SelectAsync(page, "sources");
+            await UntilAsync(() => Math.Abs(scroll.VerticalOffset - sidebarOffset) <= 2,
+                "Leaving source details through the sidebar lost the newest source-list scroll position.");
+            check(ReferenceEquals(scroll.Content, originalList)
+                && Tree(sources).OfType<SettingsLinkRow>().SequenceEqual(rows) && scroll.VerticalOffset > 20,
+                "Returning through the sidebar restores the newest nonzero list offset and original source-row instances");
+            RecordContext(directory, "after leaving details through sidebar", page, scroll);
             check(changes.Count == 0, "Opening details and switching pages do not toggle any fake source");
 
             const string actionPrefix = "Plugin.", actionSuffix = ".Open";

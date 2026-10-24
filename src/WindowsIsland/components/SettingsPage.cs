@@ -261,6 +261,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _navigationRevision++;
         _detail?.Close?.Invoke();
         _returnOffset = _content.VerticalOffset;
+        if (_detail is null) _offsets[_selectedSection] = _returnOffset;
         var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) as Control;
         _returnFocus = focused is not null && BelongsToContent(focused, _content.Content) ? focused
             : _lastContentFocus is { IsLoaded: true } previous && BelongsToContent(previous, _content.Content) ? previous : null;
