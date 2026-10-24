@@ -36,18 +36,39 @@ internal sealed class SettingsSection : StackPanel
     private static void HideLastSeparator(Panel panel)
     {
         foreach (var child in panel.Children.OfType<Panel>())
-            if (child is not (SettingsRow or SettingsLinkRow)) HideLastSeparator(child);
+            if (RowHeader(child) is null) HideLastSeparator(child);
         var last = panel.Children.OfType<FrameworkElement>().LastOrDefault(e => e.Visibility == Visibility.Visible);
-        if (last is SettingsRow row) row.ShowSeparator = false;
-        else if (last is SettingsLinkRow link) link.Header.ShowSeparator = false;
+        if (last is not null && RowHeader(last) is { } row) row.ShowSeparator = false;
     }
 
     /// <summary>仅在局部列表结构变化时重置分隔线，恢复原末行并收起新末行。</summary>
     public static void UpdateSeparators(Panel panel)
     {
         var rows = panel.Children.OfType<FrameworkElement>().Where(child => child.Visibility == Visibility.Visible)
-            .Select(child => child switch { SettingsRow row => row, SettingsLinkRow link => link.Header, _ => null })
+            .Select(RowHeader)
             .OfType<SettingsRow>().ToArray();
         for (var index = 0; index < rows.Length; index++) rows[index].ShowSeparator = index < rows.Length - 1;
+    }
+
+    private static SettingsRow? RowHeader(FrameworkElement element) => element switch
+    {
+        SettingsRow row => row,
+        SettingsLinkRow link => link.Header,
+        SettingsExpander expander => expander.Header,
+        SettingsListItem item => item.Header,
+        _ => null
+    };
+}
+
+/// <summary>将链接行与附属提示视为同一逻辑行，避免分别推断分隔线边界。</summary>
+internal sealed class SettingsListItem : StackPanel
+{
+    public SettingsRow Header { get; }
+
+    public SettingsListItem(SettingsLinkRow row, UIElement notice)
+    {
+        Header = row.Header;
+        Children.Add(row);
+        Children.Add(notice);
     }
 }

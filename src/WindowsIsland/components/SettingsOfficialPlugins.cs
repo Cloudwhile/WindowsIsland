@@ -116,7 +116,12 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
                 foreach (var metadata in removed) rows.Add(CreateDelisted(metadata));
                 var name = developerId == PluginCatalogClient.OfficialDeveloperId ? PluginCatalogClient.OfficialDeveloperId
                     : index?.Source.DeveloperName ?? removed[0].External!.Manifest.DeveloperName ?? developerId;
-                if (rows.Count > 0) _plugins.Children.Add(new SettingsSection(name, false, rows.ToArray()));
+                if (rows.Count > 0)
+                {
+                    var section = new SettingsSection(name, false, rows.ToArray());
+                    SettingsSection.UpdateSeparators(section);
+                    _plugins.Children.Add(section);
+                }
             }
         }
         foreach (var notice in _notices) notice.Refresh();
@@ -230,13 +235,10 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
 
     private UIElement WithNotice(SettingsLinkRow row, PluginManifest? manifest)
     {
-        var container = new StackPanel();
-        container.Children.Add(row);
         var notice = new PluginCatalogNotice(_library.Catalog, manifest, inset: true);
         if (manifest is not null) AutomationProperties.SetAutomationId(notice, "OfficialCatalogNotice." + manifest.Id);
         _notices.Add(notice);
-        container.Children.Add(notice);
-        return container;
+        return new SettingsListItem(row, notice);
     }
 
     private async Task<string[]?> ConfirmPermissionsAsync(PluginCatalogEntry entry, XamlRoot xamlRoot)

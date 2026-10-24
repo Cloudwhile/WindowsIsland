@@ -60,11 +60,13 @@ internal sealed class SettingsDiagnosticEntries : StackPanel
         if (_language == Localization.Language && _previous.SequenceEqual(entries)) return;
         _previous = entries;
         _language = Localization.Language;
+        var structureChanged = false;
         var ids = entries.Select(entry => entry.Id).ToHashSet(StringComparer.Ordinal);
         foreach (var id in _rows.Keys.Where(id => !ids.Contains(id)).ToArray())
         {
             Children.Remove(_rows[id].Row);
             _rows.Remove(id);
+            structureChanged = true;
         }
         for (var index = 0; index < entries.Length; index++)
         {
@@ -74,14 +76,17 @@ internal sealed class SettingsDiagnosticEntries : StackPanel
                 view = new EntryView(entry);
                 _rows.Add(entry.Id, view);
                 Children.Add(view.Row);
+                structureChanged = true;
             }
             else view.Update(entry);
             if (Children.IndexOf(view.Row) != index)
             {
                 Children.Remove(view.Row);
                 Children.Insert(index, view.Row);
+                structureChanged = true;
             }
         }
+        if (structureChanged) SettingsSection.UpdateSeparators(this);
         Visibility = entries.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 }
