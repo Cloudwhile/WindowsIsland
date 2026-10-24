@@ -61,7 +61,11 @@ internal sealed class SettingsWindow : Window
             area.Y + (area.Height - height) / 2, width, height));
         _refresh = DispatcherQueue.CreateTimer();
         _refresh.Interval = TimeSpan.FromSeconds(1);
-        _refresh.Tick += (_, _) => page.Refresh();
+        _refresh.Tick += (_, _) =>
+        {
+            if (!_closed && AppWindow.IsVisible && AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Minimized })
+                page.Refresh();
+        };
         _refresh.Start();
         Closed += (_, _) => { _closed = true; AppWindow.Changed -= OnWindowChanged; _dialogs.Cancel(); _dialogs.Dispose(); _refresh.Stop(); page.Dispose(); };
     }

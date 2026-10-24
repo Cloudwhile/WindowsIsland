@@ -59,6 +59,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private readonly ToggleSwitch _animations, _muteDuringGames, _muteDuringFullScreen;
     private readonly List<Control> _actions = [];
     private bool _busy, _syncing, _failed, _cancelled, _disposed;
+    private bool? _actionsEnabled;
     private bool _motionEnabled;
     private string _cancelledKey = "StartupPermissionCancelled";
     private string _selectedSection = "overview";
@@ -496,7 +497,11 @@ internal sealed class SettingsPage : Grid, IDisposable
             }
         }
         finally { _syncing = false; }
-        foreach (var action in _actions) action.IsEnabled = !_busy;
+        if (_actionsEnabled != !_busy)
+        {
+            foreach (var action in _actions) action.IsEnabled = !_busy;
+            _actionsEnabled = !_busy;
+        }
         if (_selectedSection == "behavior")
         {
             _startup.IsEnabled = !_busy && _windowsAvailable;
@@ -542,8 +547,6 @@ internal sealed class SettingsPage : Grid, IDisposable
             _complete.IsEnabled = !_busy && ready;
             _complete.SetAction(Symbol.Accept, "SetupFinish");
         }
-        var running = state.Sources.Count(source => SourceStatus.IsRunning(source.StatusKey));
-        var summary = "";
         if (_busy && _operationSection == _selectedSection)
         {
             _notice.Visibility = Visibility.Visible;
@@ -554,7 +557,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         }
         if (_cancelled && _operationSection == _selectedSection)
         {
-            _header.Status = summary;
+            _header.Status = "";
             _notice.Visibility = Visibility.Visible;
             _notice.Title = Localization.Get("Cancelled");
             _notice.Message = Localization.Get(_cancelledKey);
@@ -570,7 +573,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             _notice.Message = Localization.Get(_errorKey);
             return;
         }
-        _header.Status = summary;
+        _header.Status = "";
         var explainSetup = !ready && _selectedSection == "setup" && _detail is null;
         _notice.Visibility = explainSetup ? Visibility.Visible : Visibility.Collapsed;
         _notice.ActionButton = null;
