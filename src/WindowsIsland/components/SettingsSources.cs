@@ -9,19 +9,17 @@ namespace WindowsIsland.Components;
 internal sealed class SettingsSources : StackPanel, IDisposable
 {
     private sealed record Controls(SettingsLinkRow Row, NotificationPluginDefinition Definition, ToggleSwitch Toggle,
-        IconActionButton Retry, IconActionButton Delete);
+        IconActionButton Retry);
     private readonly SettingsStore _store;
     private readonly Action<Exception> _failed;
     private readonly Func<string, Task> _retry;
     private readonly Func<string, bool, Task> _setEnabled;
-    private readonly Func<string, Task> _remove;
     private readonly PluginCatalogService? _catalog;
     private readonly Func<string, Task<PluginSettingsModel?>>? _settings;
     private readonly Action<SettingsDetail> _open;
     private readonly Dictionary<string, Controls> _rows = [];
-    private readonly TextBlock _retained = LocalizedUI.Text("PluginDataPreserved", 12, secondary: true);
+    private readonly HashSet<string> _changing = [];
     private bool _syncing, _disposed;
-    private int _visit;
 
     public SettingsSources(SettingsStore store, Action<Exception> failed, Func<string, Task> retry,
         Func<string, bool, Task>? setEnabled = null, Func<string, Task>? remove = null, PluginCatalogService? catalog = null,
@@ -31,20 +29,14 @@ internal sealed class SettingsSources : StackPanel, IDisposable
         _failed = failed;
         _retry = retry;
         _setEnabled = setEnabled ?? ((_, _) => Task.CompletedTask);
-        _remove = remove ?? (_ => Task.CompletedTask);
         _catalog = catalog;
         _settings = settings;
         _open = open ?? (_ => { });
-        _retained.TextWrapping = TextWrapping.Wrap;
-        _retained.Visibility = Visibility.Collapsed;
-        Children.Add(SettingsContent.Wrap(_retained));
-        Unloaded += (_, _) => { _visit++; _retained.Visibility = Visibility.Collapsed; };
     }
 
     public void Refresh(IReadOnlyList<NotificationPluginStatus> plugins, bool busy)
     {
         if (_disposed) return;
-        _retained.Visibility = Visibility.Collapsed;
         _syncing = true;
         try
         {
@@ -73,44 +65,34 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                     AutomationProperties.SetAutomationId(toggle, definition.ToggleId);
                     toggle.Toggled += async (_, _) =>
                     {
-                        if (_syncing || _disposed) return;
+                        if (_syncing || _disposed || !_changing.Add(definition.Id)) return;
+                        toggle.IsEnabled = false;
                         try { await _setEnabled(definition.Id, toggle.IsOn); }
                         catch (Exception error) { _failed(error); }
                         finally
                         {
-                            _syncing = true;
-                            try { toggle.IsOn = definition.IsEnabled(_store.Current); }
-                            finally { _syncing = false; }
+                            _changing.Remove(definition.Id);
+                            if (!_disposed)
+                            {
+                                _syncing = true;
+                                try { toggle.IsOn = definition.IsEnabled(_store.Current); }
+                                finally { _syncing = false; }
+                                toggle.IsEnabled = true;
+                            }
                         }
                     };
                     var retry = new IconActionButton(Symbol.Refresh, definition.RetryLabelKey, "SourceRetry." + definition.Id)
                     { Visibility = Visibility.Collapsed };
                     retry.Click += async (_, _) =>
                     {
-                        if (_disposed) return;
+                        if (_disposed || !_changing.Add(definition.Id)) return;
                         retry.IsEnabled = false;
                         try { await _retry(definition.Id); }
                         catch (Exception error) { _failed(error); }
-                        finally { retry.IsEnabled = true; }
-                    };
-                    var delete = new IconActionButton(Symbol.Delete, "ActionRemovePlugin", "RemovePlugin." + definition.Id)
-                    { Visibility = definition.CanRemove ? Visibility.Visible : Visibility.Collapsed };
-                    delete.Click += async (_, _) =>
-                    {
-                        if (_disposed || !definition.CanRemove) return;
-                        var visit = _visit;
-                        delete.IsEnabled = false;
-                        try
-                        {
-                            await _remove(definition.Id);
-                            if (!_disposed && IsLoaded && visit == _visit && definition.Metadata?.External is not null)
-                                _retained.Visibility = Visibility.Visible;
-                        }
-                        catch (Exception error) { _failed(error); }
-                        finally { if (!_disposed) delete.IsEnabled = true; }
+                        finally { _changing.Remove(definition.Id); if (!_disposed) retry.IsEnabled = true; }
                     };
                     var row = new SettingsLinkRow(new FontIcon { Glyph = char.ConvertFromUtf32(definition.Icon), FontSize = 20 },
-                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle, delete);
+                        definition.TitleKey, "Plugin." + definition.Id, "SourceStatus." + definition.Id, definition.Metadata?.External is null, retry, toggle);
                     row.OpenRequested += async () =>
                     {
                         if (_disposed) return;
@@ -120,18 +102,20 @@ internal sealed class SettingsSources : StackPanel, IDisposable
                             () => _rows.TryGetValue(definition.Id, out var current) && ReferenceEquals(current.Definition.Metadata, definition.Metadata)));
                         await details.ReadSizeAsync();
                     };
-                    controls = new(row, definition, toggle, retry, delete);
+                    controls = new(row, definition, toggle, retry);
                     _rows.Add(definition.Id, controls);
                     Children.Add(controls.Row);
                 }
                 controls.Toggle.IsOn = definition.IsEnabled(_store.Current);
-                controls.Toggle.IsEnabled = !busy;
+                controls.Toggle.IsEnabled = !busy && !_changing.Contains(definition.Id);
+                var title = definition.Metadata?.External is null ? Localization.Get(definition.TitleKey) : definition.TitleKey;
+                AutomationProperties.SetName(controls.Toggle, Localization.Format(controls.Toggle.IsOn ? "SourceEnabledLabel" : "SourceDisabledLabel", title));
                 var key = controls.Toggle.IsOn ? plugin.StatusKey : "Off";
                 controls.Row.Header.Status = Localization.Get(key);
                 controls.Row.Header.Tone = SourceStatus.Tone(key);
                 controls.Row.Header.Detail = SourceStatus.DetailKey(definition.Id, key, systemAvailable) is { } detail ? Localization.Get(detail) : "";
                 controls.Retry.Visibility = controls.Toggle.IsOn && plugin.CanRetry ? Visibility.Visible : Visibility.Collapsed;
-                controls.Delete.IsEnabled = !busy;
+                controls.Retry.IsEnabled = !busy && !_changing.Contains(definition.Id);
             }
         }
         finally { _syncing = false; }

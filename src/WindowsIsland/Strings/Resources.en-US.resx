@@ -694,4 +694,6 @@
   <data name="AppearancePreviewHint" xml:space="preserve"><value>Position and appearance simulation. Preview a notification for the actual result.</value></data>
   <data name="ActionPreviewActual" xml:space="preserve"><value>Preview actual notification</value></data>
   <data name="AppearancePositionCurrent" xml:space="preserve"><value>Current position: {0}</value></data>
+  <data name="SourceEnabledLabel" xml:space="preserve"><value>{0} · Enabled</value></data>
+  <data name="SourceDisabledLabel" xml:space="preserve"><value>{0} · Disabled</value></data>
 </root>

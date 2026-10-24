@@ -694,4 +694,6 @@
   <data name="AppearancePreviewHint" xml:space="preserve"><value>位置与外观示意，实际效果请预览通知。</value></data>
   <data name="ActionPreviewActual" xml:space="preserve"><value>预览实际通知</value></data>
   <data name="AppearancePositionCurrent" xml:space="preserve"><value>当前位置：{0}</value></data>
+  <data name="SourceEnabledLabel" xml:space="preserve"><value>{0} · 已启用</value></data>
+  <data name="SourceDisabledLabel" xml:space="preserve"><value>{0} · 已关闭</value></data>
 </root>
