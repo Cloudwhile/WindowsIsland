@@ -51,6 +51,8 @@ internal sealed class SettingsWindow : Window
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var scale = NativeWindow.GetDpiForWindow(hwnd) / 96d;
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        ApplyMinimumSize();
+        AppWindow.Changed += OnWindowChanged;
         var width = Math.Min((int)(840 * scale), area.Width - 48);
         var height = Math.Min((int)(720 * scale), area.Height - 48);
         AppWindow.MoveAndResize(new RectInt32(area.X + (area.Width - width) / 2,
@@ -59,7 +61,21 @@ internal sealed class SettingsWindow : Window
         _refresh.Interval = TimeSpan.FromSeconds(1);
         _refresh.Tick += (_, _) => page.Refresh();
         _refresh.Start();
-        Closed += (_, _) => { _dialogs.Cancel(); _dialogs.Dispose(); _refresh.Stop(); page.Dispose(); };
+        Closed += (_, _) => { AppWindow.Changed -= OnWindowChanged; _dialogs.Cancel(); _dialogs.Dispose(); _refresh.Stop(); page.Dispose(); };
+    }
+
+    private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (args.DidSizeChange || args.DidPositionChange) ApplyMinimumSize();
+    }
+
+    private void ApplyMinimumSize()
+    {
+        if (AppWindow.Presenter is not OverlappedPresenter presenter) return;
+        var scale = NativeWindow.GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96d;
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        presenter.PreferredMinimumWidth = Math.Min((int)(520 * scale), area.Width);
+        presenter.PreferredMinimumHeight = Math.Min((int)(480 * scale), area.Height);
     }
 
     private void RefreshCaptionTheme(TitleBar titleBar)
