@@ -14,6 +14,7 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
     private readonly PluginLibrary _library;
     private readonly Action<SettingsDetail> _open;
     private readonly Action? _openDiagnostics;
+    private readonly SettingsStore? _settings;
     private readonly Dictionary<string, Entry> _entries = [];
     private readonly StackPanel _list = new();
     private readonly SettingsContent _empty = new(false);
@@ -22,11 +23,13 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
     private string? _noticeKey;
     private bool _busy, _syncing, _disposed;
 
-    public SettingsInstalledPlugins(PluginLibrary library, Action<SettingsDetail> open, Action? openDiagnostics = null)
+    public SettingsInstalledPlugins(PluginLibrary library, Action<SettingsDetail> open, Action? openDiagnostics = null,
+        SettingsStore? settings = null)
     {
         _library = library;
         _open = open;
         _openDiagnostics = openDiagnostics;
+        _settings = settings;
         var icon = new SymbolIcon(Symbol.AllApps) { HorizontalAlignment = HorizontalAlignment.Left };
         _empty.Children.Add(icon);
         _empty.Children.Add(SettingsSection.Heading("PluginInstalledEmpty"));
@@ -122,7 +125,11 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
             if (_disposed || closed) return;
             var current = _library.Manager.Snapshot().FirstOrDefault(item => item.Definition.Id == definition.Id);
             _syncing = true;
-            try { enabled.IsOn = current?.StatusKey is not (null or "Off"); }
+            try
+            {
+                enabled.IsOn = _settings is not null ? definition.IsEnabled(_settings.Current)
+                    : current?.StatusKey is not (null or "Off");
+            }
             finally { _syncing = false; }
             enabled.IsEnabled = remove.IsEnabled = retry.IsEnabled = !_busy;
             progress.IsActive = _busy;

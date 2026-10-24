@@ -25,7 +25,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
     private bool _disposed;
 
     public SettingsPluginLibrary(PluginLibrary library, Func<CancellationToken, Task<string?>> pick, Action<SettingsDetail> open,
-        Action? openDiagnostics = null)
+        Action? openDiagnostics = null, SettingsStore? settings = null)
     {
         _library = library;
         _pick = pick;
@@ -47,7 +47,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
         toolbar.Children.Add(actions);
         Children.Add(toolbar);
         Children.Add(SettingsContent.Wrap(_notice));
-        _installed = new SettingsInstalledPlugins(library, open, openDiagnostics);
+        _installed = new SettingsInstalledPlugins(library, open, openDiagnostics, settings);
         Children.Add(_installed);
         _official = new SettingsOfficialPlugins(library, open);
         Children.Add(_official);
