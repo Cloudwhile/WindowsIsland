@@ -57,6 +57,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private string _cancelledKey = "StartupPermissionCancelled";
     private bool? _ready;
     private string _selectedSection = "setup";
+    private string? _operationSection;
     private SettingsDetail? _detail;
     private double _returnOffset;
     private string _errorKey = "ErrorSettingsSave";
@@ -206,6 +207,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _refreshButton.Visibility = RefreshSections.Contains(section) ? Visibility.Visible : Visibility.Collapsed;
         _content.Content = selected.Content;
         _content.ChangeView(null, 0, null, disableAnimation: true);
+        Refresh();
     }
 
     private void OpenDetail(SettingsDetail detail)
@@ -252,6 +254,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     {
         if (_busy || _disposed) return;
         _busy = true;
+        _operationSection = _selectedSection;
         _failed = false;
         _cancelled = false;
         _notice.ActionButton = null;
@@ -303,6 +306,7 @@ internal sealed class SettingsPage : Grid, IDisposable
     private void ShowError(string message, bool showInstallSettings = false)
     {
         _failed = true;
+        _operationSection = _selectedSection;
         _errorKey = message;
         _header.Status = Localization.Get("NeedsAttention");
         _notice.Visibility = Visibility.Visible;
@@ -391,14 +395,15 @@ internal sealed class SettingsPage : Grid, IDisposable
             : state.MuteReason.HasFlag(NotificationMuteReason.FullScreen) ? "FullScreenMuted" : "On");
         // One global summary with information instead of repeating "ready" on every page.
         var running = state.Sources.Count(source => SourceStatus.IsRunning(source.StatusKey));
-        var summary = !ready ? Localization.Get("IncompleteSetup") : Localization.Format("SourcesRunning", running);
-        if (_busy)
+        var summary = _selectedSection == "setup"
+            ? !ready ? Localization.Get("IncompleteSetup") : Localization.Format("SourcesRunning", running) : "";
+        if (_busy && _operationSection == _selectedSection)
         {
             _header.Status = _notice.Title = Localization.Get("Busy");
             _notice.Message = Localization.Get("PleaseWait");
             return;
         }
-        if (_cancelled)
+        if (_cancelled && _operationSection == _selectedSection)
         {
             _header.Status = summary;
             _notice.Visibility = Visibility.Visible;
@@ -407,7 +412,7 @@ internal sealed class SettingsPage : Grid, IDisposable
             _notice.Severity = InfoBarSeverity.Informational;
             return;
         }
-        if (_failed)
+        if (_failed && _operationSection == _selectedSection)
         {
             _header.Status = Localization.Get("NeedsAttention");
             _notice.Title = Localization.Get("Incomplete");
@@ -415,10 +420,11 @@ internal sealed class SettingsPage : Grid, IDisposable
             return;
         }
         _header.Status = summary;
-        _notice.Visibility = ready ? Visibility.Collapsed : Visibility.Visible;
+        var explainSetup = !ready && _selectedSection == "setup" && _detail is null;
+        _notice.Visibility = explainSetup ? Visibility.Visible : Visibility.Collapsed;
         _notice.ActionButton = null;
-        _notice.Title = ready ? "" : Localization.Get("IncompleteSetup");
-        _notice.Message = ready ? "" : Localization.Get(state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess");
+        _notice.Title = !explainSetup ? "" : Localization.Get("IncompleteSetup");
+        _notice.Message = !explainSetup ? "" : Localization.Get(state.Initialized ? "GrantAccessOrDisable" : "InitializeThenGrantAccess");
         _notice.Severity = InfoBarSeverity.Informational;
     }
 
