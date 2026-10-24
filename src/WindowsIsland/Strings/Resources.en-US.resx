@@ -668,4 +668,22 @@
   <data name="PluginCopyIdentifier" xml:space="preserve"><value>Copy plugin identifier</value></data>
   <data name="PluginCopyLocation" xml:space="preserve"><value>Copy file location</value></data>
   <data name="PluginOperationFailed" xml:space="preserve"><value>The operation could not be completed. Try again.</value></data>
+  <data name="Overview" xml:space="preserve"><value>Overview</value></data>
+  <data name="OverviewRuntime" xml:space="preserve"><value>Runtime status</value></data>
+  <data name="OverviewRunningSources" xml:space="preserve"><value>Running sources</value></data>
+  <data name="OverviewEnabledSources" xml:space="preserve"><value>{0} sources enabled</value></data>
+  <data name="OverviewQuickActions" xml:space="preserve"><value>Quick actions</value></data>
+  <data name="OverviewSetupNeeded" xml:space="preserve"><value>System notifications need setup</value></data>
+  <data name="ActionGoToSetup" xml:space="preserve"><value>Open setup</value></data>
+  <data name="SetupProgress" xml:space="preserve"><value>Setup progress</value></data>
+  <data name="SetupOptionalHint" xml:space="preserve"><value>System notifications are optional. Other connected sources and notification previews remain available.</value></data>
+  <data name="SetupSystemOptional" xml:space="preserve"><value>System notifications are off. You can finish setup.</value></data>
+  <data name="SetupStepInitialize" xml:space="preserve"><value>1 · Initialize application</value></data>
+  <data name="SetupStepAccess" xml:space="preserve"><value>2 · Windows notification access</value></data>
+  <data name="SetupStepVerify" xml:space="preserve"><value>3 · Verify notification status</value></data>
+  <data name="SetupStepFinish" xml:space="preserve"><value>4 · Finish setup</value></data>
+  <data name="SetupVerify" xml:space="preserve"><value>Verify notification status</value></data>
+  <data name="SetupFinish" xml:space="preserve"><value>Finish and return to overview</value></data>
+  <data name="SetupReturnOverview" xml:space="preserve"><value>Setup is ready</value></data>
+  <data name="SetupFinishPending" xml:space="preserve"><value>Initialize and grant access, or turn off system notifications in Sources.</value></data>
 </root>
