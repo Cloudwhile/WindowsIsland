@@ -2,6 +2,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using WindowsIsland.Services;
 using WindowsIsland.Plugins;
@@ -62,6 +63,10 @@ internal sealed class SettingsPage : Grid, IDisposable
     private SettingsDetail? _detail;
     private double _returnOffset;
     private readonly Dictionary<string, double> _offsets = [];
+    private Control? _returnFocus;
+    private Control? _lastContentFocus;
+    private Control? _pendingFocus;
+    private RoutedEventHandler? _pendingFocusLoaded;
     private long _navigationRevision;
     private string? _operationSection;
     private string _errorKey = "ErrorSettingsSave";
@@ -79,6 +84,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         _store = store;
         _updateChecks = updates;
         AutomationProperties.SetAutomationId(_content, "SettingsContentScroll");
+        _content.GotFocus += OnContentFocus;
         retrySource ??= _ => Task.CompletedTask;
         _snapshot = snapshot;
         _windowsSettings = new WindowsSettingsService(verification);
@@ -201,6 +207,7 @@ internal sealed class SettingsPage : Grid, IDisposable
         AutomationProperties.SetAutomationId(this, "SettingsPage");
         AutomationProperties.SetAutomationId(_notice, "SetupStatus");
         LocalizedUI.Bind(this, RefreshLanguage);
+        KeyDown += OnKeyDown;
         Refresh();
         Navigate(openUpdates ? "updates" : "overview");
     }
@@ -222,10 +229,13 @@ internal sealed class SettingsPage : Grid, IDisposable
     {
         if (_disposed) return;
         if (_selectedSection == section && _detail is null && ReferenceEquals(_content.Content, _sections[section].Content)) return;
+        CancelPendingFocus();
         _navigationRevision++;
         if (_detail is null) _offsets[_selectedSection] = _content.VerticalOffset;
         _detail?.Close?.Invoke();
         _detail = null;
+        _returnFocus = null;
+        _lastContentFocus = null;
         _header.HasBack = false;
         if (_selectedSection != section && !_busy) _failed = _cancelled = false;
         _selectedSection = section;
@@ -241,23 +251,31 @@ internal sealed class SettingsPage : Grid, IDisposable
     private void OpenDetail(SettingsDetail detail)
     {
         if (_disposed) { detail.Close?.Invoke(); return; }
+        CancelPendingFocus();
         _navigationRevision++;
         _detail?.Close?.Invoke();
         _returnOffset = _content.VerticalOffset;
+        var focused = Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) as Control;
+        _returnFocus = focused is not null && BelongsToContent(focused, _content.Content) ? focused
+            : _lastContentFocus is { IsLoaded: true } previous && BelongsToContent(previous, _content.Content) ? previous : null;
+        _lastContentFocus = null;
         _detail = detail;
         _header.Title = detail.LocalizeTitle ? Localization.Get(detail.Title) : detail.Title;
         _header.HasBack = true;
         _previewButton.Visibility = _refreshButton.Visibility = Visibility.Collapsed;
         _content.Content = detail.Content;
         _content.ChangeView(null, 0, null, disableAnimation: true);
+        DispatcherQueue.TryEnqueue(() => { if (!_disposed && _detail == detail) _header.FocusTitle(); });
         Refresh();
     }
 
     private void ReturnFromDetail()
     {
         var offset = _returnOffset;
+        var focus = _returnFocus;
         SelectSection(_selectedSection);
         RestoreOffset(offset);
+        RestoreFocus(focus, _sections[_selectedSection].Content);
     }
 
     private void RestoreOffset(double offset)
@@ -269,6 +287,61 @@ internal sealed class SettingsPage : Grid, IDisposable
             if (!_disposed && _detail is null && revision == _navigationRevision && ReferenceEquals(_content.Content, content))
                 _content.ChangeView(null, offset, null, true);
         });
+    }
+
+    private void RestoreFocus(Control? target, FrameworkElement content)
+    {
+        CancelPendingFocus();
+        if (target is null) return;
+        var revision = _navigationRevision;
+        _pendingFocus = target;
+        void Apply()
+        {
+            if (!ReferenceEquals(_pendingFocus, target) || revision != _navigationRevision) return;
+            if (_disposed || _detail is not null || !ReferenceEquals(_content.Content, content))
+            {
+                CancelPendingFocus();
+                return;
+            }
+            if (!target.IsLoaded) return;
+            var belongsToContent = BelongsToContent(target, content);
+            CancelPendingFocus();
+            if (belongsToContent && target.IsEnabled && target.Visibility == Visibility.Visible)
+                target.Focus(FocusState.Programmatic);
+        }
+        void Queue() => DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, Apply);
+        _pendingFocusLoaded = (_, _) => Queue();
+        target.Loaded += _pendingFocusLoaded;
+        Queue();
+    }
+
+    private void CancelPendingFocus()
+    {
+        if (_pendingFocus is { } target && _pendingFocusLoaded is { } loaded) target.Loaded -= loaded;
+        _pendingFocus = null;
+        _pendingFocusLoaded = null;
+    }
+
+    private void OnContentFocus(object sender, RoutedEventArgs args)
+    {
+        if (!_disposed && Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(XamlRoot) is Control focused
+            && BelongsToContent(focused, _content.Content)) _lastContentFocus = focused;
+    }
+
+    private static bool BelongsToContent(DependencyObject target, object? content)
+    {
+        for (DependencyObject? element = target; element is not null; element = VisualTreeHelper.GetParent(element))
+            if (ReferenceEquals(element, content)) return true;
+        return false;
+    }
+
+    private void OnKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        if (args.Key != Windows.System.VirtualKey.Escape) return;
+        if (_detail is not null) ReturnFromDetail();
+        else if (_selectedSection == "setup") Navigate("overview");
+        else return;
+        args.Handled = true;
     }
 
     private ToggleSwitch Switch(string label, string id, Func<AppSettings, bool> read,
@@ -514,8 +587,13 @@ internal sealed class SettingsPage : Grid, IDisposable
     {
         _disposed = true;
         _navigationRevision++;
+        CancelPendingFocus();
+        KeyDown -= OnKeyDown;
         _detail?.Close?.Invoke();
         _detail = null;
+        _returnFocus = null;
+        _lastContentFocus = null;
+        _content.GotFocus -= OnContentFocus;
         _header.BackRequested -= ReturnFromDetail;
         _store.Changed -= OnSettingsChanged;
         _updates.Dispose();
