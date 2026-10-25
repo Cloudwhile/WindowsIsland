@@ -60,9 +60,7 @@ context.PublishNotification(notification with
 
 ## 点击激活
 
-需要左键打开目标程序时，可以声明 `process` 权限并提供目标进程号。未获授权时宿主会去掉进程号，不执行该目标的进程激活。
-
-手动插件的高危能力不会获得授权，不能假定提供 `OriginProcessId` 就一定可用。使用 `context.GetService<IPluginPermissions>()` 检查，详见[权限说明](./permissions.md)。
+`OriginProcessId` 是可选的点击激活信息，但外部插件不获得 `process` 能力，宿主会移除其目标进程号。不要依赖点击通知启动或激活其他进程；普通消息仍可显示。详见[权限说明](./permissions.md)。
 
 ## 连接与停止
 
