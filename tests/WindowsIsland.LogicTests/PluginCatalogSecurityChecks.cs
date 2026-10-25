@@ -15,8 +15,10 @@ internal static class PluginCatalogSecurityChecks
         await InstallAsync("winiofficial", true);
         await InstallAsync("cloudwhile", false);
         await InstallAsync("example", false);
+        await InstallAsync("upstream", false, true);
+        await InstallAsync("precedence", false, true, true);
     }
-    private static async Task InstallAsync(string developer, bool official)
+    private static async Task InstallAsync(string developer, bool official, bool sourceNotice = false, bool developerNotice = false)
     {
         var root = Root();
         var paths = new PluginPaths(Path.Combine(root,"Plugins"));
@@ -25,10 +27,12 @@ internal static class PluginCatalogSecurityChecks
         manager.ConfigureDirectories(paths);
         await manager.StartAsync();
         var manifest = PluginDirectoryChecks.Manifest with { DeveloperId = developer, RepositoryUrl = Source().RepositoryUrl,
-            Permissions = Permissions, Author = "作者" };
+            Permissions = Permissions, Author = "作者", Network = new(["https://example.com"], "上传插件自有状态", ["插件状态"]) };
+        if (sourceNotice && !developerNotice) manifest = manifest with { Network = null };
         var package = await File.ReadAllBytesAsync(PluginInstallationChecks.Zip(root,manifest));
         var transport = new Transport { Sources = Json(new[] { Source(developer) }) };
         var entry = Entry(developer) with { Permissions = Permissions, Sha256 = Convert.ToHexStringLower(SHA256.HashData(package)) };
+        if (sourceNotice) entry = entry with { Network = new(["https://example.org"], "默认插件源提供的用途", ["插件自有内容"], "默认插件源提供的联网须知") };
         transport.Plugins = Json(new[] { entry });
         var downloads = new Transport { Send = (_, _) => Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK)
             { Content = new System.Net.Http.ByteArrayContent(package) }) };
@@ -36,8 +40,18 @@ internal static class PluginCatalogSecurityChecks
         await library.Catalog.RefreshAsync();
         await library.InstallOfficialAsync(library.Catalog.State.AvailableSources.Single().Plugins.Single(),[]);
         var installed = manager.Snapshot().Single().Definition.Metadata!;
-        Check(installed.External!.Trust.Granted.Order().SequenceEqual((official ? Permissions : Permissions.Where(p => !PluginPermissions.IsHighRisk(p))).Order())
-            && installed.Author == (official ? "winiofficial" : "作者"), "C36: only winiofficial receives all declared permissions and official author display: " + developer);
+        if (sourceNotice)
+        {
+            var expected = developerNotice ? manifest.Network! : entry.Network!;
+            var actual = PluginConsentPolicy.Describe(installed.External!).Network!;
+            Check(actual.Purpose == expected.Purpose && actual.Notice == expected.Notice && actual.Origins.SequenceEqual(expected.Origins),
+                "Default-source network notice persists across installation, with developer metadata taking precedence: " + developer);
+            var disk = PluginManifestReader.Read(installed.External!.Directory);
+            Check(disk.Network!.Purpose == expected.Purpose, "Source-supplied notice survives manifest reload without catalog availability");
+        }
+        Check(installed.External!.Trust.Granted.Order().SequenceEqual(new[] { "notifications", "settings", "network" }.Order())
+            && manager.Snapshot().Single().StatusKey == "Off" && installed.Author == (official ? "winiofficial" : "作者"),
+            "All catalog developers receive the same safe broker capabilities and remain disabled after installation: " + developer);
         if (official)
         {
             var hashDestination = Path.Combine(root,"uppercase.zip");
@@ -88,7 +102,7 @@ internal static class PluginCatalogSecurityChecks
                 await library.Catalog.RefreshAsync();
                 Check(library.Catalog.State.Unavailable && ReferenceEquals(cachedIndex,library.Catalog.State.Sources.Single())
                     && ReferenceEquals(active,manager.Snapshot().Single().Definition.Metadata) && !library.Catalog.IsDelisted(active!.External!.Manifest)
-                    && manager.Snapshot().Single().StatusKey == "Connected" && PluginManifestReader.Read(code+".bak").Version == "1.0.0",
+                    && manager.Snapshot().Single().StatusKey == "Off" && PluginManifestReader.Read(code+".bak").Version == "1.0.0",
                     "C7/C21-C24/C32: rejected new index leaves installed instance, enablement, backup and old cache untouched");
             }
             foreach (var mismatch in new[] { "hash", "id", "version" })
@@ -114,8 +128,8 @@ internal static class PluginCatalogSecurityChecks
             }
             transport.Plugins = "[]";
             await library.Catalog.RefreshAsync();
-            Check(library.Catalog.IsDelisted(active!.External!.Manifest) && manager.Snapshot().Single().StatusKey == "Connected"
-                && Directory.Exists(code) && !store.IsPluginRemoved(manifest.Id), "C31: delisting only warns and excludes updates; installed plugin remains enabled and running");
+            Check(library.Catalog.IsDelisted(active!.External!.Manifest) && manager.Snapshot().Single().StatusKey == "Off"
+                && Directory.Exists(code) && !store.IsPluginRemoved(manifest.Id), "C31: delisting warns and excludes updates while preserving disabled installed code");
         }
         else
         {
@@ -126,7 +140,8 @@ internal static class PluginCatalogSecurityChecks
             await library.Catalog.RefreshAsync();
             await library.InstallOfficialAsync(library.Catalog.State.AvailableSources.Single().Plugins.Single(),["process"]);
             var trust = manager.Snapshot().Single().Definition.Metadata!.External!.Trust;
-            Check(trust.IsGranted("process") && !trust.IsGranted("network") && !trust.IsGranted("native"), "C36: third-party high risk grants require individual confirmation: " + developer);
+            Check(!trust.IsGranted("process") && trust.IsGranted("network") && !trust.IsGranted("native")
+                && manager.Snapshot().Single().StatusKey == "Off", "High-risk confirmations cannot expand OS capabilities or auto-enable a third-party package: " + developer);
         }
         await manager.ShutdownAsync();
     }

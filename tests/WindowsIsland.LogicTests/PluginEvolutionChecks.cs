@@ -66,41 +66,31 @@ internal static class PluginEvolutionChecks
         await manager.RescanAsync();
         Check(manager.Snapshot().Single().Definition.Id == manifest.Id, "Public rescan discovers a new valid directory and rejects invalid PE metadata independently");
         Check(Diagnostics.Store!.Snapshot().Any(e => e.PluginId == "wini_plugin_rejected"), "Invalid rescan entries produce diagnostics");
-        var model = (await manager.GetSettingsAsync(manifest.Id))!;
-        Check(model.Fields.Count == 2 && model.Fields[0].DefaultValue is "default message" && !File.Exists(log),
-            "Disabled lifecycle-only plugin exposes schema without initialization or starting");
-        model.Settings.SetString("message", "edited while disabled");
-        model.Settings.SetBoolean("enabled", false);
+        Check(await manager.GetSettingsAsync(manifest.Id) is null && !File.Exists(log),
+            "Disabled external schema inspection does not instantiate or initialize third-party code");
+        var external = manager.Snapshot().Single().Definition.Metadata!.External!;
+        var savedPath = PluginConsentPolicy.HostSettingsPath(external);
+        var saved = new SettingsStore(savedPath);
+        saved.SetPluginString(manifest.Id, "message", "host-owned preference");
+        saved.SetPluginBoolean(manifest.Id, "enabled", false);
+        manager.ConfirmEnableAsync = _ => Task.FromResult(false);
         await manager.SetEnabledAsync(manifest.Id, true);
-        var events = File.ReadAllLines(log);
-        Check(events.Any(e => e == "Settings:edited while disabled:False"), "Schema edits while disabled reach the initialized plugin through IPluginSettings");
-        Check(events.Any(e => e == "Initialize:null:" + ReleaseVersion.Current.Tag), "First initialization receives host version and null previous version");
-        Check(ReferenceEquals(model.Settings, (await manager.GetSettingsAsync(manifest.Id))!.Settings), "Runtime and settings editor share the same store");
-        model.Settings.SetString("message", "live change");
-        await manager.SetEnabledAsync(manifest.Id, false);
-        await manager.PollAsync();
-        events = File.ReadAllLines(log);
-        Check(HasSequence(events, "Stopping:Disabled", "Stop", "Dispose"), "Disabled reason precedes StopAsync and Dispose");
+        Check(manager.Snapshot().Single().StatusKey == "Off" && !File.Exists(log),
+            "Declining activation keeps external code and schema unexecuted");
         var held = code + ".held";
         Directory.Move(code, held);
         await manager.RescanAsync();
         Check(manager.Snapshot().Count == 1, "Rescan is additive and retains entries whose directories disappear");
         Directory.Move(held, code);
-        await manager.SetEnabledAsync(manifest.Id, true);
-        model.Settings.SetBoolean("failUninstall", true);
         var installer = new PluginInstaller(paths);
         using (var prepared = await installer.PrepareAsync(PluginInstallationChecks.Zip(root, manifest with { Version = "2.0.0" })))
             await manager.InstallAsync(prepared);
-        events = File.ReadAllLines(log);
-        Check(HasSequence(events, "Stopping:Updating", "Stop", "Dispose"), "Update forwards Updating to the old lifecycle-only instance before stopping");
-        Check(events.Any(e => e == "Initialize:1.0.0:" + ReleaseVersion.Current.Tag) && events.Any(e => e == "Settings:live change:False"),
-            "Updated instance receives PreviousVersion and preserves editable settings");
-        await manager.SetEnabledAsync(manifest.Id, false);
+        Check(manager.Snapshot().Single().StatusKey == "Off" && !File.Exists(log)
+            && new SettingsStore(savedPath).GetPluginString(manifest.Id, "message", null) == "host-owned preference",
+            "Updating a disabled plugin preserves host-owned settings without running lifecycle hooks");
         await manager.RemoveAsync(manifest.Id);
-        events = File.ReadAllLines(log);
-        Check(HasSequence(events, "Stopping:Removed", "Stop", "Uninstall:True", "Dispose") && !Directory.Exists(code),
-            "Disabled plugin is initialized only for cleanup; uninstall failure cannot block directory deletion");
-        Check(Diagnostics.Store!.Snapshot().Any(e => e.PluginId == manifest.Id && e.Operation == "Uninstall"), "Uninstall failure produces a diagnostic");
+        Check(!File.Exists(log) && !Directory.Exists(code) && File.Exists(savedPath),
+            "Removing a never-enabled external plugin skips constructors and uninstall hooks while preserving preferences");
         WritePlugin(code, manifest);
         await manager.RescanAsync();
         Check(manager.Snapshot().Count == 0 && store.IsPluginRemoved(manifest.Id), "Rescan cannot resurrect a deleted plugin even if its directory returns");
@@ -185,12 +175,12 @@ internal static class PluginEvolutionChecks
                 using var prepared = await installer.PrepareAsync(PluginInstallationChecks.Zip(root, Manifest));
                 await manager.InstallAsync(prepared);
                 await Task.WhenAll(manager.RescanAsync(), Task.Run(() => manager.Snapshot()));
-                if (cycle == 0) await Task.Delay(400);
                 await manager.RemoveAsync(Manifest.Id);
             }
         }
         finally { cancel.Cancel(); await Task.WhenAll(readers); }
-        Check(callbacks > 0 && manager.Snapshot().Count == 0, "Concurrent snapshots and notification filtering survive real install/remove/rescan and callback reentry");
+        Check(callbacks == 0 && manager.Snapshot().Count == 0,
+            "Concurrent snapshots and filtering survive install/remove/rescan without executing unapproved external code");
         await manager.ShutdownAsync();
     }
 }

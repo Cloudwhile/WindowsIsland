@@ -23,7 +23,7 @@ internal sealed partial class PluginManager
             var content = change.Content ?? throw new InvalidDataException("Missing pinned content.");
             var metadata = entry.Registration.Definition.Metadata;
             content = PinnedContentPolicy.Normalize(content, plugin.Id,
-                metadata?.IsBuiltIn == true || metadata?.External?.Manifest.SourceKind == PluginSourceKind.Official,
+                metadata?.IsBuiltIn == true && metadata.External is null,
                 () => Diagnostic(entry).Capture(new InvalidOperationException(), "RejectPinnedXaml"));
             change = change with { Content = content };
             if (change.Kind == PinnedChangeKind.Updated && entry.Pinned?.Id != content.Id) return;

@@ -8,6 +8,16 @@ $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
 if (!(Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.TelegramHook.dll') -PathType Leaf)) {
     throw 'Published payload is missing WindowsIsland.TelegramHook.dll.'
 }
+$worker = Join-Path $publish 'PluginWorker'
+foreach ($file in @('WindowsIsland.PluginWorker.exe', 'WindowsIsland.PluginWorker.dll', 'WindowsIsland.PluginWorker.deps.json',
+    'WindowsIsland.PluginWorker.runtimeconfig.json', 'WindowsIsland.PluginIsolation.dll', 'WindowsIsland.Contracts.dll',
+    'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll', 'System.Private.CoreLib.dll')) {
+    if (!(Test-Path -LiteralPath (Join-Path $worker $file) -PathType Leaf)) { throw "Missing isolated plugin runtime: $file" }
+}
+foreach ($file in @('WindowsIsland.dll', 'WindowsIsland.TelegramHook.dll', 'Microsoft.UI.Xaml.dll', 'PresentationFramework.dll')) {
+    if (Test-Path -LiteralPath (Join-Path $worker $file)) { throw "Isolated plugin runtime includes a host dependency: $file" }
+}
+'PASS Isolated plugin runtime is self-contained and excludes host desktop dependencies.'
 $definition = [xml](Get-Content -LiteralPath $Project -Raw)
 $references = @($definition.SelectNodes('/Project/ItemGroup/FrameworkReference'))
 $expected = @{}

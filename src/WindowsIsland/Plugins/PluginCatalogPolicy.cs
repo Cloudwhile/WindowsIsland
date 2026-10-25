@@ -39,6 +39,12 @@ internal static partial class PluginCatalogPolicy
             || entry.Permissions.Distinct(StringComparer.Ordinal).Count() != entry.Permissions.Length) Fail(PluginErrorCode.IndexMetadata, "C22");
         if (entry.Sha256 is not { Length: 64 } || !entry.Sha256.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) Fail(PluginErrorCode.IndexMetadata, "C23");
         if (!Download(entry.DownloadUrl, source.RepositoryUrl)) Fail(PluginErrorCode.IndexMetadata, "C24");
+        try
+        {
+            PluginManifestReader.ValidateSecurityMetadata(new(entry.Id, entry.Name, entry.Version, "unused.dll", "Unused",
+                1, entry.Permissions!, Network: entry.Network));
+        }
+        catch (PluginException) { Fail(PluginErrorCode.IndexMetadata, "C22"); }
     }
     private static bool Download(string? value, string repository)
     {

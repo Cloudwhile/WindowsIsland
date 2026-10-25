@@ -42,23 +42,26 @@ internal static class PluginDirectoryChecks
         Check(loader.Scan().Count == 1, "Directory discovery isolates corrupt manifests and incompatible contracts");
         using var manager = new PluginManager([], store);
         manager.ConfigureDirectories(paths);
-        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        manager.Received += _ => arrived.TrySetResult();
+        var arrived = 0;
+        manager.Received += _ => arrived++;
         await manager.StartAsync();
-        await arrived.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Check(manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).StatusKey == "Connected"
+        Check(manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).StatusKey == "Off" && arrived == 0
             && manager.Snapshot().All(s => s.Definition.Id != "wini_plugin_entry"),
-            "Collectible external source publishes through the existing manager; missing entry fails alone");
+            "External discovery remains disabled and never executes the plugin before consent; invalid entries fail alone");
+        Check(await manager.GetSettingsAsync(Manifest.Id) is null,
+            "Reading a disabled external plugin's details cannot execute its constructor or schema getter");
         var failures = Diagnostics.Store!.Snapshot();
         Check(new[] { "wini_plugin_broken", "wini_plugin_version", "wini_plugin_entry" }.All(id => failures.Any(f => f.PluginId == id)),
             "Corrupt manifests, incompatible contracts and missing entries each produce isolated diagnostic records");
         var external = manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).Definition.Metadata!.External!;
         var data = paths.Data(Manifest.Id);
+        Directory.CreateDirectory(data);
         File.WriteAllText(Path.Combine(data, "saved.txt"), "保留数据");
         await manager.RemoveAsync(Manifest.Id);
         Check(!Directory.Exists(code) && File.Exists(Path.Combine(data, "saved.txt")), "External removal deletes code and preserves plugin data");
         await external.VerifyUnloadAsync();
-        Check(external.LastUnload is { IsAlive: false }, "External AssemblyLoadContext is reclaimed after Stop and Dispose");
+        Check(arrived == 0 && await manager.GetSettingsAsync(Manifest.Id) is null,
+            "Removing a never-enabled external plugin executes no callbacks and leaves no settings execution route");
         Check(loader.Scan().All(r => r.Definition.Id != Manifest.Id), "Deleted directory is absent on the next scan");
         foreach (var path in new[] { "../escape.dll", "/absolute.dll", "C:/absolute.dll", "inner/../escape.dll", "inner\\escape.dll" })
         {
@@ -82,6 +85,7 @@ internal static class PluginDirectoryChecks
             && !PluginManifestReader.DeveloperIdValid("Example") && PluginManifestReader.DeveloperIdValid("example__studio"),
             "Developer identifiers retain their name rules after the plugin prefix changes");
         await manager.ShutdownAsync();
+        await PluginConsentChecks.RunAsync();
         Diagnostics.Shutdown();
     }
 }

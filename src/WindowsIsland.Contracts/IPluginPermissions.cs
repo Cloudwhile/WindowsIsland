@@ -1,6 +1,6 @@
 namespace WindowsIsland.Contracts;
 
-/// <summary>查询宿主对当前插件授予的能力；不代表操作系统沙箱。</summary>
+/// <summary>查询宿主对当前插件授予的代理能力；操作系统隔离由宿主管理。</summary>
 public interface IPluginPermissions
 {
     /// <summary>判断指定能力是否已由宿主授予。</summary>
@@ -9,18 +9,17 @@ public interface IPluginPermissions
     bool IsGranted(string permission);
 }
 
-/// <summary>定义插件权限声明，供官方源审核及安装时高危逐项确认；未知名称始终不授予。</summary>
-/// <remarks>插件与宿主同进程同权限，ALC 仅隔离程序集，不是权限沙箱。
-/// 实际门控仅有通知投递、通知激活进程号和宿主数据目录服务；无法阻止插件直接使用网络、文件、原生或自动化 API。</remarks>
+/// <summary>定义插件能力名称；外部插件仅可获得通知、独立设置及经宿主授权的网络代理能力。</summary>
+/// <remarks>进程、任意文件、原生调用与自动化权限不向外部插件扩权。未知名称始终不授予。</remarks>
 public static class PluginPermissions
 {
     /// <summary>向宿主提交通知。</summary>
     public const string Notifications = "notifications";
-    /// <summary>提供 IPluginStorage 数据目录服务；不限制直接文件访问，也不门控 IPluginSettings。</summary>
+    /// <summary>提供插件自己的数据目录；插件偏好通过宿主设置服务保存。</summary>
     public const string Settings = "settings";
     /// <summary>为通知指定点击时激活的进程。</summary>
     public const string Process = "process";
-    /// <summary>声明网络访问需求。</summary>
+    /// <summary>使用启用时确认联网须知的 IPluginNetwork 服务，不授予直接联网。</summary>
     public const string Network = "network";
     /// <summary>声明插件数据目录之外的文件访问需求。</summary>
     public const string FileSystem = "filesystem";

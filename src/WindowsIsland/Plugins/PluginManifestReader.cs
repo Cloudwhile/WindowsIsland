@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Encodings.Web;
+using System.Text;
 using WindowsIsland.Contracts;
 using WindowsIsland.Services;
 
@@ -19,8 +20,12 @@ internal static class PluginManifestReader
     public static PluginManifest Read(string root, string? expectedId = null)
     {
         var path = PluginPaths.Relative(root, "manifest.json");
-        if (new FileInfo(path).Length > 256 * 1024) throw new PluginException(PluginErrorCode.ManifestSize, "插件清单过大。");
-        var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(path), Json)
+        using var input = PluginFileSafety.OpenSingleLinkRead(path);
+        if (input.Length > 256 * 1024) throw new PluginException(PluginErrorCode.ManifestSize, "插件清单过大。");
+        using var bytes = new MemoryStream();
+        input.CopyTo(bytes);
+        var text = new UTF8Encoding(false, true).GetString(bytes.ToArray()).TrimStart('\uFEFF');
+        var manifest = JsonSerializer.Deserialize<PluginManifest>(text, Json)
             ?? throw new PluginException(PluginErrorCode.ManifestEmpty, "插件清单为空。");
         Validate(manifest);
         if (expectedId is not null && manifest.Id != expectedId) throw new PluginException(PluginErrorCode.DirectoryId, "目录名称与插件标识不一致。");
@@ -42,5 +47,34 @@ internal static class PluginManifestReader
         if (manifest.Permissions is null || manifest.Permissions.Length > 64 || manifest.Permissions.Any(p => string.IsNullOrWhiteSpace(p) || p.Length > 80)
             || manifest.Permissions.Distinct(StringComparer.Ordinal).Count() != manifest.Permissions.Length)
             throw new PluginException(PluginErrorCode.Permissions, "插件权限声明无效。");
+        ValidateSecurityMetadata(manifest);
+    }
+
+    internal static void ValidateSecurityMetadata(PluginManifest manifest)
+    {
+        if (manifest.Terms is { } terms)
+        {
+            if (!Text(terms.Revision, 128) || !Text(terms.Text, 65536)) Invalid();
+            try { if (new UTF8Encoding(false, true).GetByteCount(terms.Text) > 65536) Invalid(); }
+            catch (EncoderFallbackException) { Invalid(); }
+        }
+        if (manifest.Network is not null && !manifest.Permissions.Contains(PluginPermissions.Network, StringComparer.Ordinal)) Invalid();
+        if (manifest.Network is not { } network) return;
+        if (network.Origins is not { Length: > 0 and <= 16 } || network.DataCategories is not { Length: > 0 and <= 16 }
+            || !Text(network.Purpose, PluginNetworkLimits.MaximumPurposeLength)
+            || network.Notice is not null && !Text(network.Notice, 65536)
+            || network.DataCategories.Any(value => !Text(value, 128))
+            || network.DataCategories.Distinct(StringComparer.Ordinal).Count() != network.DataCategories.Length) Invalid();
+        var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in network.Origins)
+        {
+            if (value is null || value.Length > 2048 || !Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                || uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0
+                || uri.AbsolutePath != "/" || uri.Host.Length == 0
+                || !origins.Add(uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped))) Invalid();
+        }
+        static bool Text(string? value, int maximum) => !string.IsNullOrWhiteSpace(value) && value.Length <= maximum
+            && value.All(c => !char.IsControl(c) || c is '\n' or '\r' or '\t');
+        static void Invalid() => throw new PluginException(PluginErrorCode.Permissions, "插件条款或网络披露无效。");
     }
 }

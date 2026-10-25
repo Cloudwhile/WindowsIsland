@@ -95,6 +95,7 @@ public sealed partial class MainWindow : Window
         _plugins = BuiltInPlugins.Create(new(DispatcherQueue, _hwnd, verification), settings);
         var pluginPaths = new PluginPaths(verification ? Path.Combine(AppContext.BaseDirectory, "verification-plugins") : null);
         _plugins.ConfigureDirectories(pluginPaths);
+        InitializePluginApprovals();
         _pluginLibrary = new PluginLibrary(_plugins, pluginPaths, settings: settings);
         _updates.Changed += OnUpdateCheckChanged;
         _plugins.Received += ReceiveNotification;
@@ -146,6 +147,7 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            ReleasePluginApprovals();
             _settingsWindow?.Close();
             _settings.Changed -= OnSettingsChanged;
             _updates.Dispose();

@@ -5,10 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NeutralLanguage>zh-CN</NeutralLanguage>
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+    <ProjectReference Include="../../src/WindowsIsland.PluginIsolation/WindowsIsland.PluginIsolation.csproj" />
+    <ProjectReference Include="../../src/WindowsIsland.PluginWorker/WindowsIsland.PluginWorker.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../WindowsIsland.PluginFixture/WindowsIsland.PluginFixture.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../WindowsIsland.PluginSecurityFixture/WindowsIsland.PluginSecurityFixture.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.4.2" />
@@ -25,6 +29,7 @@
     <Compile Include="../../src/WindowsIsland/Services/InitializationElevation.cs" Link="InitializationElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.cs" Link="Plugins/PluginManager.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Consent.cs" Link="Plugins/PluginManager.Consent.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Settings.cs" Link="Plugins/PluginManager.Settings.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Removal.cs" Link="Plugins/PluginManager.Removal.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Directories.cs" Link="Plugins/PluginManager.Directories.cs" />
@@ -44,6 +49,11 @@
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Installation.cs" Link="Plugins/PluginManager.Installation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginManifestReader.cs" Link="Plugins/PluginManifestReader.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginDirectoryLoader.cs" Link="Plugins/PluginDirectoryLoader.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/Isolation/*.cs" Link="Plugins/Isolation/%(Filename)%(Extension)" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginConsent*.cs" Link="Plugins/%(Filename)%(Extension)" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginHostFiles.cs" Link="Plugins/PluginHostFiles.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSettingsMigration.cs" Link="Plugins/PluginSettingsMigration.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginFileSafety.cs" Link="Plugins/PluginFileSafety.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginMetadata.cs" Link="Plugins/PluginMetadata.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginContext.cs" Link="Plugins/PluginContext.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginNotificationBridge.cs" Link="Plugins/PluginNotificationBridge.cs" />
@@ -92,5 +102,10 @@
   </ItemGroup>
   <Target Name="CopyPluginFixture" AfterTargets="Build">
     <Copy SourceFiles="../../artifacts/bin/WindowsIsland.PluginFixture/$(Configuration)/net10.0/WindowsIsland.PluginFixture.dll" DestinationFolder="$(TargetDir)fixture" />
+    <Copy SourceFiles="../../artifacts/bin/WindowsIsland.PluginSecurityFixture/$(Configuration)/net10.0/WindowsIsland.PluginSecurityFixture.dll" DestinationFolder="$(TargetDir)fixture" />
+    <ItemGroup>
+      <_PluginWorkerFiles Include="../../artifacts/bin/WindowsIsland.PluginWorker/$(Configuration)/net10.0/win-x64/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PluginWorkerFiles)" DestinationFiles="@(_PluginWorkerFiles->'$(TargetDir)PluginWorker/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 </Project>

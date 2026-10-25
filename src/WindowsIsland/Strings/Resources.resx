@@ -562,12 +562,12 @@
   <data name="PluginDataPreserved" xml:space="preserve"><value>数据已保留，重新安装同 Id 插件可恢复</value></data>
   <data name="PluginSource" xml:space="preserve"><value>安装来源</value></data>
   <data name="PluginManualRestricted" xml:space="preserve"><value>手动安装</value></data>
-  <data name="PluginOfficial" xml:space="preserve"><value>官方源</value></data>
+  <data name="PluginOfficial" xml:space="preserve"><value>默认插件源</value></data>
   <data name="PluginDeveloper" xml:space="preserve"><value>开发者</value></data>
   <data name="PluginRepository" xml:space="preserve"><value>公开仓库</value></data>
-  <data name="PluginPermissionsGranted" xml:space="preserve"><value>已确认的权限声明</value></data>
-  <data name="PluginPermissionsDenied" xml:space="preserve"><value>未确认或未知的权限声明</value></data>
-  <data name="PluginPermissionNotice" xml:space="preserve"><value>插件与消息岛使用相同的系统权限。此处记录权限声明与确认结果，不提供权限沙箱。</value></data>
+  <data name="PluginPermissionsGranted" xml:space="preserve"><value>可用的能力声明</value></data>
+  <data name="PluginPermissionsDenied" xml:space="preserve"><value>不可用或未知的能力声明</value></data>
+  <data name="PluginPermissionNotice" xml:space="preserve"><value>请在启用前阅读开发者或默认插件源提供的条款和联网须知。</value></data>
   <data name="ErrorRefreshPlugins" xml:space="preserve"><value>无法刷新插件，请重试。</value></data>
   <data name="PluginErrorZip" xml:space="preserve"><value>只能安装 ZIP 插件包。</value></data>
   <data name="PluginErrorManifest" xml:space="preserve"><value>ZIP 根目录必须且只能包含一个 manifest.json。</value></data>
@@ -579,19 +579,19 @@
   <data name="PluginErrorPath" xml:space="preserve"><value>插件包包含不安全路径、符号链接或特殊文件。</value></data>
   <data name="PluginErrorSourceConflict" xml:space="preserve"><value>插件已从其他来源安装，请先卸载。</value></data>
   <data name="PluginErrorStart" xml:space="preserve"><value>插件启动失败，已恢复旧版本。</value></data>
-  <data name="PluginRefreshCatalog" xml:space="preserve"><value>刷新官方源</value></data>
-  <data name="PluginCatalogEmpty" xml:space="preserve"><value>官方源暂无插件</value></data>
-  <data name="PluginCatalogUnavailable" xml:space="preserve"><value>官方源暂时不可用，已保留缓存</value></data>
-  <data name="PluginCatalogReady" xml:space="preserve"><value>已同步官方源</value></data>
+  <data name="PluginRefreshCatalog" xml:space="preserve"><value>刷新默认插件源</value></data>
+  <data name="PluginCatalogEmpty" xml:space="preserve"><value>默认插件源暂无插件</value></data>
+  <data name="PluginCatalogUnavailable" xml:space="preserve"><value>默认插件源暂时不可用，已保留缓存</value></data>
+  <data name="PluginCatalogReady" xml:space="preserve"><value>已同步默认插件源</value></data>
   <data name="PluginUpdate" xml:space="preserve"><value>更新插件</value></data>
-  <data name="PluginOfficialAuthor" xml:space="preserve"><value>官方自研插件</value></data>
-  <data name="PluginThirdParty" xml:space="preserve"><value>官方源收录的第三方插件，请逐项确认所需权限</value></data>
-  <data name="PluginDelisted" xml:space="preserve"><value>该插件已从官方源下架，建议卸载</value></data>
+  <data name="PluginOfficialAuthor" xml:space="preserve"><value>Windows Island 开发的插件</value></data>
+  <data name="PluginThirdParty" xml:space="preserve"><value>默认插件源收录的第三方插件，请逐项确认所需权限</value></data>
+  <data name="PluginDelisted" xml:space="preserve"><value>该插件已从默认插件源下架，建议卸载</value></data>
   <data name="PluginUpdateAvailable" xml:space="preserve"><value>有新版本：{0}</value></data>
-  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>官方源暂时不可用，请稍后重试</value></data>
+  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>默认插件源暂时不可用，请稍后重试</value></data>
   <data name="PluginErrorHash" xml:space="preserve"><value>插件 SHA256 校验失败，下载已清理</value></data>
-  <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>插件包与官方索引不一致，安装已中止</value></data>
-  <data name="PluginErrorNotListed" xml:space="preserve"><value>该插件已不在当前官方索引中，请刷新后重试</value></data>
+  <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>插件包与默认插件源索引不一致，安装已中止</value></data>
+  <data name="PluginErrorNotListed" xml:space="preserve"><value>该插件已不在当前默认插件源索引中，请刷新后重试</value></data>
   <data name="ActionClose" xml:space="preserve"><value>关闭</value></data>
   <data name="PluginInstallation" xml:space="preserve"><value>安装</value></data>
   <data name="PluginDescription" xml:space="preserve"><value>说明</value></data>
@@ -608,8 +608,8 @@
   <data name="DiagnosticTitleConnectNotifications" xml:space="preserve"><value>系统通知连接失败</value></data>
   <data name="DiagnosticTitleRegistration" xml:space="preserve"><value>应用注册未完成</value></data>
   <data name="DiagnosticTitleInstallPlugin" xml:space="preserve"><value>插件安装失败</value></data>
-  <data name="DiagnosticTitleOfficialPlugin" xml:space="preserve"><value>官方源操作未完成</value></data>
-  <data name="DiagnosticTitlePluginCatalog" xml:space="preserve"><value>读取官方源失败</value></data>
+  <data name="DiagnosticTitleOfficialPlugin" xml:space="preserve"><value>默认插件源操作未完成</value></data>
+  <data name="DiagnosticTitlePluginCatalog" xml:space="preserve"><value>读取默认插件源失败</value></data>
   <data name="DiagnosticTitleLoadPlugin" xml:space="preserve"><value>插件加载失败</value></data>
   <data name="DiagnosticTitleStartPlugin" xml:space="preserve"><value>插件启动失败</value></data>
   <data name="DiagnosticTitleStopPlugin" xml:space="preserve"><value>插件停止失败</value></data>
@@ -719,4 +719,21 @@
   <data name="NavigationMaintenance" xml:space="preserve"><value>应用维护</value></data>
   <data name="ActionToggleNavigation" xml:space="preserve"><value>展开或收起导航</value></data>
   <data name="SettingsOperationCancelled" xml:space="preserve"><value>操作已取消，可以重试。</value></data>
+  <data name="PluginConsentEnableTitle" xml:space="preserve"><value>启用插件前确认</value></data>
+  <data name="PluginConsentEnable" xml:space="preserve"><value>同意并启用</value></data>
+  <data name="PluginConsentName" xml:space="preserve"><value>插件名称</value></data>
+  <data name="PluginConsentEnableNotice" xml:space="preserve"><value>请核对插件身份和版本，并阅读下方内容。取消后插件保持关闭。</value></data>
+  <data name="PluginConsentTerms" xml:space="preserve"><value>使用条款</value></data>
+  <data name="PluginConsentTermsRevision" xml:space="preserve"><value>条款修订</value></data>
+  <data name="PluginConsentAcceptTerms" xml:space="preserve"><value>我已阅读并同意以上条款</value></data>
+  <data name="PluginConsentNetwork" xml:space="preserve"><value>联网须知</value></data>
+  <data name="PluginConsentDestinations" xml:space="preserve"><value>网络目的地</value></data>
+  <data name="PluginConsentPurpose" xml:space="preserve"><value>用途</value></data>
+  <data name="PluginConsentDataCategories" xml:space="preserve"><value>数据类别</value></data>
+  <data name="PluginConsentAcceptNetwork" xml:space="preserve"><value>我已阅读以上联网与数据发送说明</value></data>
+  <data name="PluginConsentRequired" xml:space="preserve"><value>请先阅读条款并确认插件授权，再启用此插件。</value></data>
+  <data name="PluginConsentChanged" xml:space="preserve"><value>插件版本或授权内容已改变，请重新确认。</value></data>
+  <data name="PluginInstallationReviewTitle" xml:space="preserve"><value>安装插件前核对</value></data>
+  <data name="PluginInstallationReview" xml:space="preserve"><value>以下仅为插件声明的能力，不表示授予权限。安装后插件保持关闭，启用时另行确认条款和联网说明；不可用的能力不会因安装而开放。</value></data>
+  <data name="PluginDefaultSourceNotice" xml:space="preserve"><value>即使是默认插件源，我们也不能完全保证插件的稳定性和安全性，使用前请谨慎核查。</value></data>
 </root>

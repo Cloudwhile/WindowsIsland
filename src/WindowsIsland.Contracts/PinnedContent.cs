@@ -9,7 +9,7 @@ namespace WindowsIsland.Contracts;
 /// <param name="ActionId">可选的插件点击动作标识，不作为地址或命令执行。</param>
 /// <param name="Symbol">可选的图标名称，宿主不识别时使用默认图标。</param>
 /// <param name="Controls">可选的交互控件快照，由宿主创建原生控件。</param>
-/// <param name="CustomPanelXaml">可选的自定义面板，仅允许已审核来源使用；原生交互控件的 x:Name 与控件标识对应。</param>
+/// <param name="CustomPanelXaml">保留给宿主内置来源的自定义面板；所有外部插件均忽略此字段，使用结构化控件。</param>
 public sealed record PinnedContent(string Id, string PluginId, string Title, string CompactText,
     string? Body = null, string? ActionId = null, string? Symbol = null,
     IReadOnlyList<PinnedControl>? Controls = null, string? CustomPanelXaml = null);

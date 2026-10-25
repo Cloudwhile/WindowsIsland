@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.UI.Xaml;
@@ -38,6 +39,9 @@ internal static class PluginLifecycleUiChecks
         var paths = new PluginPaths(Path.Combine(output, "plugins"));
         var marker = Path.Combine(paths.Data(Id), "retained.txt");
         var manager = new PluginManager([], store);
+        // 仅该私有夹具管理器自动接受自己的已知 DLL；生产回调仍由真实条款窗口处理。
+        manager.ConfirmEnableAsync = descriptor => Task.FromResult(descriptor.PluginId == Id
+            && descriptor.Author == "Isolated fixture" && descriptor.SourceKind == PluginSourceKind.Manual);
         PluginLibrary? library = null;
         UpdateCheckService? updates = null;
         SettingsPage? page = null;
@@ -80,9 +84,13 @@ internal static class PluginLifecycleUiChecks
             await UntilAsync(page, () => InstalledVersion(manager) == "1.0.0" && ImportReady(page)
                 && HasNotice(page, "PluginInstalledSuccess", InfoBarSeverity.Success));
             check(manager.Snapshot().Count == 1 && InstalledVersion(manager) == "1.0.0",
-                "The native manual import UI installs and starts a private version-one plugin");
+                "The native manual import UI installs a private version-one plugin without activating it");
+            await CheckInstalledOffAsync(manager, store, check, "initial install");
+            Directory.CreateDirectory(paths.Data(Id));
             await File.WriteAllTextAsync(marker, SavedData);
             await OpenInstalledAsync(page);
+            check(!Tree(page).OfType<PluginSettingsEditor>().Any(), "Disabled installed details contain no executable schema editor");
+            await EnableFixtureAsync(manager, page);
             await UntilAsync(page, () => Tree(page).OfType<PluginSettingsEditor>().Any());
             var message = Tree(page).OfType<TextBox>().Single(item => AutomationProperties.GetAutomationId(item) == "PluginSetting." + Id + ".message");
             var enabled = Tree(page).OfType<ToggleSwitch>().Single(item => AutomationProperties.GetAutomationId(item) == "PluginSetting." + Id + ".enabled");
@@ -91,8 +99,8 @@ internal static class PluginLifecycleUiChecks
             message.Text = SavedMessage;
             enabled.IsOn = false;
             // TextChanged 可以在 Text 赋值后的下一次调度才触发；等待生产事件完成实际保存。
-            await UntilAsync(page, async () => await SchemaPreservedAsync(manager) && SchemaOnDisk(paths));
-            check(await SchemaPreservedAsync(manager) && SchemaOnDisk(paths)
+            await UntilAsync(page, async () => await SchemaPreservedAsync(manager) && SchemaOnDisk(manager));
+            check(await SchemaPreservedAsync(manager) && SchemaOnDisk(manager)
                 && manager.Snapshot().Single().Definition.IsEnabled(store.Current),
                 "Native schema edits persist before package replacement without changing the host enable preference");
             Back(page);
@@ -101,8 +109,11 @@ internal static class PluginLifecycleUiChecks
             await ChooseAsync(versionTwo);
             await UntilAsync(page, () => InstalledVersion(manager) == "2.0.0" && ImportReady(page)
                 && HasNotice(page, "PluginInstalledSuccess", InfoBarSeverity.Success));
-            check(!OpenDialogs(page).Any() && await SchemaPreservedAsync(manager) && await File.ReadAllTextAsync(marker) == SavedData,
+            await CheckInstalledOffAsync(manager, store, check, "higher-version update");
+            check(!OpenDialogs(page).Any() && SchemaOnDisk(manager) && await File.ReadAllTextAsync(marker) == SavedData,
                 "A higher-version UI import updates without a same-version overwrite dialog and preserves settings and data");
+            await EnableFixtureAsync(manager, page);
+            check(await SchemaPreservedAsync(manager), "Explicitly enabling the updated isolated worker restores retained schema preferences");
 
             await ChooseAsync(versionTwo);
             await UntilAsync(page, () => OpenDialogs(page).Any());
@@ -124,11 +135,15 @@ internal static class PluginLifecycleUiChecks
             await UntilAsync(page, () => !OpenDialogs(page).Any() && ImportReady(page)
                 && HasNotice(page, "PluginInstalledSuccess", InfoBarSeverity.Success));
             check(!ReferenceEquals(beforeCancel, manager.Snapshot().Single().Definition.Metadata)
-                && InstalledVersion(manager) == "2.0.0" && await SchemaPreservedAsync(manager)
+                && InstalledVersion(manager) == "2.0.0" && SchemaOnDisk(manager)
                 && await File.ReadAllTextAsync(marker) == SavedData,
                 "Confirming overwrite replaces the package through the UI and retains schema preferences and data");
+            await CheckInstalledOffAsync(manager, store, check, "confirmed overwrite");
+            await EnableFixtureAsync(manager, page);
+            check(await SchemaPreservedAsync(manager), "Confirmed overwrite requires explicit reactivation before exposing runtime settings");
 
             await OpenInstalledAsync(page);
+            var retainedSettings = PluginConsentPolicy.HostSettingsPath(manager.Snapshot().Single().Definition.Metadata!.External!);
             Invoke(Button(page, "InstalledPluginRemove." + Id));
             await UntilAsync(page, () => OpenDialogs(page).Any());
             var remove = OpenDialogs(page).Single();
@@ -138,7 +153,7 @@ internal static class PluginLifecycleUiChecks
             Invoke(DialogButton(remove, "PrimaryButton"));
             await UntilAsync(page, () => manager.Snapshot().Count == 0
                 && HasNotice(page, "PluginRemovedSuccess", InfoBarSeverity.Success));
-            var saved = new SettingsStore(Path.Combine(paths.Data(Id), "settings.json"));
+            var saved = new SettingsStore(retainedSettings);
             check(!Directory.Exists(paths.Code(PluginSourceKind.Manual, Id))
                 && await File.ReadAllTextAsync(marker) == SavedData
                 && saved.GetPluginString(Id, "message", null) == SavedMessage && !saved.GetPluginBoolean(Id, "enabled", true),
@@ -151,8 +166,26 @@ internal static class PluginLifecycleUiChecks
             await ChooseAsync(versionTwo);
             await UntilAsync(page, () => InstalledVersion(manager) == "2.0.0" && ImportReady(page)
                 && HasNotice(page, "PluginInstalledSuccess", InfoBarSeverity.Success));
-            check(await SchemaPreservedAsync(manager) && await File.ReadAllTextAsync(marker) == SavedData,
+            await CheckInstalledOffAsync(manager, store, check, "reimport after invalid ZIP");
+            check(SchemaOnDisk(manager) && await File.ReadAllTextAsync(marker) == SavedData,
                 "A valid UI import succeeds after an invalid ZIP and reuses data retained through uninstall");
+
+            var lifecycle = Path.Combine(paths.Data(Id), "lifecycle.txt");
+            var beforeDisabledRemoval = await File.ReadAllTextAsync(lifecycle);
+            await OpenInstalledAsync(page);
+            check(!Tree(page).OfType<PluginSettingsEditor>().Any(), "Reinstalled but disabled details do not execute a schema worker");
+            Invoke(Button(page, "InstalledPluginRemove." + Id));
+            await UntilAsync(page, () => OpenDialogs(page).Any());
+            Invoke(DialogButton(OpenDialogs(page).Single(), "PrimaryButton"));
+            await UntilAsync(page, () => manager.Snapshot().Count == 0 && HasNotice(page, "PluginRemovedSuccess", InfoBarSeverity.Success));
+            check(await File.ReadAllTextAsync(lifecycle) == beforeDisabledRemoval && File.Exists(retainedSettings)
+                && await File.ReadAllTextAsync(marker) == SavedData,
+                "Uninstalling a never-reactivated package executes no constructor or lifecycle hooks and retains data and host preferences");
+            await ChooseAsync(versionTwo);
+            await UntilAsync(page, () => InstalledVersion(manager) == "2.0.0" && ImportReady(page));
+            await CheckInstalledOffAsync(manager, store, check, "reinstall after disabled removal");
+            await EnableFixtureAsync(manager, page);
+            check(await SchemaPreservedAsync(manager), "Explicitly enabling a reinstalled LPAC worker reads the retained host-owned schema preferences");
 
             var beforePickerCancel = manager.Snapshot().Single().Definition.Metadata;
             await ChooseAsync(null);
@@ -194,10 +227,27 @@ internal static class PluginLifecycleUiChecks
         var model = await manager.GetSettingsAsync(Id);
         return model is not null && model.Settings.GetString("message") == SavedMessage && !model.Settings.GetBoolean("enabled", true);
     }
-    private static bool SchemaOnDisk(PluginPaths paths)
+    private static bool SchemaOnDisk(PluginManager manager)
     {
-        var saved = new SettingsStore(Path.Combine(paths.Data(Id), "settings.json"));
+        var external = manager.Snapshot().Single().Definition.Metadata!.External!;
+        var saved = new SettingsStore(PluginConsentPolicy.HostSettingsPath(external));
         return saved.GetPluginString(Id, "message", null) == SavedMessage && !saved.GetPluginBoolean(Id, "enabled", true);
+    }
+    private static async Task CheckInstalledOffAsync(PluginManager manager, SettingsStore store, Action<bool, string> check, string context)
+    {
+        var item = manager.Snapshot().Single();
+        var external = item.Definition.Metadata!.External!;
+        var instance = typeof(ExternalPlugin).GetField("_instance", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new MissingFieldException(nameof(ExternalPlugin), "_instance");
+        check(item.StatusKey == "Off" && !item.Definition.IsEnabled(store.Current)
+            && await manager.GetSettingsAsync(Id) is null && instance.GetValue(external) is null
+            && AppDomain.CurrentDomain.GetAssemblies().All(assembly => assembly.GetName().Name != "WindowsIsland.PluginFixture"),
+            "Installed package stays off with no proxy, constructor or schema execution in the host: " + context);
+    }
+    private static async Task EnableFixtureAsync(PluginManager manager, SettingsPage page)
+    {
+        await manager.SetEnabledAsync(Id, true).WaitAsync(TimeSpan.FromSeconds(90));
+        await UntilAsync(page, async () => manager.Snapshot().Single().StatusKey == "Connected" && await manager.GetSettingsAsync(Id) is not null);
     }
 
     private static async Task OpenInstalledAsync(SettingsPage page)

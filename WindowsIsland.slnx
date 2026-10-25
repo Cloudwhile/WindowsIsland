@@ -1,11 +1,15 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+    <Project Path="src/WindowsIsland.PluginIsolation/WindowsIsland.PluginIsolation.csproj" />
+    <Project Path="src/WindowsIsland.PluginWorker/WindowsIsland.PluginWorker.csproj" />
     <Project Path="src/WindowsIsland/WindowsIsland.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/WindowsIsland.IconTests/WindowsIsland.IconTests.csproj" />
     <Project Path="tests/WindowsIsland.PluginFixture/WindowsIsland.PluginFixture.csproj" />
+    <Project Path="tests/WindowsIsland.PluginSecurityFixture/WindowsIsland.PluginSecurityFixture.csproj" />
+    <Project Path="tests/WindowsIsland.PluginSecurityTests/WindowsIsland.PluginSecurityTests.csproj" />
     <Project Path="tests/WindowsIsland.HookFixture/WindowsIsland.HookFixture.csproj" />
     <Project Path="tests/WindowsIsland.InitializationTests/WindowsIsland.InitializationTests.csproj" />
     <Project Path="tests/WindowsIsland.LogicTests/WindowsIsland.LogicTests.csproj" />

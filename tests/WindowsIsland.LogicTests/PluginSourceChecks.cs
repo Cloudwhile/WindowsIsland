@@ -24,7 +24,8 @@ internal static class PluginSourceChecks
         await manager.StartAsync();
         var downloads = new GitHubProxy(mock.Base);
         using var library = new PluginLibrary(manager, paths, new PluginCatalogClient(new CatalogTransport(mock.Base)), new PluginCatalogClient(downloads));
-        var manifest = PluginDirectoryChecks.Manifest with { RepositoryUrl = "https://github.com/example/plugins", Permissions = ["notifications", "settings", "process", "network"] };
+        var manifest = PluginDirectoryChecks.Manifest with { RepositoryUrl = "https://github.com/example/plugins", Permissions = ["notifications", "settings", "process", "network"],
+            Network = new(["https://example.com"], "上传插件自有状态", ["插件状态"]) };
         mock.Package = await File.ReadAllBytesAsync(PluginInstallationChecks.Zip(root, manifest));
         var entry = new PluginCatalogEntry(manifest.Id, manifest.Name, manifest.Version,
             "https://github.com/example/plugins/releases/download/v1.0.0/plugin.zip", Convert.ToHexStringLower(SHA256.HashData(mock.Package)),
@@ -48,8 +49,8 @@ internal static class PluginSourceChecks
         var code = paths.Code(PluginSourceKind.Official, entry.Id);
         var external = manager.Snapshot().Single().Definition.Metadata!.External!;
         Check(PluginManifestReader.Read(code).SourceKind == PluginSourceKind.Official && external.Manifest.DeveloperId == "example"
-            && !external.Trust.IsGranted("process") && !external.Trust.IsGranted("network"),
-            "Catalog installation records official provenance without granting unconfirmed third-party permissions");
+            && !external.Trust.IsGranted("process") && external.Trust.IsGranted("network") && manager.Snapshot().Single().StatusKey == "Off",
+            "Catalog provenance provides only declared broker services and never grants direct network or process access");
         Check(!library.Catalog.IsDelisted(external.Manifest), "A listed installed plugin is not delisted");
 
         manifest = manifest with { Version = "1.1.0" };
@@ -59,13 +60,13 @@ internal static class PluginSourceChecks
         await library.Catalog.RefreshAsync();
         Check(library.Catalog.UpdateFor(external.Manifest)?.Version == "1.1.0", "Official updates compare semantic versions from the developer index");
         entry = library.Catalog.State.Sources[0].Plugins[0];
-        var received = new TaskCompletionSource<IslandNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
-        manager.Received += notification => { if (notification.OriginProcessId.HasValue) received.TrySetResult(notification); };
+        var received = 0;
+        manager.Received += _ => received++;
         await library.InstallOfficialAsync(entry, ["process"]);
         external = manager.Snapshot().Single().Definition.Metadata!.External!;
-        Check(external.Trust.IsGranted("process") && !external.Trust.IsGranted("network")
-            && (await received.Task.WaitAsync(TimeSpan.FromSeconds(5))).OriginProcessId == Environment.ProcessId,
-            "Only individually confirmed high risk permissions take effect through host capabilities");
+        Check(!external.Trust.IsGranted("process") && external.Trust.IsGranted("network")
+            && received == 0 && manager.Snapshot().Single().StatusKey == "Off",
+            "Old high-risk confirmations cannot enable the updated plugin or expand its OS permissions");
         Check(PluginManifestReader.Read(code + ".bak").Version == "1.0.0", "Official update retains the previous code backup");
 
         mock.Fail = true;
@@ -80,8 +81,8 @@ internal static class PluginSourceChecks
         mock.Plugins = "[]";
         await library.Catalog.RefreshAsync();
         Check(library.Catalog.IsDelisted(external.Manifest) && library.Catalog.UpdateFor(external.Manifest) is null
-            && manager.Snapshot().Single().StatusKey == "Connected" && Directory.Exists(code),
-            "A successfully removed listing warns and excludes updates while the installed plugin keeps running");
+            && manager.Snapshot().Single().StatusKey == "Off" && Directory.Exists(code),
+            "A successfully removed listing warns and excludes updates while preserving disabled installed code");
 
         using (var restarted = new PluginCatalogService(paths, new PluginCatalogClient(new CatalogTransport(mock.Base))))
         {

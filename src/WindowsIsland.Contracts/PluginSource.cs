@@ -27,6 +27,7 @@ public sealed record PluginSource(
 /// <param name="Description">插件说明。</param>
 /// <param name="RepositoryUrl">公开的 GitHub 仓库地址。</param>
 /// <param name="DeveloperId">所属开发者标识。</param>
+/// <param name="Network">默认插件源提供的联网须知，作为包内声明缺失时的补充。</param>
 public sealed record PluginCatalogEntry(
     [property: JsonPropertyName("id")] string Id,
     [property: JsonPropertyName("name")] string Name,
@@ -38,4 +39,5 @@ public sealed record PluginCatalogEntry(
     [property: JsonPropertyName("permissions")] string[] Permissions,
     [property: JsonPropertyName("description")] string Description,
     [property: JsonPropertyName("repositoryUrl")] string RepositoryUrl,
-    [property: JsonPropertyName("developerId")] string DeveloperId);
+    [property: JsonPropertyName("developerId")] string DeveloperId,
+    [property: JsonPropertyName("network")] PluginNetworkDisclosure? Network = null);

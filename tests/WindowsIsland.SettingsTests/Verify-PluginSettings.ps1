@@ -1,4 +1,4 @@
-param([switch]$WithoutMica, [ValidateSet('All', 'Layout', 'HostPreview', 'SourceState')][string]$Only = 'All')
+param([switch]$WithoutMica, [ValidateSet('All', 'Layout', 'HostPreview', 'SourceState', 'Consent')][string]$Only = 'All')
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $runRoot = Join-Path $repoRoot ('artifacts/verification/plugin-settings-ui/' + [Guid]::NewGuid().ToString('N'))
@@ -27,6 +27,7 @@ $targets = @"
     <Compile Include="$PSScriptRoot/PluginLifecycleUiChecks.cs" />
     <Compile Include="$PSScriptRoot/ListSeparatorsUiChecks.cs" />
     <Compile Include="$PSScriptRoot/HostPreviewUiChecks.cs" />
+    <Compile Include="$PSScriptRoot/PluginConsentUiChecks.cs" />
   </ItemGroup>
 </Project>
 "@

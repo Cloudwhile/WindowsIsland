@@ -1,0 +1,258 @@
+using System.Text.Json;
+using WindowsIsland.Contracts;
+using WindowsIsland.PluginIsolation;
+
+namespace WindowsIsland.Plugins;
+
+// The only object representing external code in the host. It never loads the plugin assembly.
+internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSource, IPluginStatusProvider,
+    IPluginSettingsSchema, IPluginPolling, IPluginRetry, IPluginLifecycleAware
+{
+    private SandboxProcess? _process;
+    private IsolationRpc? _rpc;
+    private IPluginContext? _context;
+    private PluginNetworkBroker? _network;
+    private readonly CancellationTokenSource _services = new();
+    private readonly CancellationTokenSource _regularCommands = new();
+    private readonly CancellationTokenSource _commandLifetime = new();
+    private readonly SemaphoreSlim _commands = new(1, 1);
+    private readonly object _lifecycle = new();
+    private readonly TaskCompletionSource _terminated = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private CancellationTokenSource? _cleanupBudget;
+    private Task<SandboxProcess>? _launch;
+    private int _revoked, _disposed;
+    private WorkerDescription _description = new(new(PluginConnectionState.Disconnected), []);
+    public string Id => external.Manifest.Id;
+    public string DisplayName => external.Manifest.Name;
+    public PluginStatus Status => Volatile.Read(ref _description).Status;
+    public IReadOnlyList<PluginSetting> SettingsSchema => Volatile.Read(ref _description).Settings;
+    public bool CanRetry => Volatile.Read(ref _disposed) == 0 && Volatile.Read(ref _revoked) == 0;
+    public Task Termination => _terminated.Task;
+    public event Action<PluginNotification>? NotificationReceived;
+
+    public async Task InitializeAsync(IPluginContext context)
+    {
+        Task<SandboxProcess> launch;
+        lock (_lifecycle)
+        {
+            ObjectDisposedException.ThrowIf(_disposed != 0 || _revoked != 0, this);
+            if (_launch is not null) throw new InvalidOperationException();
+            _context = context;
+            _network = new(external, () => Volatile.Read(ref _revoked) == 0 && Volatile.Read(ref _disposed) == 0);
+            launch = _launch = Task.Run(() =>
+            {
+                _regularCommands.Token.ThrowIfCancellationRequested();
+                if (Volatile.Read(ref _revoked) != 0 || Volatile.Read(ref _disposed) != 0)
+                    throw new OperationCanceledException("The plugin was stopped before its worker launch.");
+                return new SandboxProcess(external);
+            });
+        }
+        SandboxProcess process;
+        try { process = await launch.WaitAsync(_regularCommands.Token); }
+        catch { Dispose(); throw; }
+        var revoked = false;
+        lock (_lifecycle)
+        {
+            revoked = _disposed != 0 || _revoked != 0;
+            if (!revoked)
+            {
+                _process = process;
+                _rpc = new(process.Input, process.Output, HandleAsync);
+                context.PinnedContent?.SetInteractionHandler(interaction => CommandAsync("interaction", interaction));
+            }
+        }
+        if (revoked)
+        {
+            Dispose();
+            await Termination;
+            throw new OperationCanceledException("The plugin was stopped while its worker was starting.");
+        }
+        try { await process.VerifyReadyAsync(_rpc!, _regularCommands.Token); }
+        catch { Dispose(); throw; }
+        await CommandAsync("initialize", new WorkerInitialization(external.Manifest, external.DataDirectory,
+            external.Trust.Granted.ToArray(), context.PreviousVersion, context.HostVersion, external.Directory));
+    }
+
+    private async Task<object?> HandleAsync(string method, JsonElement payload, CancellationToken token)
+    {
+        if (_revoked != 0 || _disposed != 0 || _context is not { } context) throw new ObjectDisposedException(nameof(SandboxPluginProxy));
+        T Read<T>() => payload.Deserialize<T>(IsolationRpc.Json) ?? throw new InvalidDataException();
+        switch (method)
+        {
+            case "getString":
+            {
+                var field = Read<WorkerSetting>();
+                return context.Settings.GetString(field.Key, field.Value);
+            }
+            case "getBoolean":
+            {
+                var field = Read<WorkerSetting>();
+                return context.Settings.GetBoolean(field.Key, field.Boolean);
+            }
+            case "setString":
+            {
+                var field = Read<WorkerSetting>();
+                if (field.Value?.Length > 65536) throw new InvalidDataException();
+                context.Settings.SetString(field.Key, field.Value); return null;
+            }
+            case "setBoolean":
+            {
+                var field = Read<WorkerSetting>(); context.Settings.SetBoolean(field.Key, field.Boolean); return null;
+            }
+            case "diagnostic": context.Diagnostics.Write(Read<PluginDiagnostic>()); return null;
+            case "notification":
+            {
+                var value = Read<PluginNotification>();
+                if (value.SourceId != Id || value.ConversationName?.Length > 4096 || value.Sender?.Length > 4096
+                    || value.Body?.Length > 65536 || value.AppIcon?.Length > 256 * 1024 || value.SenderAvatar?.Length > 256 * 1024
+                    || value.DeduplicationKey?.Length > 1024 || value.AppName?.Length > 256 || value.AppId?.Length > 256
+                    || value.Symbol?.Length > 64 || !Enum.IsDefined(value.Kind)) throw new InvalidDataException();
+                NotificationReceived?.Invoke(value with { OriginProcessId = null }); return null;
+            }
+            case "pinned":
+            {
+                var value = Read<WorkerPinnedChange>();
+                var pinned = context.PinnedContent ?? throw new UnauthorizedAccessException();
+                if (value.Kind == "Removed") { if (value.Id.Length > 128) throw new InvalidDataException(); pinned.Remove(value.Id); return null; }
+                var content = value.Content ?? throw new InvalidDataException();
+                content = PinnedContentPolicy.Normalize(content, Id, reviewed: false, () => { });
+                if (value.Kind == "Added") pinned.Submit(content);
+                else if (value.Kind == "Updated") pinned.Update(content);
+                else throw new InvalidDataException();
+                return null;
+            }
+            case "network":
+            {
+                using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, _services.Token);
+                return await _network!.SendAsync(Read<PluginNetworkRequest>(), cancellation.Token);
+            }
+            default: throw new InvalidDataException("Unknown sandbox operation.");
+        }
+    }
+
+    private async Task CommandAsync(string method, object? payload = null)
+    {
+        var cleanup = method is "stop" or "stopping" or "uninstall";
+        CancellationToken scope;
+        lock (_lifecycle)
+        {
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
+            scope = cleanup ? (_cleanupBudget ??= new CancellationTokenSource(TimeSpan.FromSeconds(3))).Token : _regularCommands.Token;
+        }
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(scope, _commandLifetime.Token);
+        if (!cleanup) timeout.CancelAfter(TimeSpan.FromSeconds(90));
+        var entered = false;
+        Task<WorkerDescription?>? reply = null;
+        try
+        {
+            await _commands.WaitAsync(timeout.Token);
+            entered = true;
+            IsolationRpc rpc;
+            lock (_lifecycle)
+            {
+                ObjectDisposedException.ThrowIf(_disposed != 0, this);
+                rpc = _rpc ?? throw new InvalidOperationException();
+            }
+            reply = rpc.CallAsync<WorkerDescription>(method, payload, timeout.Token);
+            var description = await reply.WaitAsync(timeout.Token)
+                ?? throw new InvalidDataException();
+            if (description.Status is null || !Enum.IsDefined(description.Status.State) || !Enum.IsDefined(description.Status.Reason)
+                || description.Settings is null || description.Settings.Length > 128) throw new InvalidDataException();
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            var fields = description.Settings.Select(field =>
+            {
+                if (field is null || string.IsNullOrWhiteSpace(field.Key) || field.Key.Length > 128 || !keys.Add(field.Key)
+                    || string.IsNullOrWhiteSpace(field.Title) || field.Title.Length > 512 || !Enum.IsDefined(field.Type)) throw new InvalidDataException();
+                object? value = field.DefaultValue;
+                if (value is JsonElement json) value = json.ValueKind switch
+                {
+                    JsonValueKind.String when field.Type == PluginSettingType.String => json.GetString(),
+                    JsonValueKind.True or JsonValueKind.False when field.Type == PluginSettingType.Boolean => json.GetBoolean(),
+                    JsonValueKind.Null when field.Type == PluginSettingType.String => null,
+                    _ => throw new InvalidDataException()
+                };
+                if (value is string text && text.Length > 65536) throw new InvalidDataException();
+                return field with { DefaultValue = value };
+            }).ToArray();
+            Volatile.Write(ref _description, description with { Settings = fields });
+        }
+        catch (OperationCanceledException) when (!cleanup && Volatile.Read(ref _revoked) != 0) { throw; }
+        catch { Dispose(); throw; }
+        finally
+        {
+            if (reply is { IsCompleted: false }) ObserveLateFailure(reply);
+            if (entered) _commands.Release();
+        }
+    }
+
+    public Task StartAsync() => CommandAsync("start");
+    public Task PollAsync() => CommandAsync("poll");
+    public async void Retry() { try { await CommandAsync("retry"); } catch { } }
+    public Task OnStoppingAsync(PluginStopReason reason) { Revoke(); return CleanupCommandAsync("stopping", reason); }
+    public Task OnUninstallAsync() { Revoke(); return CleanupCommandAsync("uninstall"); }
+    public Task StopAsync() { Revoke(); return CleanupCommandAsync("stop"); }
+
+    private Task CleanupCommandAsync(string method, object? payload = null)
+    {
+        lock (_lifecycle)
+            return _rpc is null || _disposed != 0 ? Task.CompletedTask : CommandAsync(method, payload);
+    }
+
+    public void Revoke()
+    {
+        if (Interlocked.Exchange(ref _revoked, 1) != 0) return;
+        lock (_lifecycle) _cleanupBudget ??= new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        _services.Cancel();
+        _regularCommands.Cancel();
+    }
+
+    public void Dispose()
+    {
+        Task<SandboxProcess>? launch;
+        SandboxProcess? process;
+        lock (_lifecycle)
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            Revoke();
+            _commandLifetime.Cancel();
+            _rpc?.Dispose();
+            _rpc = null;
+            _context = null;
+            launch = _launch;
+            process = _process;
+            NotificationReceived = null;
+        }
+        _ = CompleteTerminationAsync(launch, process);
+    }
+
+    private async Task CompleteTerminationAsync(Task<SandboxProcess>? launch, SandboxProcess? process)
+    {
+        var cleanup = KillAndWaitAsync(launch, process);
+        try
+        {
+            await cleanup.WaitAsync(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+            _terminated.TrySetResult();
+        }
+        catch (Exception error)
+        {
+            _terminated.TrySetException(error);
+            // A slow native launch still has an owner: kill it when it eventually completes.
+            ObserveLateFailure(cleanup);
+        }
+    }
+
+    private static async Task KillAndWaitAsync(Task<SandboxProcess>? launch, SandboxProcess? process)
+    {
+        if (process is null && launch is not null)
+        {
+            try { process = await launch.ConfigureAwait(false); }
+            catch (Exception error) when (error is not TimeoutException) { return; }
+        }
+        if (process is null) return;
+        process.Dispose();
+        await process.ExitTask.ConfigureAwait(false);
+    }
+
+    private static void ObserveLateFailure(Task task) => _ = task.ContinueWith(completed => _ = completed.Exception, CancellationToken.None,
+        TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+}

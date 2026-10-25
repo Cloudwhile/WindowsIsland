@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -48,6 +49,9 @@ internal static class PluginSettingsUiChecks
                 new(BuiltInPluginDefinitions.Telegram, () => throw new InvalidOperationException("Disabled source must not start")),
                 new(BuiltInPluginDefinitions.Power, () => throw new InvalidOperationException("Disabled source must not start"))
             ], store);
+            // 仅该夹具自己的已知 schema 插件自动同意；不接受目录中的其他外部插件。
+            manager.ConfirmEnableAsync = descriptor => Task.FromResult(descriptor.PluginId == "wini_plugin_fixture"
+                && descriptor.Name == "Schema fixture" && descriptor.SourceKind == PluginSourceKind.Manual);
             manager.ConfigureDirectories(paths);
             await manager.StartAsync();
             using var updates = new UpdateCheckService(store);
@@ -84,11 +88,14 @@ internal static class PluginSettingsUiChecks
                     case "Layout": await SettingsLayoutUiChecks.RunAsync((SettingsWindow)window, page, store, Check); break;
                     case "HostPreview": await HostPreviewUiChecks.RunAsync(host, hostStore, Check); break;
                     case "SourceState": await SourceStateUiChecks.RunAsync(Check); break;
+                    case "Consent": await PluginConsentUiChecks.RunAsync(Check); break;
                     default: throw new InvalidOperationException("Unknown private verification scope.");
                 }
                 File.WriteAllText(Path.Combine(output, "plugin-settings-ui.success"), results.Count.ToString());
                 return;
             }
+            await PluginConsentUiChecks.RunAsync(Check);
+            window.Activate();
             await MaintenanceUiChecks.RunAsync((SettingsWindow)window, page, store, Check);
             await SetupFlowUiChecks.RunAsync(Check);
             await SourceStateUiChecks.RunAsync(Check);
@@ -128,27 +135,42 @@ internal static class PluginSettingsUiChecks
             ((IInvokeProvider)new ButtonAutomationPeer(refresh).GetPattern(PatternInterface.Invoke)).Invoke();
             await Until(() => Tree(page).OfType<SettingsLinkRow>().Any(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id));
             Check(manager.Snapshot().Count == 5, "Manual refresh preserves all four built-ins and displays a new directory plugin");
+            var installedFixture = manager.Snapshot().Single(item => item.Definition.Id == manifest.Id);
+            var externalFixture = installedFixture.Definition.Metadata!.External!;
+            var instance = typeof(ExternalPlugin).GetField("_instance", BindingFlags.Instance | BindingFlags.NonPublic)
+                ?? throw new MissingFieldException(nameof(ExternalPlugin), "_instance");
+            Check(installedFixture.StatusKey == "Off" && await manager.GetSettingsAsync(manifest.Id) is null
+                && instance.GetValue(externalFixture) is null
+                && !File.Exists(Path.Combine(paths.Data(manifest.Id), "lifecycle.txt"))
+                && AppDomain.CurrentDomain.GetAssemblies().All(assembly => assembly.GetName().Name != "WindowsIsland.PluginFixture"),
+                "Discovered external fixture stays off without creating a constructor, schema worker or host-loaded plugin assembly");
             var sourceRow = Tree(page).OfType<SettingsLinkRow>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id);
             var open = Tree(sourceRow).OfType<Button>().Single(e => AutomationProperties.GetAutomationId(e) == "Plugin." + manifest.Id + ".Open");
             ((IInvokeProvider)new ButtonAutomationPeer(open).GetPattern(PatternInterface.Invoke)).Invoke();
+            await Until(() => Tree(page).OfType<SettingsPluginDetails>().Any());
+            Check(!Tree(page).OfType<PluginSettingsEditor>().Any(), "Disabled external details display metadata without executing a dynamic schema");
+            await manager.SetEnabledAsync(manifest.Id, true).WaitAsync(TimeSpan.FromSeconds(90));
+            page.Refresh();
             await Until(() => Tree(page).OfType<PluginSettingsEditor>().Any());
             var text = Tree(page).OfType<TextBox>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSetting." + manifest.Id + ".message");
             var toggle = Tree(page).OfType<ToggleSwitch>().Single(e => AutomationProperties.GetAutomationId(e) == "PluginSetting." + manifest.Id + ".enabled");
             Check(text.Text == "default message" && toggle.IsOn && text.IsEnabled && toggle.IsEnabled,
-                "Disabled plugin renders editable string/bool controls with plugin defaults");
+                "Explicitly enabled isolated plugin renders editable string/bool controls with its schema defaults");
             text.Text = "Edited in native WinUI";
             toggle.IsOn = false;
-            await Task.Delay(80);
+            await Until(async () => (await manager.GetSettingsAsync(manifest.Id))?.Settings.GetString("message") == text.Text
+                && (await manager.GetSettingsAsync(manifest.Id))?.Settings.GetBoolean("enabled", true) == false);
             var model = (await manager.GetSettingsAsync(manifest.Id))!;
             Check(model.Settings.GetString("message") == text.Text && !model.Settings.GetBoolean("enabled", true),
                 "Native text/toggle events immediately persist both settings");
-            var disk = new SettingsStore(Path.Combine(paths.Data(manifest.Id), "settings.json"));
+            var disk = new SettingsStore(PluginConsentPolicy.HostSettingsPath(externalFixture));
             Check(disk.GetPluginString(manifest.Id, "message", null) == text.Text && !disk.GetPluginBoolean(manifest.Id, "enabled", true),
                 "UI edits survive disk reload");
-            await manager.SetEnabledAsync(manifest.Id, true);
+            await manager.SetEnabledAsync(manifest.Id, false);
+            await manager.SetEnabledAsync(manifest.Id, true).WaitAsync(TimeSpan.FromSeconds(90));
             page.Refresh();
             Check(File.ReadAllText(Path.Combine(paths.Data(manifest.Id), "lifecycle.txt")).Contains("Settings:Edited in native WinUI:False"),
-                "Enabled plugin sees settings saved while disabled");
+                "A newly enabled isolated worker reads the schema preferences saved through the native editor");
             foreach (var language in new[] { "zh-CN", "en-US" })
                 foreach (var theme in new[] { ElementTheme.Light, ElementTheme.Dark })
                     foreach (var width in new[] { 900, 520 })
@@ -227,8 +249,10 @@ internal static class PluginSettingsUiChecks
             Invoke(install);
             await Until(() => OpenDialogs(page).Any());
             var dialog = OpenDialogs(page).Single();
-            Check(dialog.XamlRoot == page.XamlRoot && Tree(dialog).OfType<CheckBox>().Any(e => e.Tag is "network"),
-                "Official detail installation presents permissions on the active page");
+            Check(dialog.XamlRoot == page.XamlRoot && !Tree(dialog).OfType<CheckBox>().Any()
+                && Tree(dialog).OfType<TextBlock>().Any(e => AutomationProperties.GetAutomationId(e) == "PluginInstallDeclarations"
+                    && e.Text.Contains("network", StringComparison.Ordinal)),
+                "Official installation reviews declared capabilities without granting OS permissions or accepting enable terms");
             dialog.Hide();
             await Until(() => install.IsEnabled);
             await CaptureAsync(window, Path.Combine(output, "official-plugin-detail.png"));
@@ -314,6 +338,17 @@ internal static class PluginSettingsUiChecks
         {
             if (DateTime.UtcNow > deadline) throw new TimeoutException("Native settings control did not appear.");
             await Task.Delay(50);
+        }
+    }
+    private static async Task Until(Func<Task<bool>> predicate)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(12);
+        while (true)
+        {
+            var remaining = deadline - DateTime.UtcNow;
+            if (remaining <= TimeSpan.Zero) throw new TimeoutException("The native plugin edit did not reach persisted state.");
+            if (await predicate().WaitAsync(remaining)) return;
+            await Task.Delay(25);
         }
     }
 }

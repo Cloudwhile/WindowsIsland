@@ -89,6 +89,10 @@ internal static class PinnedPanelChecks
             var paths = new PluginPaths(root);
             var manifest = new PluginManifest(manualId, "手动面板", "1.0.0", "fixture.dll", "Fixture", 1, [PluginPermissions.Notifications]);
             var external = new ExternalPlugin(paths, manifest, paths.Code(PluginSourceKind.Manual, manualId));
+            Directory.CreateDirectory(external.Directory);
+            File.WriteAllText(Path.Combine(external.Directory, "manifest.json"), System.Text.Json.JsonSerializer.Serialize(manifest, PluginManifestReader.Json));
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "fixture", "WindowsIsland.PluginFixture.dll"), Path.Combine(external.Directory, "fixture.dll"));
+            PluginConsentPolicy.Grant(external, PluginConsentPolicy.Describe(external));
             var definition = new NotificationPluginDefinition(manualId, "Manual", "ManualToggle", 0, DiagnosticArea.Application,
                 _ => true, (s, _) => s, _ => false, new(false, "1.0.0", "fixture.dll", External: external));
             var probe = new Source(manualId, xaml);

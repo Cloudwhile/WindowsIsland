@@ -31,23 +31,22 @@ internal static class PluginInstallationChecks
         using var manager = new PluginManager([], store);
         manager.ConfigureDirectories(paths);
         await manager.StartAsync();
-        var received = new TaskCompletionSource<IslandNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
-        manager.Received += notification => received.TrySetResult(notification);
-        var manifest = Manifest with { Permissions = ["notifications", "settings", "process", "network", "unknown"] };
+        var received = 0;
+        manager.Received += _ => received++;
+        var manifest = Manifest with { Permissions = ["notifications", "settings", "process", "network", "unknown"],
+            Network = new(["https://example.com"], "发送插件自己的状态", ["插件状态"]) };
         using (var forged = await installer.PrepareAsync(Zip(root, manifest with { SourceKind = PluginSourceKind.Official, DeveloperId = PluginCatalogClient.OfficialDeveloperId })))
             Check(forged.Manifest.SourceKind == PluginSourceKind.Manual && !forged.Trust.IsGranted("process"),
                 "A manually imported package cannot self-declare trusted official provenance");
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest)))
         {
-            Check(prepared.Trust.Granted.SequenceEqual(["notifications", "settings"]) && prepared.Trust.Denied.SequenceEqual(["process", "network", "unknown"]),
-                "Manual installation refuses all high risk and unknown permissions");
+            Check(prepared.Trust.Granted.SequenceEqual(["notifications", "settings", "network"]) && prepared.Trust.Denied.SequenceEqual(["process", "unknown"]),
+                "Manual installation exposes only safe services and the declared network broker, never direct process access");
             await manager.InstallAsync(prepared);
         }
         var code = paths.Code(PluginSourceKind.Manual, manifest.Id);
-        Check(Directory.Exists(code) && manager.Snapshot().Count == 1, "ZIP installs into the manual slot and starts without restarting the host");
-        var restrictedNotification = await received.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Check(restrictedNotification.OriginProcessId is null && !restrictedNotification.AllowActivation,
-            "A manually installed plugin cannot assign a process activation target without a host grant");
+        Check(Directory.Exists(code) && manager.Snapshot().Count == 1 && manager.Snapshot().Single().StatusKey == "Off" && received == 0,
+            "ZIP installation places code in the manual slot but never starts or publishes before explicit consent");
         var same = false;
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest)))
         {
@@ -67,10 +66,9 @@ internal static class PluginInstallationChecks
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest with { Version = "3.0.0", EntryType = "WindowsIsland.PluginFixture.BrokenSource" })))
         {
             Check(prepared.Manifest.Version == "3.0.0", "Metadata validation never executes a throwing plugin constructor");
-            rejected = false;
-            try { await manager.InstallAsync(prepared); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
-            Check(rejected && PluginManifestReader.Read(code).Version == "2.0.0" && manager.Snapshot().Single().StatusKey == "Connected",
-                "A plugin start failure rolls back files, permissions and the running previous instance");
+            await manager.InstallAsync(prepared);
+            Check(PluginManifestReader.Read(code).Version == "3.0.0" && manager.Snapshot().Single().StatusKey == "Off" && received == 0,
+                "Installation does not execute even a throwing constructor; runtime isolation is verified separately after consent");
         }
         foreach (var extra in new[] { "../escape", "/absolute", "C:/absolute", "folder/manifest.json", "CON", "x/../../escape" })
         {
@@ -112,19 +110,22 @@ internal static class PluginInstallationChecks
             rejected = false;
             try { await manager.RemoveAsync(manifest.Id); } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { rejected = true; }
             Check(rejected && !store.IsPluginRemoved(manifest.Id) && File.Exists(Path.Combine(code, manifest.EntryAssembly))
-                && manager.Snapshot().Single().StatusKey == "Connected", "A locked code file restores plugin state, files and the running instance on removal failure");
+                && manager.Snapshot().Single().StatusKey == "Off", "A locked code file restores plugin files and its disabled state on removal failure");
         }
         var data = paths.Data(manifest.Id);
-        var dataSettings = new SettingsStore(Path.Combine(data, "settings.json"));
+        Directory.CreateDirectory(data);
+        File.WriteAllText(Path.Combine(data, "retained.txt"), "保留插件自有内容");
+        var hostSettings = PluginConsentPolicy.HostSettingsPath(manager.Snapshot().Single().Definition.Metadata!.External!);
+        var dataSettings = new SettingsStore(hostSettings);
         dataSettings.SetPluginString(manifest.Id, "message", "恢复的通知");
         await manager.RemoveAsync(manifest.Id);
-        Check(!Directory.Exists(code) && !Directory.Exists(code + ".bak") && File.Exists(Path.Combine(data, "settings.json")),
-            "Uninstall removes current code and backups while preserving plugin settings");
-        var restored = new TaskCompletionSource<IslandNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
-        manager.Received += notification => { if (notification.Body == "恢复的通知") restored.TrySetResult(notification); };
+        Check(!Directory.Exists(code) && !Directory.Exists(code + ".bak") && File.Exists(hostSettings)
+            && File.Exists(Path.Combine(data, "retained.txt")),
+            "Uninstall removes code and backups while retaining plugin-owned data and separate host-owned preferences");
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest))) await manager.InstallAsync(prepared);
-        await restored.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Check(!store.IsPluginRemoved(manifest.Id), "Reinstalling the same plugin restores its previous data and clears the removal marker");
+        Check(!store.IsPluginRemoved(manifest.Id) && manager.Snapshot().Single().StatusKey == "Off" && received == 0
+            && new SettingsStore(hostSettings).GetPluginString(manifest.Id, "message", null) == "恢复的通知",
+            "Reinstallation clears the removal marker, preserves host-owned preferences and still requires explicit enablement");
         await manager.ShutdownAsync();
     }
 }

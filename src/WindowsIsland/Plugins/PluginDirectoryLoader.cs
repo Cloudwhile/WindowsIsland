@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Runtime.Loader;
 using WindowsIsland.Contracts;
 using WindowsIsland.Services;
 
@@ -8,74 +5,44 @@ namespace WindowsIsland.Plugins;
 
 internal sealed class ExternalPlugin(PluginPaths paths, PluginManifest manifest, string directory)
 {
-    private PluginLoadContext? _context;
+    private SandboxPluginProxy? _instance;
+    private readonly object _lifecycle = new();
+    private Task _termination = Task.CompletedTask;
     public PluginManifest Manifest { get; } = manifest;
     public string Directory { get; } = directory;
+    public string HostRoot => paths.Root;
     public string DataDirectory => paths.Data(Manifest.Id);
     public PluginTrust Trust => PluginTrust.Read(this);
-    public WeakReference? LastUnload { get; private set; }
     public IMessageSource Create()
     {
+        if (!PluginConsentPolicy.HasConsent(this)) throw new UnauthorizedAccessException("Plugin consent is required.");
         PluginPaths.CheckTree(Directory);
-        System.IO.Directory.CreateDirectory(DataDirectory);
-        PluginPaths.CheckLinks(DataDirectory);
-        var context = _context = new PluginLoadContext(PluginPaths.Relative(Directory, Manifest.EntryAssembly), Directory);
-        try
+        lock (_lifecycle)
         {
-            var type = context.LoadFromAssemblyPath(PluginPaths.Relative(Directory, Manifest.EntryAssembly)).GetType(Manifest.EntryType, throwOnError: true)!;
-            if (type.IsAbstract || !typeof(IIslandPlugin).IsAssignableFrom(type)) throw new PluginException(PluginErrorCode.RuntimeEntry, "入口必须实现 IIslandPlugin。");
-            var plugin = (IIslandPlugin)Activator.CreateInstance(type)!;
-            return plugin as IMessageSource ?? new LifecycleSource(plugin);
+            if (_instance is not null || !_termination.IsCompleted) throw new InvalidOperationException("The previous plugin worker has not exited.");
+            _termination.GetAwaiter().GetResult();
+            return _instance = new SandboxPluginProxy(this);
         }
-        catch { Unload(); throw; }
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
     public void Unload()
     {
-        var context = Interlocked.Exchange(ref _context, null);
-        if (context is null) return;
-        LastUnload = new WeakReference(context);
-        context.Unload();
-    }
-
-    public async Task VerifyUnloadAsync()
-    {
-        var weak = LastUnload;
-        if (weak is null) return;
-        await Task.Run(() =>
+        lock (_lifecycle)
         {
-            for (var i = 0; i < 5 && weak.IsAlive; i++) { GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect(); }
-            if (weak.IsAlive) new PluginDiagnostics(Manifest.Id, DiagnosticArea.Application).Capture(
-                new InvalidOperationException("Plugin context is still referenced."), "Unload");
-        });
-    }
-}
-
-internal sealed class PluginLoadContext(string assembly, string directory) : AssemblyLoadContext(isCollectible: true)
-{
-    private readonly AssemblyDependencyResolver _resolver = new(assembly);
-    protected override Assembly? Load(AssemblyName name)
-    {
-        if (name.Name == typeof(IIslandPlugin).Assembly.GetName().Name) return typeof(IIslandPlugin).Assembly;
-        if (name.Name == "WindowsIsland") throw new PluginException(PluginErrorCode.RuntimeHostDependency, "插件不能引用宿主程序集。");
-        var path = _resolver.ResolveAssemblyToPath(name);
-        if (path is null && name.Name is { } simple && simple.IndexOfAny(['/', '\\', ':']) < 0)
-        {
-            var local = PluginPaths.Relative(directory, simple + ".dll");
-            if (File.Exists(local)) path = local;
+            var instance = _instance;
+            _instance = null;
+            if (instance is null) return;
+            _termination = instance.Termination;
+            instance.Dispose();
         }
-        if (path is null) return null;
-        var safe = PluginPaths.Relative(directory, Path.GetRelativePath(directory, path).Replace('\\', '/'));
-        return LoadFromAssemblyPath(safe);
     }
-    protected override nint LoadUnmanagedDll(string name)
+
+    public Task VerifyUnloadAsync()
     {
-        var path = _resolver.ResolveUnmanagedDllToPath(name);
-        return path is null ? 0 : LoadUnmanagedDllFromPath(PluginPaths.Relative(directory, Path.GetRelativePath(directory, path).Replace('\\', '/')));
+        lock (_lifecycle) return _instance is null ? _termination
+            : Task.FromException(new InvalidOperationException("The plugin worker is still active."));
     }
 }
-
 internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore store)
 {
     public IReadOnlyList<NotificationPluginRegistration> Scan()
@@ -117,7 +84,7 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
             ? PluginCatalogClient.OfficialDeveloperId : manifest.Author;
         var metadata = new PluginMetadata(false, manifest.Version, PluginPaths.Relative(directory, manifest.EntryAssembly), author, external);
         var definition = new NotificationPluginDefinition(id, manifest.Name, "PluginToggle." + id, 0xE8A5,
-            DiagnosticArea.Application, _ => store.GetPluginBoolean(id, "Host.Enabled", true),
+            DiagnosticArea.Application, _ => store.GetPluginBoolean(id, "Host.Enabled", false),
             (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return s; }, _ => false, metadata);
         return new(definition, external.Create);
     }

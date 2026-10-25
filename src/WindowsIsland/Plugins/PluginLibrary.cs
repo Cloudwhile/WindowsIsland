@@ -56,9 +56,8 @@ internal sealed class PluginLibrary : IDisposable
         {
             await _downloads.DownloadAsync(entry, file, cancellation, Catalog.State.GitHubProxy);
             // 官方身份仅由已经校验的索引授予，包中自称官方不会改变来源类型或权限。
-            var grants = entry.DeveloperId == PluginCatalogClient.OfficialDeveloperId
-                ? entry.Permissions.Where(PluginPermissions.IsHighRisk) : confirmed;
-            using var prepared = await Installer.PrepareAsync(file, PluginSourceKind.Official, grants, cancellation);
+            var sourceNetwork = Catalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl ? entry.Network : null;
+            using var prepared = await Installer.PrepareAsync(file, PluginSourceKind.Official, confirmed, cancellation, sourceNetwork);
             var manifest = prepared.Manifest;
             if (manifest.Id != entry.Id || manifest.DeveloperId != entry.DeveloperId || manifest.Version != entry.Version
                 || manifest.RepositoryUrl != entry.RepositoryUrl || !manifest.Permissions.Order().SequenceEqual(entry.Permissions.Order()))

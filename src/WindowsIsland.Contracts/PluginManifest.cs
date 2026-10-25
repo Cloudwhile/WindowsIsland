@@ -14,7 +14,9 @@ namespace WindowsIsland.Contracts;
 /// <param name="DeveloperName">可选的开发者名称。</param>
 /// <param name="RepositoryUrl">可选的公开 GitHub 仓库地址。</param>
 /// <param name="SourceKind">来源类型，默认为手动安装。</param>
+/// <param name="Terms">可选的包内纯文本条款及修订标识。</param>
+/// <param name="Network">声明网络能力时必需的目的地、用途和数据类别。</param>
 public sealed record PluginManifest(string Id, string Name, string Version, string EntryAssembly, string EntryType,
     int ContractVersion, string[] Permissions, string? Author = null, string? Description = null,
     string DeveloperId = "", string? DeveloperName = null, string? RepositoryUrl = null,
-    PluginSourceKind SourceKind = PluginSourceKind.Manual);
+    PluginSourceKind SourceKind = PluginSourceKind.Manual, PluginTerms? Terms = null, PluginNetworkDisclosure? Network = null);

@@ -38,6 +38,9 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     {
         _library = library;
         _open = open;
+        var sourceNotice = LocalizedUI.Text("PluginDefaultSourceNotice", SettingsTokens.DescriptionTextSize, secondary: true);
+        AutomationProperties.SetAutomationId(sourceNotice, "PluginDefaultSourceNotice");
+        Children.Add(sourceNotice);
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = SettingsTokens.ControlSpacing };
         toolbar.Children.Add(_progress);
         toolbar.Children.Add(_refresh);
@@ -243,30 +246,10 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
 
     private async Task<string[]?> ConfirmPermissionsAsync(PluginCatalogEntry entry, XamlRoot xamlRoot)
     {
-        if (entry.DeveloperId == PluginCatalogClient.OfficialDeveloperId) return entry.Permissions.Where(PluginPermissions.IsHighRisk).ToArray();
-        var content = new SettingsContent(false);
-        var text = LocalizedUI.Text("PluginThirdParty", 14);
-        text.TextWrapping = TextWrapping.Wrap;
-        content.Children.Add(text);
-        var checks = entry.Permissions.Where(PluginPermissions.IsHighRisk).Select(permission => new CheckBox { Content = permission, Tag = permission }).ToArray();
-        foreach (var check in checks)
-        {
-            AutomationProperties.SetAutomationId(check, "PluginPermission." + (string)check.Tag);
-            content.Children.Add(check);
-        }
-        var unknown = entry.Permissions.Where(p => !PluginPermissions.IsKnown(p)).ToArray();
-        if (unknown.Length > 0)
-        {
-            content.Children.Add(LocalizedUI.Text("PluginPermissionsDenied", 12, secondary: true));
-            var names = IslandTheme.Text(string.Join(", ", unknown), 12);
-            names.TextWrapping = TextWrapping.Wrap;
-            content.Children.Add(names);
-        }
-        _dialog = new ContentDialog { XamlRoot = xamlRoot, Title = entry.Name,
-            Content = new ScrollViewer { Content = content, MaxHeight = 320 },
-            PrimaryButtonText = Localization.Get("PluginInstall"), CloseButtonText = Localization.Get("PluginCancel"),
-            DefaultButton = ContentDialogButton.Close };
-        try { return await _dialog.ShowAsync() == ContentDialogResult.Primary ? checks.Where(c => c.IsChecked == true).Select(c => (string)c.Tag).ToArray() : null; }
+        _dialog = PluginConsentDialog.CreateInstall(entry);
+        _dialog.XamlRoot = xamlRoot;
+        if (_dialog.Content is ScrollViewer scroll) scroll.MaxHeight = Math.Max(80, Math.Min(320, xamlRoot.Size.Height - 200));
+        try { return await _dialog.ShowAsync() == ContentDialogResult.Primary ? [] : null; }
         finally { _dialog = null; }
     }
 

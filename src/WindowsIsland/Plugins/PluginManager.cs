@@ -20,6 +20,7 @@ internal sealed partial class PluginManager : IDisposable
         public IPluginSettings? Settings;
         public IReadOnlyList<PluginSetting>? Schema;
         public string? PreviousVersion;
+        public long EnableRevision;
         public readonly SemaphoreSlim Interactions = new(1, 1);
         public bool Active, Failed, Removed;
     }
@@ -31,6 +32,7 @@ internal sealed partial class PluginManager : IDisposable
     private void RemoveEntry(Entry entry) => Volatile.Write(ref _entries, Entries.Where(item => !ReferenceEquals(item, entry)).ToArray());
     private readonly SemaphoreSlim _operations = new(1, 1);
     private readonly SemaphoreSlim _mutations = new(1, 1);
+    private readonly SemaphoreSlim _enableApprovals = new(1, 1);
     private readonly SettingsStore _store;
     private readonly Action<Action> _dispatch;
     private readonly Func<string, IMessageSourceBackend?>? _backends;
@@ -39,6 +41,7 @@ internal sealed partial class PluginManager : IDisposable
     public NotificationAccess Access { get; private set; } = NotificationAccess.Waiting;
     public event Action<IslandNotification>? Received;
     public event Action<NotificationAccess>? AccessChanged;
+    public Func<PluginConsentDescriptor, Task<bool>>? ConfirmEnableAsync { get; set; }
 
     public PluginManager(IEnumerable<NotificationPluginRegistration> registrations, SettingsStore store,
         Action<Action>? dispatch = null, Func<string, IMessageSourceBackend?>? backends = null)
@@ -70,18 +73,51 @@ internal sealed partial class PluginManager : IDisposable
         var entry = Entries.FirstOrDefault(item => item.Registration.Definition.Id == id)
             ?? throw new ArgumentException("Unknown plugin identifier.", nameof(id));
         if (entry.Removed) throw new InvalidOperationException("The plugin has been removed.");
-        _store.Save(entry.Registration.Definition.SetEnabled(_store.Current, enabled));
-        if (!enabled) { Stop(entry); entry.Failed = false; }
+        var revision = Interlocked.Increment(ref entry.EnableRevision);
+        // 关闭不等待仍在显示的启用确认；立即撤销旧请求和当前服务。
+        if (!enabled)
+        {
+            Stop(entry);
+            entry.Failed = false;
+            _store.Save(entry.Registration.Definition.SetEnabled(_store.Current, false));
+            await ApplySettingsAsync(_store.Current);
+            return;
+        }
+        await _enableApprovals.WaitAsync();
+        try { await SetEnabledCoreAsync(entry, revision); }
+        finally { _enableApprovals.Release(); }
+    }
+
+    private async Task SetEnabledCoreAsync(Entry entry, long revision)
+    {
+        bool Current() => !_disposed && !entry.Removed && Entries.Contains(entry) && Volatile.Read(ref entry.EnableRevision) == revision;
+        if (!Current()) return;
+        if (entry.Registration.Definition.Metadata?.External is { } external
+            && !await Task.Run(() => PluginConsentPolicy.HasConsent(external)))
+        {
+            var descriptor = await Task.Run(() => PluginConsentPolicy.Describe(external));
+            if (!Current()) return;
+            var confirm = ConfirmEnableAsync;
+            var accepted = confirm is not null && await confirm(descriptor);
+            if (!Current()) return;
+            if (!accepted)
+            {
+                DisableUnapproved(entry);
+                return;
+            }
+            await Task.Run(() => PluginConsentPolicy.Grant(external, descriptor));
+        }
+        if (!Current()) return;
+        _store.Save(entry.Registration.Definition.SetEnabled(_store.Current, true));
         await ApplySettingsAsync(_store.Current);
     }
 
     public Task ApplySettingsAsync(AppSettings settings)
     {
         if (_disposed) return Task.CompletedTask;
-        var previous = _settings;
         _settings = settings;
         foreach (var entry in Entries)
-            if (entry.Registration.Definition.IsEnabled(previous) && !entry.Registration.Definition.IsEnabled(settings))
+            if (!entry.Registration.Definition.IsEnabled(settings))
             { Stop(entry); entry.Failed = false; }
         return _started ? ReconcileAsync() : Task.CompletedTask;
     }
@@ -97,18 +133,38 @@ internal sealed partial class PluginManager : IDisposable
                 await entry.Cleanup;
                 if (_disposed) return;
                 if (entry.Removed || !entry.Registration.Definition.IsEnabled(_settings)) { Stop(entry); entry.Failed = false; continue; }
+                var enableRevision = Volatile.Read(ref entry.EnableRevision);
+                bool StillEnabled() => !_disposed && !entry.Removed && Entries.Contains(entry)
+                    && enableRevision == Volatile.Read(ref entry.EnableRevision) && entry.Registration.Definition.IsEnabled(_settings);
+                var external = entry.Registration.Definition.Metadata?.External;
+                if (external is not null)
+                {
+                    var consented = await Task.Run(() => PluginConsentPolicy.HasConsent(external));
+                    if (!StillEnabled()) continue;
+                    if (!consented)
+                    {
+                        DisableUnapproved(entry);
+                        continue;
+                    }
+                }
+                if (!StillEnabled()) continue;
                 if (entry.Plugin is not null || entry.Failed) continue;
                 IMessageSource? starting = null;
                 var operation = "Create";
                 try
                 {
-                    var plugin = entry.Registration.Create();
+                    var plugin = external is null ? entry.Registration.Create() : await Task.Run(entry.Registration.Create);
+                    if (!StillEnabled())
+                    {
+                        plugin.Dispose();
+                        external?.Unload();
+                        continue;
+                    }
                     starting = plugin;
                     entry.Plugin = plugin;
                     if (plugin.Id != entry.Registration.Definition.Id) throw new InvalidOperationException("Plugin identity mismatch.");
-                    var external = entry.Registration.Definition.Metadata?.External;
                     entry.Trust = external?.Trust;
-                    var pluginSettings = SettingsFor(entry);
+                    var pluginSettings = external is null ? SettingsFor(entry) : await Task.Run(() => SettingsFor(entry));
                     entry.Context = new PluginContext(plugin.Id, pluginSettings,
                         Diagnostic(entry), notification => DispatchNotification(entry, plugin, notification), type =>
                         {
@@ -283,6 +339,7 @@ internal sealed partial class PluginManager : IDisposable
 
     private void Stop(Entry entry, PluginStopReason reason = PluginStopReason.Disabled)
     {
+        Interlocked.Increment(ref entry.EnableRevision);
         lock (entry)
         {
             var plugin = entry.Plugin;
@@ -290,6 +347,7 @@ internal sealed partial class PluginManager : IDisposable
             entry.Active = false;
             entry.Plugin = null;
             entry.Backend = null;
+            if (plugin is SandboxPluginProxy isolated) isolated.Revoke();
             entry.Context?.Dispose();
             entry.Context = null;
             ClearPinned(entry);
@@ -326,6 +384,8 @@ internal sealed partial class PluginManager : IDisposable
             }
             try { plugin.Dispose(); }
             catch (Exception error) { Diagnostic(entry).Capture(error, "Dispose"); }
+            // 必须观察隔离进程确实退出；失败不能继续换包、删除或重启同一插件。
+            if (plugin is SandboxPluginProxy isolated) await isolated.Termination;
             try { backend?.Dispose(); }
             catch (Exception error) { Diagnostic(entry).Capture(error, "DisposeBackend"); }
             entry.Registration.Definition.Metadata?.External?.Unload();
@@ -341,6 +401,7 @@ internal sealed partial class PluginManager : IDisposable
         Received = null;
         AccessChanged = null;
         PinnedChanged = null;
+        ConfirmEnableAsync = null;
     }
 
     public async Task ShutdownAsync()

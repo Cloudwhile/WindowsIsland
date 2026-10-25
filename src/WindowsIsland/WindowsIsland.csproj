@@ -20,7 +20,27 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\WindowsIsland.Contracts\WindowsIsland.Contracts.csproj" />
+    <ProjectReference Include="..\WindowsIsland.PluginIsolation\WindowsIsland.PluginIsolation.csproj" />
+    <ProjectReference Include="..\WindowsIsland.PluginWorker\WindowsIsland.PluginWorker.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;PublishDir" />
   </ItemGroup>
+  <Target Name="CopyPluginWorker" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
+    <PropertyGroup>
+      <_WorkerPlatformPath Condition="'$(Platform)' != '' and '$(Platform)' != 'AnyCPU' and '$(Platform)' != 'Any CPU'">$(Platform)\</_WorkerPlatformPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <_PluginWorkerFiles Include="$(MSBuildProjectDirectory)\..\..\artifacts\bin\WindowsIsland.PluginWorker\$(_WorkerPlatformPath)$(Configuration)\net10.0\win-x64\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PluginWorkerFiles)" DestinationFiles="@(_PluginWorkerFiles->'$(TargetDir)PluginWorker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(_PluginWorkerFiles)">
+        <RelativePath>PluginWorker\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+  <Target Name="PublishPluginWorker" AfterTargets="Publish" DependsOnTargets="CopyPluginWorker">
+    <Copy SourceFiles="@(_PluginWorkerFiles)" DestinationFiles="@(_PluginWorkerFiles->'$(PublishDir)PluginWorker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
   <ItemGroup>
     <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.13" />
     <KnownAppHostPack Update="Microsoft.NETCore.App" AppHostPackVersion="10.0.13" />

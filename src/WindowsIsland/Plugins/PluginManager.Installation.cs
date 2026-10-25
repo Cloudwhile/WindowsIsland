@@ -1,4 +1,3 @@
-using System.Text.Json;
 using WindowsIsland.Contracts;
 
 namespace WindowsIsland.Plugins;
@@ -22,8 +21,7 @@ internal sealed partial class PluginManager
         Entry? previous = null, installed = null;
         var switched = false;
         var wasRemoved = _store.IsPluginRemoved(manifest.Id);
-        var receipt = Path.Combine(_paths.Data(manifest.Id), "host-permissions.json");
-        byte[]? oldReceipt = null;
+        var wasEnabled = false;
         System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
         await _operations.WaitAsync(token);
         try
@@ -31,8 +29,8 @@ internal sealed partial class PluginManager
             token.ThrowIfCancellationRequested();
             ObjectDisposedException.ThrowIf(_disposed, this);
             PluginPaths.CheckLinks(target);
-            PluginPaths.CheckLinks(receipt);
             previous = Entries.FirstOrDefault(e => e.Registration.Definition.Id == manifest.Id);
+            wasEnabled = previous?.Registration.Definition.IsEnabled(_store.Current) == true;
             if (previous is not null && previous.Registration.Definition.Metadata?.External is not { } existing)
                 throw new PluginException(PluginErrorCode.IdConflict, "插件标识与现有插件冲突。");
             if (previous?.Registration.Definition.Metadata?.External is { } external && !previous.Removed
@@ -41,7 +39,6 @@ internal sealed partial class PluginManager
                 && manifest.SourceKind == PluginSourceKind.Official && owner.Manifest.DeveloperId != manifest.DeveloperId)
                 throw new PluginException(PluginErrorCode.IndexMismatch, "插件开发者与已安装版本不一致。");
             if (Directory.Exists(target)) PluginInstaller.CheckVersion(manifest, PluginManifestReader.Read(target, manifest.Id), overwrite);
-            if (File.Exists(receipt)) oldReceipt = await File.ReadAllBytesAsync(receipt, token);
             if (previous is { Removed: false })
             {
                 await PrepareLifecycleAsync(previous);
@@ -62,13 +59,9 @@ internal sealed partial class PluginManager
             }, token);
             switched = true;
             token.ThrowIfCancellationRequested();
-            Directory.CreateDirectory(Path.GetDirectoryName(receipt)!);
-            var temporary = receipt + ".tmp";
-            PluginPaths.CheckLinks(temporary);
-            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(new PermissionReceipt(manifest.Version,
-                manifest.DeveloperId, prepared.Trust.Granted), PluginManifestReader.Json), token);
-            File.Move(temporary, receipt, true);
             _store.MarkExternalRemoved(manifest.Id, false);
+            // 安装只放置和验证文件；无论来源和旧版开启状态，新载荷都须由用户主动启用。
+            _store.SetPluginBoolean(manifest.Id, "Host.Enabled", false);
             installed = new Entry(_loader.Registration(manifest, target)) { PreviousVersion = previous is { Removed: false } ? previous.Registration.Definition.Metadata?.Version : null };
             if (previous is not null) RemoveEntry(previous);
             AddEntry(installed);
@@ -117,8 +110,10 @@ internal sealed partial class PluginManager
                 PluginPaths.DeleteTree(target);
                 if (Directory.Exists(backup)) { PluginPaths.CheckTree(backup); Directory.Move(backup, target); }
             });
-            if (oldReceipt is null) File.Delete(receipt); else await File.WriteAllBytesAsync(receipt, oldReceipt);
             _store.MarkExternalRemoved(manifest.Id, wasRemoved);
+            var restoreEnabled = wasEnabled && previous?.Registration.Definition.Metadata?.External is { } original
+                && await Task.Run(() => PluginConsentPolicy.HasConsent(original));
+            _store.SetPluginBoolean(manifest.Id, "Host.Enabled", restoreEnabled);
             if (previous is not null && !Entries.Contains(previous)) AddEntry(previous);
             if (previous is not null) previous.Failed = false;
         }

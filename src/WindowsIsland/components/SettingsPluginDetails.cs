@@ -12,7 +12,7 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
     public bool Matches(NotificationPluginDefinition definition) => ReferenceEquals(_metadata, definition.Metadata);
     private readonly TextBlock _size;
     private readonly PluginCatalogNotice _catalogNotice;
-    private bool _reading, _read, _disposed;
+    private bool _reading, _read, _settingsLoaded, _disposed;
     private long? _bytes;
     private readonly Func<string, Task<PluginSettingsModel?>>? _settings;
     private readonly string _id;
@@ -67,7 +67,12 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
         Children.Add(new SettingsSection(title, _fields));
     }
 
-    public void RefreshCatalog() => _catalogNotice.Refresh();
+    public void RefreshCatalog()
+    {
+        _catalogNotice.Refresh();
+        // Enabling a previously unapproved plugin can make its schema available in this detail.
+        if (_read && !_settingsLoaded && !_disposed) _ = ReadSizeAsync();
+    }
 
     private static SettingsField PermissionField(string label, IReadOnlyCollection<string> values, string id)
     {
@@ -86,15 +91,16 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
     /// <summary>进入详情时异步读取大小与设置，组件释放后忽略晚到结果。</summary>
     public async Task ReadSizeAsync()
     {
-        if (_disposed || _reading || _read) return;
+        if (_disposed || _reading || _read && (_settingsLoaded || _settings is null)) return;
         _reading = true;
         try
         {
-            var bytes = _metadata is null ? null : await _metadata.ReadSizeAsync();
+            var bytes = _read ? _bytes : _metadata is null ? null : await _metadata.ReadSizeAsync();
             var model = _settings is null ? null : await _settings(_id);
             if (_disposed) return;
             if (model is { Fields.Count: > 0 })
                 Children.Add(new SettingsSection("PluginSettingsGroup", new PluginSettingsEditor(_id, model)));
+            _settingsLoaded = model is not null;
             _bytes = bytes;
             _read = true;
             RefreshSize();

@@ -8,6 +8,8 @@ internal sealed partial class PluginManager
     /// <param name="id">待删除插件的稳定标识。</param>
     public async Task RemoveAsync(string id)
     {
+        var pending = Entries.FirstOrDefault(item => item.Registration.Definition.Id == id);
+        if (pending is not null) Interlocked.Increment(ref pending.EnableRevision);
         await _mutations.WaitAsync();
         try { await RemoveCoreAsync(id); }
         finally { _mutations.Release(); }
@@ -51,6 +53,7 @@ internal sealed partial class PluginManager
             entry.Cleanup = Task.CompletedTask;
             await external.VerifyUnloadAsync();
             await Task.Run(() => PluginFiles.RemoveCode(external.Directory));
+            PluginConsentPolicy.Revoke(external);
         }
         catch (Exception error)
         {

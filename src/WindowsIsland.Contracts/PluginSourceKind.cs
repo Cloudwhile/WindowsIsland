@@ -8,7 +8,7 @@ public enum PluginSourceKind
 {
     /// <summary>随宿主提供的内置插件。</summary>
     BuiltIn,
-    /// <summary>从官方源安装的插件。</summary>
+    /// <summary>从默认插件源安装的插件。</summary>
     Official,
     /// <summary>用户手动安装的插件。</summary>
     Manual

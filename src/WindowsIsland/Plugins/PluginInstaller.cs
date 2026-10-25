@@ -16,9 +16,11 @@ internal sealed class PreparedPlugin(string directory, PluginManifest manifest, 
 internal sealed class PluginInstaller(PluginPaths paths)
 {
     public Task<PreparedPlugin> PrepareAsync(string zip, PluginSourceKind kind = PluginSourceKind.Manual,
-        IEnumerable<string>? confirmed = null, CancellationToken token = default) => Task.Run(() => Prepare(zip, kind, confirmed, token), token);
+        IEnumerable<string>? confirmed = null, CancellationToken token = default, PluginNetworkDisclosure? sourceNetwork = null)
+        => Task.Run(() => Prepare(zip, kind, confirmed, token, sourceNetwork), token);
 
-    private PreparedPlugin Prepare(string zip, PluginSourceKind kind, IEnumerable<string>? confirmed, CancellationToken token)
+    private PreparedPlugin Prepare(string zip, PluginSourceKind kind, IEnumerable<string>? confirmed, CancellationToken token,
+        PluginNetworkDisclosure? sourceNetwork)
     {
         if (!Path.GetExtension(zip).Equals(".zip", StringComparison.OrdinalIgnoreCase)) throw new PluginException(PluginErrorCode.Zip, "只能安装 ZIP 插件包。");
         var stage = Path.Combine(paths.Slot(kind), ".stage-" + Guid.NewGuid().ToString("N"));
@@ -65,6 +67,11 @@ internal sealed class PluginInstaller(PluginPaths paths)
                 if (written != entry.Length) throw new PluginException(PluginErrorCode.ArchiveIncomplete, "ZIP 文件不完整。");
             }
             var manifest = PluginManifestReader.Read(stage) with { SourceKind = kind };
+            if (manifest.Network is null && sourceNetwork is not null && manifest.Permissions.Contains(PluginPermissions.Network, StringComparer.Ordinal))
+            {
+                manifest = manifest with { Network = sourceNetwork };
+                PluginManifestReader.Validate(manifest);
+            }
             PluginAssemblyValidator.Validate(stage, manifest);
             token.ThrowIfCancellationRequested();
             File.WriteAllText(Path.Combine(stage, "manifest.json"), JsonSerializer.Serialize(manifest, PluginManifestReader.Json));
