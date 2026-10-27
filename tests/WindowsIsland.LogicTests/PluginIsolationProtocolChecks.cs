@@ -50,7 +50,7 @@ internal static class PluginIsolationProtocolChecks
         var prefix = new byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(prefix, IsolationRpc.MaxFrame + 1);
         await client.WriteAsync(prefix);
-        await client.FlushAsync();
+        // The unbuffered write delivers the frame; the RPC reader may dispose the pipe as soon as the host rejects it.
         await host.Completion.WaitAsync(TimeSpan.FromSeconds(2));
         Check(true, "An oversized untrusted frame closes the private channel without allocating its payload");
 
