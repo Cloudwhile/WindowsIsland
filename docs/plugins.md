@@ -13,7 +13,7 @@
 | [固定内容与交互](./plugins/pinned-content.md) | 持续显示、详情、控件与交互回调 |
 | [权限与诊断](./plugins/permissions.md) | 能力声明、信任边界与结构化诊断 |
 | [打包与分发](./plugins/packaging.md) | ZIP 结构、校验与发布检查 |
-| [平台目录协议（高级，尚未开放）](./plugins/catalog.md) | 面向目录服务实现者，不是创建首个 ZIP 插件的前置步骤 |
+| [平台目录协议（高级）](./plugins/catalog.md) | 面向目录服务实现者，不是创建首个 ZIP 插件的前置步骤 |
 
 插件只引用 `WindowsIsland.Contracts`，入口实现 `IIslandPlugin`，通知来源可实现
 `IMessageSource`。宿主负责调度和窗口，插件经 `IPluginContext` 提交通知及固定内容。
@@ -54,7 +54,7 @@
 
 ## 清单与目录发现
 
-首次开发使用手动 ZIP 导入即可。字段和来源规则见[清单与标识](./plugins/manifest.md)，安装和分发步骤见[打包与分发](./plugins/packaging.md)。[平台目录协议](./plugins/catalog.md)供进阶阅读，开放平台目前尚未开放。
+首次开发使用手动 ZIP 导入即可。字段和来源规则见[清单与标识](./plugins/manifest.md)，安装和分发步骤见[打包与分发](./plugins/packaging.md)。开放平台已开放，[平台目录协议](./plugins/catalog.md)供进阶阅读。
 
 ## 本地验证
 

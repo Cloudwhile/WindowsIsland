@@ -70,7 +70,7 @@ Sources are built-in plugins with independent switches and connection status.
 | Telegram | New messages from a signed-in desktop client |
 | Power | Power connection, charging, disconnection and full-charge events |
 
-WeChat is a separate official plugin installed through the default plugin source, which is not yet open.
+WeChat is a separate official plugin. Once listed, it can be installed through the default plugin source.
 
 The island starts with new messages when a source connects or is re-enabled. Muted WeChat conversations stay quiet, and previous messages are not replayed. Turning off one source leaves the others running.
 
@@ -80,7 +80,7 @@ System notifications require initialization and notification access. Connected s
 
 Use the install icon in **Plugin management** to import a plugin ZIP from a trusted developer. **Installed** shows installed plugins and their details; **Discover** provides the default plugin source and advanced proxy settings. Manage source switches, connection status and settings in **Sources**. Click a plugin to open its details and use the back icon to return. To uninstall an external plugin, open its installed details and confirm removal; its settings and data remain available for reinstallation. External plugins run in isolation and start disabled after installation or replacement. Enabling requires acceptance of any supplied terms and the network notice supplied by the developer or default plugin source; requests within the declared scope can then run in the background.
 
-The [open platform](https://wini-plugins.abszero.cc/) is reserved for the default plugin source and is not available yet. Use manual ZIP import for now. Developers can use the [plugin guide](https://wini-docs.abszero.cc/plugins) to build notification sources, pinned content and interactive controls.
+The [open platform](https://wini-plugins.abszero.cc/) is available. Browse listed plugins in **Plugin management → Discover plugins**, or import a ZIP from a trusted developer. Developers can use the [plugin guide](https://wini-docs.abszero.cc/plugins) to build notification sources, pinned content and interactive controls.
 
 ## Settings
 

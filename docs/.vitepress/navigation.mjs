@@ -35,7 +35,7 @@ export const sidebar = [
       { text: '打包与分发', link: '/plugins/packaging' },
       { text: '错误码与排错', link: '/plugins/errors' },
       { text: '发布兼容性与迁移', link: '/plugins/migration' },
-      { text: '平台目录协议（高级，尚未开放）', link: '/plugins/catalog' }
+      { text: '平台目录协议（高级）', link: '/plugins/catalog' }
     ]
   }
 ]

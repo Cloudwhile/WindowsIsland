@@ -35,7 +35,7 @@ Get-FileHash artifacts/plugin-example/Example.Notifications-1.0.0.zip -Algorithm
 
 ## 默认插件源分发
 
-开放平台目前尚未开放。现阶段使用手动 ZIP 分发。
+开放平台已开放。已收录插件可通过默认插件源分发，开发中的插件也可使用手动 ZIP 分发。
 
 完整端点与字段规则见[目录接口契约](./catalog.md)。官方开发者身份仅认 `winiofficial`；目录中其他开发者仍按三方权限处理。
 
