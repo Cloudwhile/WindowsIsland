@@ -49,11 +49,14 @@ Get-FileHash artifacts/plugin-example/Example.Notifications-1.0.0.zip -Algorithm
 | `developerId` / `repositoryUrl` | 与所属开发者来源一致 |
 | `downloadUrl` | 该仓库公开 Release 的 ZIP 附件地址 |
 | `sha256` | ZIP 的 64 位小写十六进制 SHA-256 摘要 |
-| `minHostVersion` | 最低宿主 SemVer 版本 |
+| `minHostVersion` | 由包内 `minimumHostVersion` 映射的最低宿主严格 SemVer；包内省略或为 `null` 时为 `0.0.0` |
 | `contractVersion` | 所需合约大版本 |
 | `permissions` / `description` | 能力声明与说明 |
+| `network` | 可选的联网须知，包内缺失时可由默认源补充 |
 
-收录与审核由目录维护者决定，不会因为清单中声明官方来源而自动生效。没有可用目录服务时，先使用手动 ZIP 分发，不依赖未公布的提交接口。
+开发者可在[开放平台](https://wini-plugins.abszero.cc/)使用 GitHub 登录、选择公开仓库和 Release 附件并提交审核；直发账号 `winiofficial` 由管理员管理。平台只托管元数据与索引，ZIP 保留在开发者自己的 GitHub Release 中。收录与审核不会因为包内声明官方来源而自动生效。
+
+兼容旧平台的包可同时声明 `minHostVersion` 与 `minimumHostVersion`，平台要求两者相同；新插件使用 `minimumHostVersion`。微信插件需要默认源验证的安装记录才能使用受限桌面代理，手动 ZIP 不会取得该能力。服务开放、GitHub Release 发布与插件收录分别生效，收录状态以客户端 **插件管理 → 发现插件** 列表为准。
 
 ## 发布前检查
 

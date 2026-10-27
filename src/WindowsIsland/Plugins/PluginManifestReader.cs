@@ -46,6 +46,7 @@ internal static class PluginManifestReader
         if (manifest.Permissions is null || manifest.Permissions.Length > 64 || manifest.Permissions.Any(p => string.IsNullOrWhiteSpace(p) || p.Length > 80)
             || manifest.Permissions.Distinct(StringComparer.Ordinal).Count() != manifest.Permissions.Length)
             throw new PluginException(PluginErrorCode.Permissions, "插件权限声明无效。");
+        PluginDesktopPolicy.Validate(manifest);
         ValidateSecurityMetadata(manifest);
     }
 

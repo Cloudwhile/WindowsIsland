@@ -66,12 +66,13 @@ GET {base}/api/sources/{developerId}/plugins
 | C19 | `name` 非空、最长 200；`description` 必须存在，可为空字符串，最长 8000。 |
 | C20 | `version`、`minHostVersion` 为严格 SemVer 2.0，数字标识不得有前导零；比较忽略 `+` 后的构建元数据。 |
 | C21 | `contractVersion` 是至少为 1 的 JSON 整数；`1.0`、`1e0`、`"1"` 均无效。 |
-| C22 | `permissions` 是最多 64 项的数组，每项非空、最长 80、匹配 `^[a-z][a-z0-9_]*$`，不得重复；未知权限使条目无效。 |
+| C22 | `permissions` 是最多 64 项的数组，每项非空、最长 80、匹配 `^[a-z][a-z0-9_]*$`，不得重复；平台收录时要求标签已登记，宿主接受格式合法的自定义标签，但不因此授予额外能力。 |
 | C23 | `sha256` 必须由服务端发送为 64 位小写十六进制；下载校验比较时双方统一小写，大小写差异不导致校验失败。 |
 | C24 | `downloadUrl` 是 HTTPS、域名恰为 `github.com`、默认端口，无 userinfo、query 或 fragment；路径精确为对应仓库的 `/releases/download/{tag}/{file}.zip`。tag 和附件名各为单个非空段，不含 `..`、编码分隔符（包括 `%2F`、`%5C`）或额外路径段。 |
 
-当前已知权限为 `notifications`、`settings`、`process`、`network`、`filesystem`、`native`、`automation`，
-含义见[权限与诊断](./permissions.md)。
+平台预置权限标签包括 `notifications`、`settings`、`network`、`process`、`filesystem`、`native`、`automation`；旧 `wechat` 标签保留但不再授予专用监听。开发者可登记不重名的自定义标签；实际授予范围见[权限与诊断](./permissions.md)。桌面范围保存在包内 `desktop`，不在目录 API 中重复声明。
+
+包内最低宿主版本字段为 `minimumHostVersion`，目录字段为 `minHostVersion`；包内省略或为 `null` 时映射为 `0.0.0`。兼容旧平台时可在包内同时保留 `minHostVersion`，平台要求两个字段为相同的严格 SemVer 字符串，不接受只提供旧字段。
 
 索引条目示例：
 
@@ -123,10 +124,10 @@ GET {base}/api/sources/{developerId}/plugins
 | 编号 | 约定 |
 | --- | --- |
 | C34 | 目录失败使用稳定错误码，覆盖基地址、拉取、HTTP 状态、解析、来源、索引、条目、校验和、大小与超时；界面按码翻译，不按异常文本匹配。 |
-| C35 | 安装前核对 ZIP 的 SHA-256，包内清单 id 和版本必须与索引一致；失败拒绝安装，保留既有插件、数据与备份，不留下半安装状态。 |
-| C36 | 只有 `developerId == winiofficial` 获官方身份和官方作者展示，包内自称官方无效；该身份不豁免启用条款、联网须知确认，也不扩大外部插件的数据访问范围。 |
+| C35 | 安装前核对 ZIP 的 SHA-256；包内 id、版本、开发者、仓库、权限集合和合约大版本与索引一致，包内 `minimumHostVersion`（省略时为 `0.0.0`）与目录 `minHostVersion` 一致。失败拒绝安装，保留既有插件、数据与备份，不留下半安装状态。 |
+| C36 | 只有默认插件源验证且 `developerId == winiofficial` 的安装获得官方身份和官方作者展示；包内自声明或手动导入无效。该身份不豁免启用条款、联网须知确认；桌面代理还需指定适配器身份、权限与包内范围核验，官方身份本身不授予额外访问。 |
 
 宿主在暂存目录检查插件包，再安装或替换；更新保留上一份代码备份，失败恢复原安装。
 目录来源与 GitHub 下载代理分别配置，代理不会改变索引身份或跳过完整性校验。
 
-条款和联网须知以通过校验的包内清单为准，安装成功不表示用户已经同意启用。用户取消确认时保留已安装内容并保持关闭。
+条款以通过校验的包内清单为准；联网须知优先采用包内声明，缺失时默认插件源可补充。安装成功不表示用户已经同意启用。用户取消确认时保留已安装内容并保持关闭。

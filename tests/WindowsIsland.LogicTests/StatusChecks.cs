@@ -5,29 +5,6 @@ internal static class StatusChecks
 {
     public static void Run(Action<bool, string> check)
     {
-        var health = new WeChatConnectionHealth();
-        check(health.StatusKey(false, 0) == "NotRunning" && health.StatusKey(false, 1) == "NotConnected",
-            "WeChat reports not running without a client and not connected before any failure threshold");
-        health.Failed(7, unsupported: true);
-        health.Failed(7, unsupported: true);
-        check(health.StatusKey(false, 1) == "NotConnected", "Isolated accessibility failures do not degrade the WeChat state");
-        health.Failed(7, unsupported: true);
-        check(health.StatusKey(false, 1) == "WeChatUnsupported", "Consecutive unsupported failures degrade WeChat to version not supported");
-        check(health.StatusKey(true, 1) == "Connected", "A readable WeChat client reports connected even after earlier failures");
-        health.Retry();
-        check(health.StatusKey(false, 1) == "NotConnected", "Retry clears the failure state for one more attempt");
-        health.Failed(7, unsupported: true);
-        check(health.StatusKey(false, 1) == "WeChatUnsupported", "A failed retry degrades again immediately");
-        health.Succeeded(7);
-        health.Failed(8, unsupported: false);
-        health.Failed(8, unsupported: false);
-        health.Failed(8, unsupported: false);
-        check(health.StatusKey(false, 2) == "WeChatConnectFailed", "Access failures are reported separately from unsupported versions");
-        health.Remove(8);
-        check(health.StatusKey(false, 1) == "NotConnected", "A closed client discards its failure history");
-        check(WeChatConnectionHealth.IsUnsupported("AccessorMismatch") && !WeChatConnectionHealth.IsUnsupported("OpenProcess"),
-            "Signature mismatches are version incompatibilities while process access is not");
-
         check(SourceStatus.Tone("Connected") == StatusTone.Success && SourceStatus.Tone("WeChatUnsupported") == StatusTone.Critical
             && SourceStatus.Tone("NotRunning") == StatusTone.Neutral && SourceStatus.Tone("Off") == StatusTone.Neutral,
             "Source states map to success, failure and neutral tones");

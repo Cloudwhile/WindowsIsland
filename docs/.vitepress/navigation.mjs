@@ -32,6 +32,7 @@ export const sidebar = [
       { text: 'API 参考', link: '/plugins/api' },
       { text: '固定内容与交互', link: '/plugins/pinned-content' },
       { text: '权限与诊断', link: '/plugins/permissions' },
+      { text: '桌面客户端代理', link: '/plugins/desktop' },
       { text: '打包与分发', link: '/plugins/packaging' },
       { text: '错误码与排错', link: '/plugins/errors' },
       { text: '发布兼容性与迁移', link: '/plugins/migration' },

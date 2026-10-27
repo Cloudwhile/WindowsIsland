@@ -61,7 +61,7 @@ Settings save automatically. Click the tray icon to reopen settings, or right-cl
 
 ## Notification sources
 
-Sources are built-in plugins with independent switches and connection status.
+Sources include built-in sources and separately installed plugins, each with an independent switch and connection status.
 
 | Source | Notifications |
 | --- | --- |
@@ -70,7 +70,7 @@ Sources are built-in plugins with independent switches and connection status.
 | Telegram | New messages from a signed-in desktop client |
 | Power | Power connection, charging, disconnection and full-charge events |
 
-WeChat is a separate official plugin. Once listed, it can be installed through the default plugin source.
+WeChat is a separate official plugin by `winiofficial`. The default plugin source is available; check **Plugin management → Discover plugins** for its listing and install it there. Its WeChat connection requires verification through the default source; manually importing the ZIP does not grant this capability.
 
 The island starts with new messages when a source connects or is re-enabled. Muted WeChat conversations stay quiet, and previous messages are not replayed. Turning off one source leaves the others running.
 

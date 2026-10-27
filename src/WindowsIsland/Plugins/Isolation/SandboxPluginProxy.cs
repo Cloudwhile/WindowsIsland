@@ -6,15 +6,16 @@ namespace WindowsIsland.Plugins;
 
 // The only object representing external code in the host. It never loads the plugin assembly.
 internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSource, IPluginStatusProvider,
-    IPluginSettingsSchema, IPluginPolling, IPluginRetry, IPluginLifecycleAware, IPluginSettingsChanged
+    IPluginSettingsSchema, IPluginPolling, IPluginRetry, IPluginLifecycleAware, IPluginSettingsChanged, IPluginNotificationFilter
 {
     private SandboxProcess? _process;
     private IsolationRpc? _rpc;
     private IPluginContext? _context;
     private PluginNetworkBroker? _network;
     private PluginRunSnapshot? _snapshot;
-    private IWeChatHost? _weChat;
-    private readonly SemaphoreSlim _weChatCommands = new(1, 1);
+    private IPluginDesktop? _desktop;
+    private readonly SemaphoreSlim _desktopCommands = new(1, 1);
+    private long _descriptionAt;
     private readonly CancellationTokenSource _services = new();
     private readonly CancellationTokenSource _regularCommands = new();
     private readonly CancellationTokenSource _commandLifetime = new();
@@ -34,6 +35,18 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
     public Task OnSettingsChangedAsync(IReadOnlyList<string> keys) => CommandAsync("settingsChanged", keys);
     public event Action<PluginNotification>? NotificationReceived;
 
+    public bool Allows(PluginNotification notification)
+    {
+        if (_desktop is null) return true;
+        if (Volatile.Read(ref _revoked) != 0 || Volatile.Read(ref _disposed) != 0
+            || System.Diagnostics.Stopwatch.GetElapsedTime(Volatile.Read(ref _descriptionAt)) > TimeSpan.FromSeconds(10)) return false;
+        var identity = WindowsIsland.Services.MessengerIdentity.FromNotification(PluginNotificationBridge.ToHost(notification));
+        var rules = Volatile.Read(ref _description).ConversationRules ?? [];
+        var matches = rules.Where(rule => rule.AppId == identity && rule.Conversation == notification.ConversationName
+            && (notification.OriginProcessId is null || rule.ProcessId is null || rule.ProcessId == notification.OriginProcessId)).ToArray();
+        return matches.Length > 0 && !matches.Any(rule => rule.Muted);
+    }
+
     public async Task InitializeAsync(IPluginContext context)
     {
         Task<SandboxProcess> launch;
@@ -42,7 +55,7 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
             ObjectDisposedException.ThrowIf(_disposed != 0 || _revoked != 0, this);
             if (_launch is not null) throw new InvalidOperationException();
             _context = context;
-            _weChat = WeChatHostBroker.IsOfficial(external.Manifest) ? context.GetService<IWeChatHost>() : null;
+            _desktop = PluginDesktopPolicy.IsAllowed(external.Manifest) ? context.GetService<IPluginDesktop>() : null;
             launch = _launch = Task.Run(() =>
             {
                 _regularCommands.Token.ThrowIfCancellationRequested();
@@ -114,7 +127,9 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
                     || value.Body?.Length > 65536 || value.AppIcon?.Length > 256 * 1024 || value.SenderAvatar?.Length > 256 * 1024
                     || value.DeduplicationKey?.Length > 1024 || value.AppName?.Length > 256 || value.AppId?.Length > 256
                     || value.Symbol?.Length > 64 || !Enum.IsDefined(value.Kind)) throw new InvalidDataException();
-                NotificationReceived?.Invoke(value with { OriginProcessId = null }); return null;
+                var target = value.OriginProcessId is { } processId && _desktop is IPluginDesktopProcessScope scope && scope.OwnsProcess(processId)
+                    ? value.OriginProcessId : null;
+                NotificationReceived?.Invoke(value with { OriginProcessId = target }); return null;
             }
             case "pinned":
             {
@@ -128,23 +143,19 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
                 else throw new InvalidDataException();
                 return null;
             }
-            case "wechat":
+            case "desktop":
             {
-                var service = _weChat ?? throw new UnauthorizedAccessException();
+                var service = _desktop ?? throw new UnauthorizedAccessException();
                 using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, _services.Token);
-                await _weChatCommands.WaitAsync(cancellation.Token);
+                await _desktopCommands.WaitAsync(cancellation.Token);
                 try
                 {
                     cancellation.Token.ThrowIfCancellationRequested();
-                    return Read<string>() switch
-                    {
-                        "start" => await service.StartAsync().WaitAsync(cancellation.Token),
-                        "poll" => await service.PollAsync().WaitAsync(cancellation.Token),
-                        "retry" => await service.RetryAsync().WaitAsync(cancellation.Token),
-                        _ => throw new InvalidDataException()
-                    };
+                    if (_snapshot?.IsCurrent() != true) throw new UnauthorizedAccessException();
+                    var request = Read<WorkerDesktopRequest>();
+                    return await DesktopRpc.DispatchAsync(service, request, cancellation.Token);
                 }
-                finally { _weChatCommands.Release(); }
+                finally { _desktopCommands.Release(); }
             }
             case "network":
             {
@@ -199,7 +210,12 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
                 if (value is string text && text.Length > 65536) throw new InvalidDataException();
                 return field with { DefaultValue = value };
             }).ToArray();
-            Volatile.Write(ref _description, description with { Settings = fields });
+            var rules = description.ConversationRules;
+            if (rules is { Length: > 1024 } || rules?.Any(rule => rule is null || string.IsNullOrWhiteSpace(rule.AppId) || rule.AppId.Length > 256
+                || string.IsNullOrWhiteSpace(rule.Conversation) || rule.Conversation.Length > 4096 || rule.ProcessId is <= 0) == true)
+                throw new InvalidDataException();
+            Volatile.Write(ref _descriptionAt, System.Diagnostics.Stopwatch.GetTimestamp());
+            Volatile.Write(ref _description, description with { Settings = fields, ConversationRules = rules?.ToArray() });
         }
         catch (OperationCanceledException) when (!cleanup && Volatile.Read(ref _revoked) != 0) { throw; }
         catch { Dispose(); throw; }

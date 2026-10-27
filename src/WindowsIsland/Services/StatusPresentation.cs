@@ -128,7 +128,7 @@ internal static class DiagnosticPresentation
         if (entry.Errors.FirstOrDefault() is { } catalog && WindowsIsland.Plugins.PluginErrors.DiagnosticKey(catalog.HResult) is { } key)
             return Localization.Get(key);
         if (entry.Operation.StartsWith("Accessibility.", StringComparison.Ordinal))
-            return Localization.Get(WeChatConnectionHealth.IsUnsupported(entry.Operation["Accessibility.".Length..])
+            return Localization.Get(IsUnsupportedAccessibility(entry.Operation["Accessibility.".Length..])
                 ? "DiagnosticReasonUnsupported" : "DiagnosticReasonProcessAccess");
         if (entry.Operation is "AccessibilityUnavailable") return Localization.Get("DiagnosticReasonNoAutomation");
         if (entry.Operation is "AccessibilityLost") return Localization.Get("DiagnosticReasonAccessibilityLost");
@@ -142,4 +142,7 @@ internal static class DiagnosticPresentation
 
     public static string? Suggestion(DiagnosticEntry entry) => Outcome(entry) == DiagnosticOutcome.Success ? null
         : Localization.Get(CanRetrySource(entry) ? "DiagnosticSuggestionRetry" : "DiagnosticSuggestionReport");
+    private static bool IsUnsupportedAccessibility(string failure) => failure is "ModuleNotFound" or "UnsupportedImage" or "ImageSizeMismatch"
+        or "MemoryLayout" or "HeaderMismatch" or "AccessorMismatch" or "ConsumerMismatch" or "InvalidFlag";
+
 }

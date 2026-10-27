@@ -12,6 +12,8 @@ wini-plugin doctor C:\expanded-plugin --host-version 0.1.0
 
 未提供 `--host-version` 时，仅完成包与合约检查，并提示尚未核验目标宿主版本。工具不会推断其他应用的版本。新插件应随与目标宿主相同构建的 SDK 开发，并在该宿主实际导入验收。
 
+平台将包内 `minimumHostVersion` 映射为目录 `minHostVersion`；省略或为 `null` 时使用 `0.0.0`。兼容旧平台时可保留包内 `minHostVersion`，平台要求它与 `minimumHostVersion` 为相同的严格 SemVer 字符串，不接受只提供旧字段。官方微信现有发布包保留两个一致字段。
+
 ## 更新与重新授权
 
 每次成功覆盖（包括相同版本和相同字节）生成新安装代次，插件默认关闭，重新启用需要确认。旧上下文、网络请求、设置变更及控件回调失效。安装失败回滚恢复原包、原代次、来源凭据和原授权。

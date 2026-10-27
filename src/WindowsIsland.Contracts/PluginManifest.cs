@@ -23,4 +23,7 @@ public sealed record PluginManifest(string Id, string Name, string Version, stri
 {
     /// <summary>可选的最低宿主 SemVer 版本；省略时仅检查合约大版本。</summary>
     public string? MinimumHostVersion { get; init; }
+
+    /// <summary>可选的桌面客户端访问范围；只有通过来源及能力校验后才提供服务。</summary>
+    public PluginDesktopScope? Desktop { get; init; }
 }

@@ -133,6 +133,8 @@ public sealed class IsolationRpc : IDisposable
 
 public sealed record WorkerInitialization(PluginManifest Manifest, string DataDirectory, string[] Granted, string? PreviousVersion,
     string HostVersion = "unknown", string CodeDirectory = "");
-public sealed record WorkerDescription(PluginStatus Status, PluginSetting[] Settings);
+public sealed record WorkerDescription(PluginStatus Status, PluginSetting[] Settings, PluginConversationRule[]? ConversationRules = null);
+public sealed record WorkerDesktopRequest(string Operation, JsonElement Payload);
+public sealed record DesktopWindowRequest(int ProcessId, long Window);
 public sealed record WorkerSetting(string Key, string? Value = null, bool Boolean = false);
 public sealed record WorkerPinnedChange(string Kind, string Id, PinnedContent? Content = null);

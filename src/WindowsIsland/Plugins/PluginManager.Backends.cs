@@ -20,9 +20,8 @@ internal sealed partial class PluginManager
         BuiltInPluginIds.Power => new PowerBackend(context),
         BuiltInPluginIds.System => new SystemBackend(context),
         BuiltInPluginIds.Telegram => new TelegramBackend(context),
-        BuiltInPluginIds.WeChat => new WeChatBackend(context),
         _ => null
-    });
+    }, external => new PluginDesktopBroker(external.Manifest, external.HostRoot));
 
     private abstract class SourceBackend(string id) : IMessageSourceBackend
     {
@@ -158,39 +157,4 @@ internal sealed partial class PluginManager
         }
     }
 
-    private sealed class WeChatBackend(BuiltInPluginContext context) : SourceBackend(BuiltInPluginIds.WeChat), IPluginRetry
-    {
-        private WeChatService? _reader;
-        private MessengerHookService? _popups;
-        private int _ticks;
-        public override PluginStatus Status => PluginNotificationBridge.FromKey(_reader?.StatusKey ?? "NotConnected");
-        public bool CanRetry => _reader?.StatusKey is "WeChatUnsupported" or "WeChatConnectFailed";
-        public void Retry() { if (!IsDisposed) _reader?.Retry(); }
-        public override Task StartAsync()
-        {
-            if (IsDisposed || _reader is not null) return Task.CompletedTask;
-            _reader = new WeChatService(() => !IsDisposed,
-                action => context.Dispatcher.TryEnqueue(() => { if (!IsDisposed) action(); }),
-                context.FixtureDirectory("WindowsIsland.WeChatTests"));
-            _reader.Received += Publish;
-            _popups = new MessengerHookService(context.Dispatcher, context.FixtureDirectory("WindowsIsland.HookFixture"),
-                identity => !IsDisposed && identity == "wechat");
-            _popups.Received += Publish;
-            _popups.Start();
-            _reader.Start();
-            return Task.CompletedTask;
-        }
-        public override Task PollAsync()
-        {
-            if (!IsDisposed && ++_ticks % 5 == 0) _popups?.RefreshClients();
-            return Task.CompletedTask;
-        }
-        public override bool Allows(PluginNotification notification) => !IsDisposed
-            && _reader?.AllowsConversation(notification.ConversationName, notification.OriginProcessId) == true;
-        protected override void DisposeCore()
-        {
-            try { if (_popups is not null) { _popups.Received -= Publish; _popups.Dispose(); } }
-            finally { if (_reader is not null) { _reader.Received -= Publish; _reader.Dispose(); } }
-        }
-    }
 }

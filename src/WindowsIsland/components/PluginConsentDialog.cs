@@ -18,7 +18,8 @@ internal static class PluginConsentDialog
             : string.Join(Environment.NewLine, entry.Permissions), "PluginInstallDeclarations");
         var unavailable = entry.Permissions.Where(permission => permission is not (Contracts.PluginPermissions.Notifications
             or Contracts.PluginPermissions.Settings or Contracts.PluginPermissions.Network)
-            && !(permission == Contracts.PluginPermissions.WeChat && WeChatHostBroker.IsOfficial(entry))).ToArray();
+            && !(permission is Contracts.PluginPermissions.Process or Contracts.PluginPermissions.Automation
+                && PluginDesktopPolicy.MatchesPublisher(entry.Id, entry.DeveloperId, entry.RepositoryUrl))).ToArray();
         if (unavailable.Length > 0)
             AddValue(content, "PluginPermissionsDenied", string.Join(Environment.NewLine, unavailable), "PluginInstallUnavailable");
         return Create("PluginInstallationReviewTitle", "PluginInstall", content, "PluginInstallationReviewDialog");

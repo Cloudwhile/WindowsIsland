@@ -1,6 +1,6 @@
 # 清单与标识
 
-机器可读定义：[manifest JSON Schema](/schemas/plugin-manifest.schema.json)。`minimumHostVersion` 可指定最低宿主 SemVer，例如 `0.1.0`；省略时只检查合约大版本，详见[兼容性](./migration.md)。
+机器可读定义：[manifest JSON Schema](/schemas/plugin-manifest.schema.json)。`minimumHostVersion` 可指定最低宿主 SemVer，例如 `0.1.0`；省略或为 `null` 时不增加宿主版本门槛，目录映射为 `0.0.0`，仍检查合约大版本，详见[兼容性](./migration.md)。
 
 每个插件 ZIP 根目录都包含一个 `manifest.json`。宿主先验证清单与程序集元数据，再创建插件入口。
 
@@ -52,6 +52,7 @@ wini_plugin_<name>
 | `id` | 是 | 全局唯一的规范标识 |
 | `name` | 是 | 非空显示名称，最长 200 字符 |
 | `version` | 是 | SemVer 版本，例如 `1.0.0`、`1.1.0-alpha.1` |
+| `minimumHostVersion` | 否 | 最低宿主严格 SemVer；省略或为 `null` 时目录使用 `0.0.0` |
 | `entryAssembly` | 是 | 相对插件目录的入口程序集路径 |
 | `entryType` | 是 | 公开入口类的完整名称 |
 | `contractVersion` | 是 | 合约大版本，当前为 `1` |
@@ -63,8 +64,11 @@ wini_plugin_<name>
 | `repositoryUrl` | 否 | 公开 GitHub 仓库的 HTTPS 地址 |
 | `terms` | 否 | 包内纯文本条款，包含 `revision` 和 `text` |
 | `network` | 启用联网前必需 | 开发者提供的目的地、用途、数据类别和可选完整须知；包内缺失时默认插件源可补充 |
+| `desktop` | 使用桌面代理时必需 | 已声明的客户端进程、模块和用途，能力另需默认源及适配器身份核验，见[桌面客户端代理](./desktop.md) |
 
 清单最大 256 KiB。路径使用 `/` 分隔，不能包含绝对路径、`..`、反斜线或重解析点。
+
+目录 API 的最低版本字段名为 `minHostVersion`，由包内 `minimumHostVersion` 映射生成。兼容旧平台的包可额外保留同名旧字段 `minHostVersion`，但平台要求两个字段为相同的严格 SemVer 字符串；不能只填写旧字段。现有官方微信发布包保留两字段以兼容旧平台，新插件使用 `minimumHostVersion`。
 
 需要启用前配置时，可在同一 ZIP 根目录加入可选的 [`settings.schema.json`](./lifecycle.md#启用前配置-静态声明)，不需要修改 manifest 字段。它仅包含数据，安装时一并校验。
 

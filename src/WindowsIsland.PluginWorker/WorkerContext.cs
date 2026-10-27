@@ -42,7 +42,8 @@ internal sealed class WorkerContext : IPluginContext, IPluginSettings, IPluginDi
         var type = typeof(T);
         if (type == typeof(IPluginPermissions) || type == typeof(IPinnedContentSource)) return this as T;
         if (type == typeof(IPluginStorage) && IsGranted(PluginPermissions.Settings)) return this as T;
-        if (type == typeof(IWeChatHost) && IsGranted(PluginPermissions.WeChat)) return new WorkerWeChatHost(_rpc, _lifetime.Token) as T;
+        if (type == typeof(IPluginDesktop) && IsGranted(PluginPermissions.Automation) && IsGranted(PluginPermissions.Process))
+            return new WorkerDesktop(_rpc, _lifetime.Token) as T;
         if (type == typeof(IPluginNetwork) && IsGranted(PluginPermissions.Network)) return this as T;
         return null;
     }

@@ -1,7 +1,7 @@
 namespace WindowsIsland.Contracts;
 
-/// <summary>控制宿主提供的微信监听；仅向经默认插件源核验的官方微信插件提供。</summary>
-/// <remarks>消息由宿主直接投递，不向插件返回消息正文、进程句柄或任意自动化能力。</remarks>
+/// <summary>保留旧版二进制兼容性的历史接口；当前宿主不再提供此服务。</summary>
+/// <remarks>微信业务由独立插件实现，桌面访问改用可选的 IPluginDesktop 服务。</remarks>
 public interface IWeChatHost
 {
     /// <summary>启动监听并建立静默基线，重复调用不重建监听。</summary>

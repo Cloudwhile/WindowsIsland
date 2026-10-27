@@ -113,10 +113,6 @@ jobs:
       - name: Run Telegram bridge checks
         run: dotnet run --project tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj -c Release
 
-      - name: Run WeChat UIAutomation checks
-        timeout-minutes: 5
-        run: dotnet run --project tests/WindowsIsland.WeChatTests/WindowsIsland.WeChatTests.csproj -c Release
-
       - name: Publish application
         env:
           APP_VERSION: ${{ steps.version.outputs.value }}

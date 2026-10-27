@@ -33,6 +33,101 @@
 | `IPluginContext.GetService``1` | 获取宿主为当前插件提供的可选服务能力，不返回界面对象。 | T：服务的合约接口类型。<br>返回：绑定到当前插件的服务，未提供该能力时为空引用。<br>同一合约大版本的新能力通过可选服务提供，调用方必须容忍 null；不得新增必填接口方法。 |
 | `IPluginContext.PinnedContent` | 获取固定内容提交能力；未提供时为空引用。 | — |
 | `IPluginContext.PublishNotification(PluginNotification)` | 从任意线程提交通知，由宿主入队并调度到界面线程。 | notification：来源标识与当前插件标识一致的通知数据。<br>此调用不等待渲染；宿主校对来源标识，停止或释放后的延迟通知由宿主丢弃。 |
+| `IPluginDesktop` | 通过宿主访问清单声明且经来源验证的桌面客户端；不向插件传递原生句柄。 | — |
+| `IPluginDesktop.FindClientsAsync(Threading.CancellationToken)` | 枚举允许的客户端及其模块、窗口。 | — |
+| `IPluginDesktop.ReadTreeAsync(Int32,Int64,Threading.CancellationToken)` | 读取指定客户端窗口的有界可访问性快照。 | — |
+| `IPluginDesktop.ReadModuleAsync(DesktopRead,Threading.CancellationToken)` | 读取已声明模块文件的一段内容。 | — |
+| `IPluginDesktop.ReadMemoryAsync(DesktopRead,Threading.CancellationToken)` | 读取已声明模块在客户端内存中的一段内容。 | — |
+| `IPluginDesktop.SetFlagAsync(DesktopFlag,Threading.CancellationToken)` | 核对加载模块锚点后设置单字节布尔标记；宿主在撤销时恢复原值。 | — |
+| `IPluginDesktop.ReadImageAsync(DesktopImage,Threading.CancellationToken)` | 读取快照元素提供的本地图像，或捕获该元素内的指定区域。 | — |
+| `PluginDesktopScope` | 声明允许访问的进程名、模块名及用途；此声明不自行授予能力。 | Processes：不带扩展名的客户端进程名。<br>Modules：允许读取的模块文件名。<br>Purpose：供使用者核对的访问用途。 |
+| `PluginDesktopScope.#ctor(String[],String[],String)` | 声明允许访问的进程名、模块名及用途；此声明不自行授予能力。 | Processes：不带扩展名的客户端进程名。<br>Modules：允许读取的模块文件名。<br>Purpose：供使用者核对的访问用途。 |
+| `PluginDesktopScope.Processes` | 不带扩展名的客户端进程名。 | — |
+| `PluginDesktopScope.Modules` | 允许读取的模块文件名。 | — |
+| `PluginDesktopScope.Purpose` | 供使用者核对的访问用途。 | — |
+| `DesktopClient` | 描述宿主核验的客户端。 | ProcessId：客户端进程标识。<br>StartedAt：进程创建时间。<br>Executable：可执行文件路径。<br>Version：客户端文件版本。<br>Modules：允许访问的模块。<br>Windows：属于客户端的窗口。<br>Icon：可用的客户端图标 PNG。 |
+| `DesktopClient.#ctor(Int32,Int64,String,String,DesktopModule[],DesktopWindow[],Byte[])` | 描述宿主核验的客户端。 | ProcessId：客户端进程标识。<br>StartedAt：进程创建时间。<br>Executable：可执行文件路径。<br>Version：客户端文件版本。<br>Modules：允许访问的模块。<br>Windows：属于客户端的窗口。<br>Icon：可用的客户端图标 PNG。 |
+| `DesktopClient.ProcessId` | 客户端进程标识。 | — |
+| `DesktopClient.StartedAt` | 进程创建时间。 | — |
+| `DesktopClient.Executable` | 可执行文件路径。 | — |
+| `DesktopClient.Version` | 客户端文件版本。 | — |
+| `DesktopClient.Modules` | 允许访问的模块。 | — |
+| `DesktopClient.Windows` | 属于客户端的窗口。 | — |
+| `DesktopClient.Icon` | 可用的客户端图标 PNG。 | — |
+| `DesktopModule` | 描述允许访问的模块。 | Name：模块名称。<br>ImageBase：加载地址，仅供验证模块元数据。<br>ImageSize：加载映像大小。<br>FileLength：模块文件大小。 |
+| `DesktopModule.#ctor(String,Int64,Int32,Int64)` | 描述允许访问的模块。 | Name：模块名称。<br>ImageBase：加载地址，仅供验证模块元数据。<br>ImageSize：加载映像大小。<br>FileLength：模块文件大小。 |
+| `DesktopModule.Name` | 模块名称。 | — |
+| `DesktopModule.ImageBase` | 加载地址，仅供验证模块元数据。 | — |
+| `DesktopModule.ImageSize` | 加载映像大小。 | — |
+| `DesktopModule.FileLength` | 模块文件大小。 | — |
+| `DesktopWindow` | 描述客户端窗口，不授予可继承句柄。 | Handle：窗口标识，每次使用时重新核对归属。<br>ClassName：窗口类名。<br>Bounds：屏幕坐标。<br>Style：窗口样式。<br>ExtendedStyle：扩展样式。<br>Owned：是否有所有者窗口。<br>Visible：是否可见。<br>Minimized：是否最小化。<br>Foreground：是否前台窗口。<br>Scale：坐标缩放。 |
+| `DesktopWindow.#ctor(Int64,String,DesktopRect,Int64,Int64,Boolean,Boolean,Boolean,Boolean,Double)` | 描述客户端窗口，不授予可继承句柄。 | Handle：窗口标识，每次使用时重新核对归属。<br>ClassName：窗口类名。<br>Bounds：屏幕坐标。<br>Style：窗口样式。<br>ExtendedStyle：扩展样式。<br>Owned：是否有所有者窗口。<br>Visible：是否可见。<br>Minimized：是否最小化。<br>Foreground：是否前台窗口。<br>Scale：坐标缩放。 |
+| `DesktopWindow.Handle` | 窗口标识，每次使用时重新核对归属。 | — |
+| `DesktopWindow.ClassName` | 窗口类名。 | — |
+| `DesktopWindow.Bounds` | 屏幕坐标。 | — |
+| `DesktopWindow.Style` | 窗口样式。 | — |
+| `DesktopWindow.ExtendedStyle` | 扩展样式。 | — |
+| `DesktopWindow.Owned` | 是否有所有者窗口。 | — |
+| `DesktopWindow.Visible` | 是否可见。 | — |
+| `DesktopWindow.Minimized` | 是否最小化。 | — |
+| `DesktopWindow.Foreground` | 是否前台窗口。 | — |
+| `DesktopWindow.Scale` | 坐标缩放。 | — |
+| `DesktopRect` | 表示屏幕坐标矩形。 | X：横坐标。<br>Y：纵坐标。<br>Width：宽度。<br>Height：高度。 |
+| `DesktopRect.#ctor(Double,Double,Double,Double)` | 表示屏幕坐标矩形。 | X：横坐标。<br>Y：纵坐标。<br>Width：宽度。<br>Height：高度。 |
+| `DesktopRect.X` | 横坐标。 | — |
+| `DesktopRect.Y` | 纵坐标。 | — |
+| `DesktopRect.Width` | 宽度。 | — |
+| `DesktopRect.Height` | 高度。 | — |
+| `DesktopRect.IsEmpty` | 是否为空矩形。 | — |
+| `DesktopRect.Right` | 右边界。 | — |
+| `DesktopRect.Bottom` | 下边界。 | — |
+| `DesktopRect.Contains(DesktopRect)` | 是否完整包含指定矩形。 | — |
+| `DesktopNode` | 描述可访问性树节点，Parent 为父节点下标，根节点使用 -1。 | Parent：父节点下标。<br>Name：元素名称。<br>AutomationId：自动化标识。<br>ClassName：元素类名。<br>ControlType：UI Automation 控件类型标识。<br>ItemStatus：项目状态。<br>ItemType：项目类型。<br>RuntimeId：运行时身份。<br>Bounds：屏幕坐标。<br>Offscreen：是否不在可见区域。 |
+| `DesktopNode.#ctor(Int32,String,String,String,Int32,String,String,String,DesktopRect,Boolean)` | 描述可访问性树节点，Parent 为父节点下标，根节点使用 -1。 | Parent：父节点下标。<br>Name：元素名称。<br>AutomationId：自动化标识。<br>ClassName：元素类名。<br>ControlType：UI Automation 控件类型标识。<br>ItemStatus：项目状态。<br>ItemType：项目类型。<br>RuntimeId：运行时身份。<br>Bounds：屏幕坐标。<br>Offscreen：是否不在可见区域。 |
+| `DesktopNode.Parent` | 父节点下标。 | — |
+| `DesktopNode.Name` | 元素名称。 | — |
+| `DesktopNode.AutomationId` | 自动化标识。 | — |
+| `DesktopNode.ClassName` | 元素类名。 | — |
+| `DesktopNode.ControlType` | UI Automation 控件类型标识。 | — |
+| `DesktopNode.ItemStatus` | 项目状态。 | — |
+| `DesktopNode.ItemType` | 项目类型。 | — |
+| `DesktopNode.RuntimeId` | 运行时身份。 | — |
+| `DesktopNode.Bounds` | 屏幕坐标。 | — |
+| `DesktopNode.Offscreen` | 是否不在可见区域。 | — |
+| `DesktopTree` | 描述有时限的可访问性快照。 | Token：仅当前服务实例可使用的快照标识。<br>Nodes：按父节点先于子节点排序的元素。 |
+| `DesktopTree.#ctor(String,DesktopNode[])` | 描述有时限的可访问性快照。 | Token：仅当前服务实例可使用的快照标识。<br>Nodes：按父节点先于子节点排序的元素。 |
+| `DesktopTree.Token` | 仅当前服务实例可使用的快照标识。 | — |
+| `DesktopTree.Nodes` | 按父节点先于子节点排序的元素。 | — |
+| `DesktopRead` | 请求读取客户端模块内的有界区间。 | ProcessId：客户端进程标识。<br>Module：清单声明的模块名。<br>Offset：文件偏移或模块内存相对偏移。<br>Count：读取字节数。 |
+| `DesktopRead.#ctor(Int32,String,Int64,Int32)` | 请求读取客户端模块内的有界区间。 | ProcessId：客户端进程标识。<br>Module：清单声明的模块名。<br>Offset：文件偏移或模块内存相对偏移。<br>Count：读取字节数。 |
+| `DesktopRead.ProcessId` | 客户端进程标识。 | — |
+| `DesktopRead.Module` | 清单声明的模块名。 | — |
+| `DesktopRead.Offset` | 文件偏移或模块内存相对偏移。 | — |
+| `DesktopRead.Count` | 读取字节数。 | — |
+| `DesktopAnchor` | 描述设置布尔标记前必须匹配的内存片段。 | Offset：模块内相对偏移。<br>Bytes：必须逐字匹配的内容。 |
+| `DesktopAnchor.#ctor(Int64,Byte[])` | 描述设置布尔标记前必须匹配的内存片段。 | Offset：模块内相对偏移。<br>Bytes：必须逐字匹配的内容。 |
+| `DesktopAnchor.Offset` | 模块内相对偏移。 | — |
+| `DesktopAnchor.Bytes` | 必须逐字匹配的内容。 | — |
+| `DesktopFlag` | 请求设置已核验客户端模块中的单字节布尔标记。 | ProcessId：客户端进程标识。<br>Module：模块名。<br>Offset：模块内相对偏移。<br>Value：布尔值 0 或 1。<br>Anchors：写入前核对的模块片段。 |
+| `DesktopFlag.#ctor(Int32,String,Int64,Byte,DesktopAnchor[])` | 请求设置已核验客户端模块中的单字节布尔标记。 | ProcessId：客户端进程标识。<br>Module：模块名。<br>Offset：模块内相对偏移。<br>Value：布尔值 0 或 1。<br>Anchors：写入前核对的模块片段。 |
+| `DesktopFlag.ProcessId` | 客户端进程标识。 | — |
+| `DesktopFlag.Module` | 模块名。 | — |
+| `DesktopFlag.Offset` | 模块内相对偏移。 | — |
+| `DesktopFlag.Value` | 布尔值 0 或 1。 | — |
+| `DesktopFlag.Anchors` | 写入前核对的模块片段。 | — |
+| `DesktopImage` | 请求读取快照元素的图像。 | Token：仍有效的快照标识。<br>Node：元素下标。<br>Bounds：可选的元素内部捕获区域；省略时只读取元素提供的本地图像。 |
+| `DesktopImage.#ctor(String,Int32,Nullable{DesktopRect})` | 请求读取快照元素的图像。 | Token：仍有效的快照标识。<br>Node：元素下标。<br>Bounds：可选的元素内部捕获区域；省略时只读取元素提供的本地图像。 |
+| `DesktopImage.Token` | 仍有效的快照标识。 | — |
+| `DesktopImage.Node` | 元素下标。 | — |
+| `DesktopImage.Bounds` | 可选的元素内部捕获区域；省略时只读取元素提供的本地图像。 | — |
+| `IPluginConversationPolicy` | 提供有界的会话免打扰快照，不接收其他来源的消息正文。 | — |
+| `IPluginConversationPolicy.ConversationRules` | 获取当前可确认的会话状态；宿主不会无限期使用此快照。 | — |
+| `PluginConversationRule` | 描述客户端会话的免打扰状态。 | AppId：客户端身份。<br>ProcessId：可选的客户端进程标识。<br>Conversation：会话名称。<br>Muted：是否免打扰。 |
+| `PluginConversationRule.#ctor(String,Nullable{Int32},String,Boolean)` | 描述客户端会话的免打扰状态。 | AppId：客户端身份。<br>ProcessId：可选的客户端进程标识。<br>Conversation：会话名称。<br>Muted：是否免打扰。 |
+| `PluginConversationRule.AppId` | 客户端身份。 | — |
+| `PluginConversationRule.ProcessId` | 可选的客户端进程标识。 | — |
+| `PluginConversationRule.Conversation` | 会话名称。 | — |
+| `PluginConversationRule.Muted` | 是否免打扰。 | — |
 | `IPluginDiagnostics` | 定义当前插件的本机诊断写入通道。 | — |
 | `IPluginDiagnostics.Write(PluginDiagnostic)` | 提交一条结构化诊断，由宿主管理采集开关、字段校验、合并和保留期限。 | diagnostic：使用固定区域与操作标识的诊断，不包含消息内容或个人信息。 |
 | `IPluginLifecycleAware` | 插件可选实现的停止及卸载钩子；钩子异常仅记录诊断，宿主继续清理。 | — |
@@ -78,15 +173,15 @@
 | `IPluginNotificationAccess.RequestAccessAsync` | 由宿主在界面线程发起系统通知授权。 | 返回：授权请求完成时结束的任务。 |
 | `IPluginPermissions` | 查询宿主对当前插件授予的代理能力；操作系统隔离由宿主管理。 | — |
 | `IPluginPermissions.IsGranted(String)` | 判断指定能力是否已由宿主授予。 | permission：清单中的能力标识。<br>返回：已经授予时为真。 |
-| `PluginPermissions` | 定义插件能力名称；外部插件仅可获得通知、独立设置及经宿主授权的网络代理能力。 | 进程、任意文件、原生调用与自动化权限不向外部插件扩权。未知名称始终不授予。 |
+| `PluginPermissions` | 定义插件能力名称；所有能力均由宿主核验并通过受限服务提供。 | 桌面及进程代理只提供给通过指定来源验证并声明范围的适配器，不授予直接系统访问。未知名称不授予。 |
 | `PluginPermissions.Notifications` | 向宿主提交通知。 | — |
 | `PluginPermissions.Settings` | 提供插件自己的数据目录；插件偏好通过宿主设置服务保存。 | — |
-| `PluginPermissions.WeChat` | 使用官方微信插件专属的宿主监听服务，不授予进程或桌面访问。 | — |
-| `PluginPermissions.Process` | 为通知指定点击时激活的进程。 | — |
+| `PluginPermissions.WeChat` | 保留旧版二进制兼容性的历史标签，当前宿主不再授予该能力。 | — |
+| `PluginPermissions.Process` | 使用经来源核验的客户端模块代理，并为通知指定经宿主核对的点击目标。 | — |
 | `PluginPermissions.Network` | 使用启用时确认联网须知的 IPluginNetwork 服务，不授予直接联网。 | — |
 | `PluginPermissions.FileSystem` | 声明插件数据目录之外的文件访问需求。 | — |
 | `PluginPermissions.Native` | 声明原生代码访问需求。 | — |
-| `PluginPermissions.Automation` | 声明辅助功能访问需求。 | — |
+| `PluginPermissions.Automation` | 使用经来源及范围核验的 IPluginDesktop 服务，不授予直接桌面访问。 | — |
 | `PluginPermissions.IsKnown(String)` | 判断能力名称是否由当前合约定义。 | permission：能力名称。<br>返回：属于已定义能力时为真。 |
 | `PluginPermissions.IsHighRisk(String)` | 判断已知能力是否需要单独授权。 | permission：能力名称。<br>返回：属于高危能力时为真。 |
 | `IPluginSettings` | 定义按插件标识隔离、支持并发调用的字符串和布尔设置存储。 | 宿主绑定存储范围，插件只传入范围内的键，不能选择其他插件的存储。 所有读写的键必须非空白且最多 128 字符，否则抛出 ArgumentException。 |
@@ -117,7 +212,7 @@
 | `PluginSetting.Choices` | 枚举允许值，按大小写精确匹配。 | — |
 | `IPluginStorage` | 提供与代码目录分离的数据目录，卸载代码时保留。 | — |
 | `IPluginStorage.DataDirectory` | 获取当前插件的数据目录。 | — |
-| `IWeChatHost` | 控制宿主提供的微信监听；仅向经默认插件源核验的官方微信插件提供。 | 消息由宿主直接投递，不向插件返回消息正文、进程句柄或任意自动化能力。 |
+| `IWeChatHost` | 保留旧版二进制兼容性的历史接口；当前宿主不再提供此服务。 | 微信业务由独立插件实现，桌面访问改用可选的 IPluginDesktop 服务。 |
 | `IWeChatHost.StartAsync` | 启动监听并建立静默基线，重复调用不重建监听。 | — |
 | `IWeChatHost.PollAsync` | 刷新连接状态和弹窗监听。 | — |
 | `IWeChatHost.RetryAsync` | 请求一次连接重试。 | — |
@@ -198,6 +293,7 @@
 | `PluginManifest.Terms` | 可选的包内纯文本条款及修订标识。 | — |
 | `PluginManifest.Network` | 声明网络能力时必需的目的地、用途和数据类别。 | — |
 | `PluginManifest.MinimumHostVersion` | 可选的最低宿主 SemVer 版本；省略时仅检查合约大版本。 | — |
+| `PluginManifest.Desktop` | 可选的桌面客户端访问范围；只有通过来源及能力校验后才提供服务。 | — |
 | `PluginNotification` | 描述插件提交的通知数据，不包含界面控件或进程对象。 | SourceId：产生此通知的插件全局唯一标识。<br>ConversationName：会话名称或通知标题。<br>Sender：发送者名称，无独立发送者时为空引用。<br>Body：通知正文。<br>CreatedAt：通知发生时间及其时区偏移。<br>AppIcon：应用图标的编码图像字节，缺少时由宿主提供回退。<br>SenderAvatar：会话或发送者头像的编码图像字节。<br>DeduplicationKey：来源内稳定的事件去重键；元数据补全沿用原键。<br>OriginProcessId：点击通知时应激活的目标进程编号。<br>AppName：第三方应用的显示名称。<br>AppId：第三方应用的稳定标识，供宿主匹配不同来源的同一应用。<br>Id：来源内的通知编号。<br>Symbol：无图像时可选的符号字形文本，由宿主解释和呈现。<br>IsMetadataUpdate：是否仅补全已有通知的图像等元数据，不代表新消息。<br>Kind：通知的传递途径，用于保留既有管线的合并优先级。<br>提交后插件不再修改图标和头像字节数组；图像解码、去重和点击处理由宿主执行。 |
 | `PluginNotification.#ctor(String,String,String,String,DateTimeOffset,Byte[],Byte[],String,Nullable{Int32},String,String,UInt32,String,Boolean,PluginNotificationKind)` | 描述插件提交的通知数据，不包含界面控件或进程对象。 | SourceId：产生此通知的插件全局唯一标识。<br>ConversationName：会话名称或通知标题。<br>Sender：发送者名称，无独立发送者时为空引用。<br>Body：通知正文。<br>CreatedAt：通知发生时间及其时区偏移。<br>AppIcon：应用图标的编码图像字节，缺少时由宿主提供回退。<br>SenderAvatar：会话或发送者头像的编码图像字节。<br>DeduplicationKey：来源内稳定的事件去重键；元数据补全沿用原键。<br>OriginProcessId：点击通知时应激活的目标进程编号。<br>AppName：第三方应用的显示名称。<br>AppId：第三方应用的稳定标识，供宿主匹配不同来源的同一应用。<br>Id：来源内的通知编号。<br>Symbol：无图像时可选的符号字形文本，由宿主解释和呈现。<br>IsMetadataUpdate：是否仅补全已有通知的图像等元数据，不代表新消息。<br>Kind：通知的传递途径，用于保留既有管线的合并优先级。<br>提交后插件不再修改图标和头像字节数组；图像解码、去重和点击处理由宿主执行。 |
 | `PluginNotification.SourceId` | 产生此通知的插件全局唯一标识。 | — |

@@ -9,17 +9,17 @@ public interface IPluginPermissions
     bool IsGranted(string permission);
 }
 
-/// <summary>定义插件能力名称；外部插件仅可获得通知、独立设置及经宿主授权的网络代理能力。</summary>
-/// <remarks>进程、任意文件、原生调用与自动化权限不向外部插件扩权。未知名称始终不授予。</remarks>
+/// <summary>定义插件能力名称；所有能力均由宿主核验并通过受限服务提供。</summary>
+/// <remarks>桌面及进程代理只提供给通过指定来源验证并声明范围的适配器，不授予直接系统访问。未知名称不授予。</remarks>
 public static class PluginPermissions
 {
     /// <summary>向宿主提交通知。</summary>
     public const string Notifications = "notifications";
     /// <summary>提供插件自己的数据目录；插件偏好通过宿主设置服务保存。</summary>
     public const string Settings = "settings";
-    /// <summary>使用官方微信插件专属的宿主监听服务，不授予进程或桌面访问。</summary>
+    /// <summary>保留旧版二进制兼容性的历史标签，当前宿主不再授予该能力。</summary>
     public const string WeChat = "wechat";
-    /// <summary>为通知指定点击时激活的进程。</summary>
+    /// <summary>使用经来源核验的客户端模块代理，并为通知指定经宿主核对的点击目标。</summary>
     public const string Process = "process";
     /// <summary>使用启用时确认联网须知的 IPluginNetwork 服务，不授予直接联网。</summary>
     public const string Network = "network";
@@ -27,7 +27,7 @@ public static class PluginPermissions
     public const string FileSystem = "filesystem";
     /// <summary>声明原生代码访问需求。</summary>
     public const string Native = "native";
-    /// <summary>声明辅助功能访问需求。</summary>
+    /// <summary>使用经来源及范围核验的 IPluginDesktop 服务，不授予直接桌面访问。</summary>
     public const string Automation = "automation";
     /// <summary>判断能力名称是否由当前合约定义。</summary>
     /// <param name="permission">能力名称。</param>

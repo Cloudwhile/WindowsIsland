@@ -25,6 +25,9 @@
     <Compile Include="../WindowsIsland/Plugins/Isolation/SandboxProcess.cs;../WindowsIsland/Plugins/Isolation/SandboxNative.cs;../WindowsIsland/Plugins/Isolation/SandboxAccess.cs" Link="Isolation/%(Filename)%(Extension)" />
     <Compile Include="../WindowsIsland/Plugins/PluginManifestReader.cs;../WindowsIsland/Plugins/PluginStaticSettings.cs;../WindowsIsland/Plugins/PluginSettingConstraints.cs;../WindowsIsland/Plugins/PluginPaths.cs;../WindowsIsland/Plugins/PluginFileSafety.cs;../WindowsIsland/Plugins/PluginAssemblyValidator.cs;../WindowsIsland/Plugins/PluginException.cs;../WindowsIsland/Plugins/PluginCatalogPolicy.cs;../WindowsIsland/Plugins/CatalogVersion.cs;../WindowsIsland/Plugins/BuiltInPluginIds.cs" Link="Validation/%(Filename)%(Extension)" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../WindowsIsland/Plugins/PluginDesktopPolicy.cs" Link="Validation/PluginDesktopPolicy.cs" />
+  </ItemGroup>
   <Target Name="CopyCliWorker" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
     <PropertyGroup>
       <_WorkerPlatformPath Condition="'$(Platform)' != '' and '$(Platform)' != 'AnyCPU' and '$(Platform)' != 'Any CPU'">$(Platform)\</_WorkerPlatformPath>

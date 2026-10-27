@@ -88,7 +88,7 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
         var definition = new NotificationPluginDefinition(id, manifest.Name, "PluginToggle." + id, 0xE8A5,
             DiagnosticArea.Application, _ => store.GetPluginBoolean(id, "Host.Enabled", false),
             (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return s; }, _ => false, metadata);
-        if (WeChatHostBroker.IsOfficial(manifest))
+        if (PluginDesktopPolicy.IsAllowed(manifest))
             definition = BuiltInPluginDefinitions.WeChat with
             {
                 Metadata = metadata,

@@ -19,7 +19,7 @@ if (args is ["--plugin-audit"])
 
 if (args is ["--wechat-plugin", var pluginZip])
 {
-    await WindowsIsland.LogicTests.WeChatHostChecks.RunPackageAsync(Path.GetFullPath(pluginZip));
+    await WindowsIsland.LogicTests.DesktopHostChecks.RunPackageAsync(Path.GetFullPath(pluginZip));
     return;
 }
 
@@ -240,7 +240,6 @@ GameModeChecks.Run(Check);
 DoNotDisturbChecks.Run(Check);
 WindowsPreferencesChecks.Run(Check);
 SettingsChecks.Run(Check);
-WeChatChecks.Run(Check);
 WeChatRoutingChecks.Run(Check);
 StatusChecks.Run(Check);
 ToastImageChecks.Run(Check);

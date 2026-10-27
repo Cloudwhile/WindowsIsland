@@ -169,6 +169,48 @@
           "type": "null"
         }
       ]
+    },
+    "desktop": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "processes",
+        "modules",
+        "purpose"
+      ],
+      "properties": {
+        "processes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "modules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_.-]+\\.[dD][lL][lL]$"
+          }
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
     }
   }
 }

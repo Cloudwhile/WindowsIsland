@@ -91,10 +91,7 @@
     <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />
     <Compile Include="../../src/WindowsIsland/Services/PluginPreferences.cs" Link="PluginPreferences.cs" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationPlacement.cs" Link="NotificationPlacement.cs" />
-    <Compile Include="../../src/WindowsIsland/Services/WeChatState.cs" Link="WeChatState.cs" />
-    <Compile Include="../../src/WindowsIsland/Services/WeChatConnectionHealth.cs" Link="WeChatConnectionHealth.cs" />
     <Compile Include="../../src/WindowsIsland/Services/StatusPresentation.cs" Link="StatusPresentation.cs" />
-    <Compile Include="../../src/WindowsIsland/Services/WeChatAvatarEnrichment.cs" Link="WeChatAvatarEnrichment.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationManifest.cs" Link="InitializationManifest.cs" />
     <Compile Include="../../src/WindowsIsland/Services/ReleaseVersion.cs" Link="ReleaseVersion.cs" />
     <Compile Include="../../src/WindowsIsland/Services/GitHubReleaseClient.cs" Link="GitHubReleaseClient.cs" />
@@ -103,6 +100,9 @@
     <Compile Include="../../src/WindowsIsland/Services/InstallationMode.cs" Link="InstallationMode.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateInstaller.cs" Link="UpdateInstaller.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateWorkDirectory.cs" Link="UpdateWorkDirectory.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginDesktopPolicy.cs" Link="Validation/PluginDesktopPolicy.cs" />
   </ItemGroup>
   <Target Name="CopyPluginFixture" AfterTargets="Build">
     <Copy SourceFiles="../../artifacts/bin/WindowsIsland.PluginFixture/$(Configuration)/net10.0/WindowsIsland.PluginFixture.dll" DestinationFolder="$(TargetDir)fixture" />

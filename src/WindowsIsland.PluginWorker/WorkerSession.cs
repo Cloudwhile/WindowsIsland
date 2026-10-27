@@ -127,7 +127,11 @@ internal sealed class WorkerSession : IDisposable
                 throw new InvalidDataException("Invalid plugin settings schema.");
             settings.Add(field);
         }
-        return new(status, settings.ToArray());
+        var rules = (_plugin as IPluginConversationPolicy)?.ConversationRules.ToArray() ?? [];
+        if (rules.Length > 1024 || rules.Any(rule => rule is null || string.IsNullOrWhiteSpace(rule.AppId) || rule.AppId.Length > 256
+            || string.IsNullOrWhiteSpace(rule.Conversation) || rule.Conversation.Length > 4096 || rule.ProcessId is <= 0))
+            throw new InvalidDataException("Invalid conversation policy.");
+        return new(status, settings.ToArray(), rules);
     }
 
     private void OnNotification(PluginNotification notification) => _context?.PublishNotification(notification);

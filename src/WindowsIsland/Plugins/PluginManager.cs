@@ -12,7 +12,7 @@ internal sealed partial class PluginManager : IDisposable
         public IMessageSource? Plugin;
         public PluginContext? Context;
         public IMessageSourceBackend? Backend;
-        public WeChatHostBroker? WeChat;
+        public IPluginDesktop? Desktop;
         public Action<PluginNotification>? Received;
         public Action<PluginNotificationAccess>? AccessChanged;
         public Task Cleanup = Task.CompletedTask;
@@ -37,6 +37,7 @@ internal sealed partial class PluginManager : IDisposable
     private readonly SettingsStore _store;
     private readonly Action<Action> _dispatch;
     private readonly Func<string, IMessageSourceBackend?>? _backends;
+    private readonly Func<ExternalPlugin, IPluginDesktop?>? _desktopFactory;
     private AppSettings _settings;
     private bool _started, _disposed;
     public NotificationAccess Access { get; private set; } = NotificationAccess.Waiting;
@@ -45,7 +46,8 @@ internal sealed partial class PluginManager : IDisposable
     public Func<PluginConsentDescriptor, Task<bool>>? ConfirmEnableAsync { get; set; }
 
     public PluginManager(IEnumerable<NotificationPluginRegistration> registrations, SettingsStore store,
-        Action<Action>? dispatch = null, Func<string, IMessageSourceBackend?>? backends = null)
+        Action<Action>? dispatch = null, Func<string, IMessageSourceBackend?>? backends = null,
+        Func<ExternalPlugin, IPluginDesktop?>? desktopFactory = null)
     {
         var items = registrations.ToArray();
         if (items.Any(item => !PluginId.IsValid(item.Definition.Id))
@@ -58,6 +60,7 @@ internal sealed partial class PluginManager : IDisposable
         _settings = store.Current;
         _dispatch = dispatch ?? (action => action());
         _backends = backends;
+        _desktopFactory = desktopFactory;
     }
 
     public async Task StartAsync()
@@ -165,9 +168,8 @@ internal sealed partial class PluginManager : IDisposable
                     entry.Plugin = plugin;
                     if (plugin.Id != entry.Registration.Definition.Id) throw new InvalidOperationException("Plugin identity mismatch.");
                     entry.Trust = external?.Trust;
-                    if (external is not null && WeChatHostBroker.IsOfficial(external.Manifest))
-                        entry.WeChat = new(() => _backends?.Invoke(plugin.Id), _dispatch,
-                            notification => DispatchHostWeChat(entry, plugin, notification));
+                    if (external is not null && PluginDesktopPolicy.IsAllowed(external.Manifest))
+                        entry.Desktop = _desktopFactory?.Invoke(external);
                     var pluginSettings = external is null ? SettingsFor(entry) : await Task.Run(() => SettingsFor(entry));
                     if (external is not null)
                     {
@@ -180,7 +182,7 @@ internal sealed partial class PluginManager : IDisposable
                         Diagnostic(entry), notification => DispatchNotification(entry, plugin, notification), type =>
                         {
                             if (_disposed || !ReferenceEquals(entry.Plugin, plugin)) return null;
-                            if (external is not null) return type == typeof(IWeChatHost) ? entry.WeChat
+                            if (external is not null) return type == typeof(IPluginDesktop) ? entry.Desktop
                                 : type == typeof(IPluginPermissions) ? entry.Trust
                                 : type == typeof(IPluginStorage) && entry.Trust?.IsGranted(PluginPermissions.Settings) == true ? new PluginStorage(external.DataDirectory) : null;
                             if (type != typeof(IMessageSourceBackend)) return null;
@@ -214,14 +216,6 @@ internal sealed partial class PluginManager : IDisposable
         }
         finally { _operations.Release(); }
     }
-
-    private void DispatchHostWeChat(Entry entry, IMessageSource plugin, PluginNotification notification) => Dispatch(entry, plugin, () =>
-    {
-        if (!entry.Active || !entry.Registration.Definition.IsEnabled(_settings) || entry.WeChat is null) return;
-        // 仅可信宿主监听器提供的消息保留点击进程；外部 RPC 消息仍走原权限检查。
-        if (notification.SourceId != BuiltInPluginIds.WeChat) throw new InvalidOperationException();
-        Received?.Invoke(PluginNotificationBridge.ToHost(notification));
-    });
 
     private void DispatchNotification(Entry entry, IMessageSource plugin, PluginNotification notification) => Dispatch(entry, plugin, () =>
     {
@@ -343,7 +337,6 @@ internal sealed partial class PluginManager : IDisposable
             if (!entry.Active || entry.Plugin is null) return false;
             try
             {
-                if (entry.WeChat is { } weChat && !weChat.Allows(PluginNotificationBridge.ToContract(entry.Registration.Definition.Id, notification))) return false;
                 if (entry.Plugin is IPluginNotificationFilter filter
                     && !filter.Allows(PluginNotificationBridge.ToContract(entry.Registration.Definition.Id, notification))) return false;
             }
@@ -377,12 +370,13 @@ internal sealed partial class PluginManager : IDisposable
         {
             var plugin = entry.Plugin;
             var backend = entry.Backend;
+            var desktop = entry.Desktop;
             entry.Active = false;
             entry.Plugin = null;
             entry.Backend = null;
-            try { entry.WeChat?.Dispose(); }
-            catch (Exception error) { Diagnostic(entry).Capture(error, "StopWeChat"); }
-            entry.WeChat = null;
+            try { (entry.Desktop as IDisposable)?.Dispose(); }
+            catch (Exception error) { Diagnostic(entry).Capture(error, "StopDesktop"); }
+            entry.Desktop = null;
             if (plugin is SandboxPluginProxy isolated) isolated.Revoke();
             entry.Context?.Dispose();
             entry.Context = null;
@@ -396,11 +390,11 @@ internal sealed partial class PluginManager : IDisposable
             catch (Exception error) { Diagnostic(entry).Capture(error, "Detach"); }
             entry.Received = null;
             entry.AccessChanged = null;
-            entry.Cleanup = CleanupAsync(entry, plugin, backend, reason);
+            entry.Cleanup = CleanupAsync(entry, plugin, backend, reason, desktop);
         }
     }
 
-    private async Task CleanupAsync(Entry entry, IMessageSource plugin, IMessageSourceBackend? backend, PluginStopReason reason)
+    private async Task CleanupAsync(Entry entry, IMessageSource plugin, IMessageSourceBackend? backend, PluginStopReason reason, IPluginDesktop? desktop)
     {
         // 已开始的后台交互退出后才释放插件；上下文与界面内容已在 Stop 中同步撤销。
         await entry.Interactions.WaitAsync();
@@ -422,6 +416,7 @@ internal sealed partial class PluginManager : IDisposable
             catch (Exception error) { Diagnostic(entry).Capture(error, "Dispose"); }
             // 必须观察隔离进程确实退出；失败不能继续换包、删除或重启同一插件。
             if (plugin is SandboxPluginProxy isolated) await isolated.Termination;
+            if (desktop is IAsyncDisposable asyncDesktop) await asyncDesktop.DisposeAsync();
             try { backend?.Dispose(); }
             catch (Exception error) { Diagnostic(entry).Capture(error, "DisposeBackend"); }
             entry.Registration.Definition.Metadata?.External?.Unload();
