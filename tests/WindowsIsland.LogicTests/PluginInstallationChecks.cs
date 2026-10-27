@@ -48,13 +48,39 @@ internal static class PluginInstallationChecks
         Check(Directory.Exists(code) && manager.Snapshot().Count == 1 && manager.Snapshot().Single().StatusKey == "Off" && received == 0,
             "ZIP installation places code in the manual slot but never starts or publishes before explicit consent");
         var same = false;
+        var consentExternal = manager.Snapshot().Single().Definition.Metadata!.External!;
+        PluginConsentPolicy.Grant(consentExternal, PluginConsentPolicy.Describe(consentExternal));
+        var firstGeneration = PluginConsentPolicy.ReadGeneration(paths.Root, manifest.Id);
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest)))
         {
             try { await manager.InstallAsync(prepared); } catch (PluginAlreadyInstalledException) { same = true; }
             Check(same, "Same-version installation requires explicit overwrite confirmation");
             await manager.InstallAsync(prepared, overwrite: true);
         }
+        consentExternal = manager.Snapshot().Single().Definition.Metadata!.External!;
+        Check(!PluginConsentPolicy.HasConsent(consentExternal)
+            && firstGeneration != PluginConsentPolicy.ReadGeneration(paths.Root, manifest.Id),
+            "Identical same-version overwrite invalidates prior consent using a new host installation generation");
+        PluginConsentPolicy.Grant(consentExternal, PluginConsentPolicy.Describe(consentExternal));
+        using (var prepared = await installer.PrepareAsync(Zip(root, manifest, "new-content.txt")))
+            await manager.InstallAsync(prepared, overwrite: true);
+        consentExternal = manager.Snapshot().Single().Definition.Metadata!.External!;
+        Check(!PluginConsentPolicy.HasConsent(consentExternal), "Same-version changed contents require fresh consent");
+        PluginConsentPolicy.Grant(consentExternal, PluginConsentPolicy.Describe(consentExternal));
+        var rollbackGeneration = PluginConsentPolicy.ReadGeneration(paths.Root, manifest.Id);
+        using (var prepared = await installer.PrepareAsync(Zip(root, manifest)))
+        using (var broken = new PreparedPlugin(prepared.Directory, prepared.Manifest with { EntryAssembly = "../invalid.dll" }, prepared.Trust))
+        {
+            var rolledBack = false;
+            try { await manager.InstallAsync(broken, overwrite: true); }
+            catch (PluginException) { rolledBack = true; }
+            Check(rolledBack && rollbackGeneration == PluginConsentPolicy.ReadGeneration(paths.Root, manifest.Id)
+                && PluginConsentPolicy.HasConsent(consentExternal) && File.Exists(Path.Combine(code, "new-content.txt")),
+                "Failure after directory switch restores old package, installation generation and consent");
+        }
         using (var prepared = await installer.PrepareAsync(Zip(root, manifest with { Version = "2.0.0" }))) await manager.InstallAsync(prepared);
+        Check(!PluginConsentPolicy.HasConsent(manager.Snapshot().Single().Definition.Metadata!.External!),
+            "Version upgrade invalidates prior consent");
         Check(PluginManifestReader.Read(code).Version == "2.0.0" && PluginManifestReader.Read(code + ".bak").Version == "1.0.0",
             "Manual update atomically replaces code while retaining the previous version backup");
         var rejected = false;
@@ -82,6 +108,16 @@ internal static class PluginInstallationChecks
             rejected = false;
             try { using var prepared = await installer.PrepareAsync(Zip(root, invalid)); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
             Check(rejected, "Invalid manifest or entry is rejected before execution: " + invalid.Id + "/" + invalid.EntryType + "/" + invalid.Version);
+        }
+        foreach (var url in new[] { "https://github.com/owner/repo", "https://github.com/owner/repo/",
+            "https://github.com/owner/repo.git", "https://github.com/owner/repo?x=1", "https://github.com/owner/repo%2Fother" })
+        {
+            var accepted = PluginCatalogPolicy.Repository(url);
+            Check(PluginManifestReader.GitHubRepository(url) == accepted, "Manifest and catalog repository policy agree: " + url);
+            var installedUrl = true;
+            try { using var prepared = await installer.PrepareAsync(Zip(root, manifest with { RepositoryUrl = url })); }
+            catch (PluginException) { installedUrl = false; }
+            Check(installedUrl == accepted, "ZIP installer applies the same repository policy: " + url);
         }
         var symlinkZip = Zip(root, manifest);
         using (var archive = ZipFile.Open(symlinkZip, ZipArchiveMode.Update))
@@ -126,6 +162,30 @@ internal static class PluginInstallationChecks
         Check(!store.IsPluginRemoved(manifest.Id) && manager.Snapshot().Single().StatusKey == "Off" && received == 0
             && new SettingsStore(hostSettings).GetPluginString(manifest.Id, "message", null) == "恢复的通知",
             "Reinstallation clears the removal marker, preserves host-owned preferences and still requires explicit enablement");
+        await manager.ShutdownAsync();
+        await CheckProvenanceAsync(Path.Combine(root, "provenance"));
+    }
+
+    private static async Task CheckProvenanceAsync(string root)
+    {
+        var paths = new PluginPaths(Path.Combine(root, "Plugins"));
+        var store = new SettingsStore(Path.Combine(root, "settings.json"));
+        var manifest = Manifest with { SourceKind = PluginSourceKind.Official, DeveloperId = "winiofficial" };
+        var code = paths.Code(PluginSourceKind.Official, manifest.Id);
+        WritePlugin(code, manifest);
+        var loader = new PluginDirectoryLoader(paths, store);
+        Check(loader.Scan().Count == 0 && loader.Scan().Count == 0,
+            "Copying a forged official directory without a host receipt never registers an official plugin, including rescans");
+        using var manager = new PluginManager([], store);
+        manager.ConfigureDirectories(paths);
+        using (var prepared = await new PluginInstaller(paths).PrepareAsync(Zip(root, manifest), PluginSourceKind.Official))
+            await manager.InstallAsync(prepared, overwrite: true);
+        Check(loader.Scan().Count == 1, "Host-installed catalog package survives a verified rescan");
+        File.WriteAllText(Path.Combine(code, "manifest.json"), JsonSerializer.Serialize(manifest with { Author = "forged" }, PluginManifestReader.Json));
+        Check(loader.Scan().Count == 0, "Changing the manifest invalidates catalog provenance");
+        WritePlugin(code, manifest);
+        File.AppendAllText(Path.Combine(code, manifest.EntryAssembly), "tampered");
+        Check(loader.Scan().Count == 0, "Changing package code invalidates catalog provenance");
         await manager.ShutdownAsync();
     }
 }

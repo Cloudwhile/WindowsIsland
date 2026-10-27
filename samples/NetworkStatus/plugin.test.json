@@ -1,0 +1,6 @@
+{"schemaVersion":1,"scenarios":[
+  {"settings":{"send":true},"stubNetwork":true,"networkRequests":1,
+   "minimumNotifications":1,"maximumNotifications":1},
+  {"settings":{"send":true},"networkRequests":1,"deniedNetworkRequests":1,"diagnostics":1},
+  {"settings":{"send":true},"stubNetwork":true,"waitMilliseconds":0,"settleMilliseconds":1200}
+]}

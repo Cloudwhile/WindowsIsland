@@ -11,6 +11,7 @@ internal static class PluginNetworkBrokerChecks
 {
     public static async Task RunAsync()
     {
+        await PluginNetworkPerformanceChecks.RunAsync();
         var paths = new PluginPaths(Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "network-broker", Guid.NewGuid().ToString("N")));
         var manifest = new PluginManifest("wini_plugin_network_transport", "Network transport fixture", "1.0.0", "fixture.dll", "Fixture", 1,
             [PluginPermissions.Network], Network: new(["https://example.com"], "Send fixed own canary", ["Own fixture text"]));

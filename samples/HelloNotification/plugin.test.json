@@ -1,0 +1,4 @@
+{"schemaVersion":1,"scenarios":[
+  {"minimumNotifications":1,"maximumNotifications":1},
+  {"waitMilliseconds":0,"settleMilliseconds":1200}
+]}

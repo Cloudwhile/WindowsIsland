@@ -8,8 +8,10 @@ internal static class PluginCatalogChecks
 {
     public static async Task RunAsync(string root, Action<bool, string> check)
     {
-        var builtIns = new[] { BuiltInPluginDefinitions.System, BuiltInPluginDefinitions.WeChat,
+        var builtIns = new[] { BuiltInPluginDefinitions.System,
             BuiltInPluginDefinitions.Telegram, BuiltInPluginDefinitions.Power };
+        check(!BuiltInPluginIds.IsReserved(BuiltInPluginIds.WeChat),
+            "The separately installed WeChat adapter is not a reserved built-in identity");
         check(builtIns.All(d => d.Metadata is { IsBuiltIn: true, Author: "winiofficial" } metadata
             && metadata.Version == ReleaseVersion.Current.Tag && File.Exists(metadata.Location) && !d.CanRemove),
             "Built-in metadata reports the actual host version and shared assembly location");

@@ -1,0 +1,10 @@
+{"schemaVersion":1,"scenarios":[
+  {"pinnedInteractions":[
+    {"contentId":"counter","controlId":"step","value":3},
+    {"contentId":"counter","controlId":"add"},
+    {"contentId":"counter","controlId":"enabled","isOn":false},
+    {"contentId":"counter","controlId":"enabled","isOn":true},
+    {"contentId":"counter","controlId":"add"}
+  ],"expectedCompactText":"6"},
+  {"waitMilliseconds":0,"settleMilliseconds":1200}
+]}

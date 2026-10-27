@@ -7,6 +7,7 @@
     <Project Path="src/WindowsIsland/WindowsIsland.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/WindowsIsland.PluginCliFixture/WindowsIsland.PluginCliFixture.csproj" />
     <Project Path="tests/WindowsIsland.IconTests/WindowsIsland.IconTests.csproj" />
     <Project Path="tests/WindowsIsland.PluginFixture/WindowsIsland.PluginFixture.csproj" />
     <Project Path="tests/WindowsIsland.PluginSecurityFixture/WindowsIsland.PluginSecurityFixture.csproj" />

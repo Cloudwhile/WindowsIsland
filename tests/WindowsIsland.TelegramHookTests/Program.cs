@@ -14,6 +14,9 @@ File.Copy(dll, isolatedDll);
 void Check(bool result, string text) { if (!result) throw new InvalidOperationException(text); Console.WriteLine("PASS: " + text); }
 bool Reject(Action action) { try { action(); return false; } catch (InvalidDataException) { return true; } }
 
+IntegrityChecks.Run(dll, hookRoot, Check);
+if (args.Length > 1) IntegrityChecks.VerifyHost(args[1], dll, Check);
+
 var header = new byte[TelegramHookProtocol.HeaderSize];
 BinaryPrimitives.WriteUInt32LittleEndian(header, TelegramHookProtocol.Magic);
 BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(4), TelegramHookProtocol.Version);

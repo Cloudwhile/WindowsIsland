@@ -42,6 +42,7 @@
     <Compile Include="../../src/WindowsIsland/Plugins/PluginInstaller.cs" Link="Plugins/PluginInstaller.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginLibrary.cs" Link="Plugins/PluginLibrary.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogClient.cs" Link="Plugins/PluginCatalogClient.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSourceIndex.cs" Link="Plugins/PluginSourceIndex.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogPolicy.cs" Link="Plugins/PluginCatalogPolicy.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/CatalogVersion.cs" Link="Plugins/CatalogVersion.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/GitHubDownloadProxy.cs" Link="Plugins/GitHubDownloadProxy.cs" />
@@ -53,6 +54,9 @@
     <Compile Include="../../src/WindowsIsland/Plugins/PluginConsent*.cs" Link="Plugins/%(Filename)%(Extension)" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginHostFiles.cs" Link="Plugins/PluginHostFiles.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginSettingsMigration.cs" Link="Plugins/PluginSettingsMigration.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSettingConstraints.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSecretProtection.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginStaticSettings.cs" Link="Plugins/PluginStaticSettings.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginFileSafety.cs" Link="Plugins/PluginFileSafety.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginMetadata.cs" Link="Plugins/PluginMetadata.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PluginContext.cs" Link="Plugins/PluginContext.cs" />
@@ -61,7 +65,6 @@
     <Compile Include="../../src/WindowsIsland/Plugins/PowerPlugin.cs" Link="Plugins/PowerPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/SystemNotificationPlugin.cs" Link="Plugins/SystemNotificationPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/TelegramPlugin.cs" Link="Plugins/TelegramPlugin.cs" />
-    <Compile Include="../../src/WindowsIsland/Plugins/WeChatPlugin.cs" Link="Plugins/WeChatPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginDefinitions.cs" Link="Plugins/BuiltInPluginDefinitions.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginIds.cs" Link="Plugins/BuiltInPluginIds.cs" />
     <Compile Include="../../src/WindowsIsland/Services/Diagnostics.cs" Link="Diagnostics.cs" />

@@ -1,5 +1,21 @@
 using WindowsIsland.Services;
 
+if (args is ["--plugin-audit"])
+{
+    await WindowsIsland.LogicTests.PluginStaticSettingsChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginInstallationChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginConsentChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginNetworkBrokerChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginNotificationChecks.RunAsync();
+    return;
+}
+
+if (args is ["--wechat-plugin", var pluginZip])
+{
+    await WindowsIsland.LogicTests.WeChatHostChecks.RunPackageAsync(Path.GetFullPath(pluginZip));
+    return;
+}
+
 if (args.FirstOrDefault() == "--read-system-dnd" && OperatingSystem.IsWindows())
 {
     Console.WriteLine(new DoNotDisturbPreferences(new WindowsQuietHoursStore()).Read());
@@ -226,11 +242,13 @@ await NotificationIconCacheChecks.RunAsync(Check);
 await DiagnosticChecks.RunAsync(Check);
 await DiagnosticReportCacheChecks.RunAsync(Check);
 await WindowsIsland.LogicTests.PluginDirectoryChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginNotificationChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginIsolationProtocolChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginNetworkBrokerChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginProxyLifecycleChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginEvolutionChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginInstallationChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginStaticSettingsChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginSourceChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginCatalogContractChecks.RunAsync();
 await PluginChecks.RunAsync(Check);

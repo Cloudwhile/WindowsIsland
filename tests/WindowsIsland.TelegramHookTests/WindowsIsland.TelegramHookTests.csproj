@@ -12,8 +12,10 @@
     <Compile Include="../../src/WindowsIsland/Services/MessengerPopupReader.cs" Link="MessengerPopupReader.cs" />
     <Compile Include="../../src/WindowsIsland/Services/TelegramHookProtocol.cs" Link="TelegramHookProtocol.cs" />
     <Compile Include="../../src/WindowsIsland/Services/TelegramHookInjector.cs" Link="TelegramHookInjector.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/TelegramHookIntegrity.cs" Link="TelegramHookIntegrity.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateWorkDirectory.cs" Link="UpdateWorkDirectory.cs" />
     <Compile Include="../../src/WindowsIsland/Services/TelegramHookSession.cs" Link="TelegramHookSession.cs" />
     <Compile Include="../../src/WindowsIsland/Services/TelegramAvatar.cs" Link="TelegramAvatar.cs" />
   </ItemGroup>
+  <Import Project="../../packaging/TelegramHookIntegrity.targets" />
 </Project>

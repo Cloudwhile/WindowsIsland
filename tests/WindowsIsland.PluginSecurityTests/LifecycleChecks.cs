@@ -31,7 +31,7 @@ internal static class LifecycleChecks
         var plugin = new ExternalPlugin(manifest, Path.Combine(root, "host-private"), code, data);
         var host = new FixtureHost();
         host.Settings[mode] = true;
-        var process = new SandboxProcess(plugin);
+        var process = new SandboxProcess(new(plugin.Manifest, plugin.HostRoot, plugin.Directory, plugin.DataDirectory));
         var pid = process.ProcessId;
         using var rpc = new IsolationRpc(process.Input, process.Output, host.HandleAsync);
         try

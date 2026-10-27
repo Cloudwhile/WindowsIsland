@@ -91,12 +91,12 @@ internal static class Program
         int ownPid = 0, peerPid = 0;
         try
         {
-            using var runningPeer = peerProcess = new SandboxProcess(peer);
+            using var runningPeer = peerProcess = new SandboxProcess(new(peer.Manifest, peer.HostRoot, peer.Directory, peer.DataDirectory));
             using var peerRpc = new IsolationRpc(runningPeer.Input, runningPeer.Output, new FixtureHost().HandleAsync);
             await runningPeer.VerifyReadyAsync(peerRpc, token);
             try { await peerRpc.CallAsync<WorkerDescription>("initialize", new WorkerInitialization(peerManifest, peerData, [], null, "fixture-host", CodeDirectory: peerCode), token); }
             catch { Console.Error.WriteLine("Peer native exit: " + (runningPeer.ExitCode?.ToString("X8") ?? "STILL_ACTIVE")); throw; }
-            using var runningOwn = ownProcess = new SandboxProcess(own);
+            using var runningOwn = ownProcess = new SandboxProcess(new(own.Manifest, own.HostRoot, own.Directory, own.DataDirectory));
             ownPid = runningOwn.ProcessId; peerPid = runningPeer.ProcessId;
             Check(runningOwn.Sid != runningPeer.Sid, "Peer plugins have different verified AppContainer SIDs");
             Check(!AppDomain.CurrentDomain.GetAssemblies().Any(assembly => assembly.GetName().Name == "WindowsIsland.PluginSecurityFixture"),
