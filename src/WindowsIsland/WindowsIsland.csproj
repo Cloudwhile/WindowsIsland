@@ -63,10 +63,7 @@
     <Content Include="..\..\artifacts\native\Release\WindowsIsland.TelegramHook.dll" Link="WindowsIsland.TelegramHook.dll"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
-  <Target Name="BuildTelegramHook" BeforeTargets="PrepareForBuild">
-    <Exec Command="cmake -S &quot;$(MSBuildProjectDirectory)\..\..\native&quot; -B &quot;$(MSBuildProjectDirectory)\..\..\artifacts\native&quot; -A x64" />
-    <Exec Command="cmake --build &quot;$(MSBuildProjectDirectory)\..\..\artifacts\native&quot; --config Release --parallel" />
-  </Target>
+  <Import Project="../../packaging/TelegramHookIntegrity.targets" />
   <Target Name="PrepareInitializationRuntime" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
     <Copy SourceFiles="$(IntermediateOutputPath)MsixContent\AppxManifest.xml"
       DestinationFiles="$(TargetDir)Initialization\RuntimeManifest.xml" SkipUnchangedFiles="true" />

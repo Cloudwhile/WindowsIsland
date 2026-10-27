@@ -13,6 +13,7 @@ internal static class TelegramHookInjector
 
     public static string Attach(int processId, string hookPath, string pipeName, bool fixture = false)
     {
+        using var dll = TelegramHookIntegrity.Open(hookPath);
         using var process = Process.GetProcessById(processId);
         var executable = process.MainModule?.FileName ?? throw new InvalidOperationException("Telegram executable is unavailable.");
         if (fixture)
@@ -27,8 +28,7 @@ internal static class TelegramHookInjector
             if (Convert.ToHexString(SHA256.HashData(file)) != SupportedHash) throw new NotSupportedException("Telegram binary has no verified capture profile.");
         }
 
-        using var dll = File.OpenRead(hookPath);
-        var runtimePath = ResolveFilePath(dll.SafeFileHandle);
+        var runtimePath = ResolveFilePath(dll.Handle);
         if (process.Modules.Cast<ProcessModule>().Any(module =>
             module.ModuleName.Equals("WindowsIsland.TelegramHook.dll", StringComparison.OrdinalIgnoreCase)
             && !ModulePathMatches(module, runtimePath)))

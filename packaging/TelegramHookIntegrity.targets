@@ -1,0 +1,23 @@
+<Project>
+  <PropertyGroup>
+    <TelegramNativeRoot>$(MSBuildThisFileDirectory)..\native</TelegramNativeRoot>
+    <TelegramNativeOutput>$(MSBuildThisFileDirectory)..\artifacts\native</TelegramNativeOutput>
+  </PropertyGroup>
+  <Target Name="BuildTelegramHook" BeforeTargets="PrepareForBuild">
+    <Exec Command="cmake -S &quot;$(TelegramNativeRoot)&quot; -B &quot;$(TelegramNativeOutput)&quot; -A x64" />
+    <Exec Command="cmake --build &quot;$(TelegramNativeOutput)&quot; --config Release --parallel" />
+  </Target>
+  <Target Name="EmbedTelegramHookIntegrity" BeforeTargets="AssignTargetPaths" DependsOnTargets="BuildTelegramHook">
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <GetFileHash Files="$(TelegramNativeOutput)\Release\WindowsIsland.TelegramHook.dll" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="_TelegramHookDigest" />
+    </GetFileHash>
+    <WriteLinesToFile File="$(IntermediateOutputPath)TelegramHook.sha256" Lines="@(_TelegramHookDigest->'%(FileHash)')"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)TelegramHook.sha256">
+        <LogicalName>WindowsIsland.TelegramHook.sha256</LogicalName>
+      </EmbeddedResource>
+    </ItemGroup>
+  </Target>
+</Project>
