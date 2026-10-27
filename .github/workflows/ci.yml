@@ -78,7 +78,9 @@ jobs:
         run: ./packaging/Test-PluginDocs.ps1
       - name: Validate standalone plugin CLI
         shell: pwsh
-        run: ./packaging/Test-PluginCli.ps1 -OutputRoot (Join-Path $env:RUNNER_TEMP ('wini-sdk-' + [Guid]::NewGuid().ToString('N')))
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: ./packaging/Test-PluginCli.ps1 -Version $env:APP_VERSION -OutputRoot (Join-Path $env:RUNNER_TEMP ('wini-sdk-' + [Guid]::NewGuid().ToString('N')))
 
       - name: Check external plugin isolation
         timeout-minutes: 5
@@ -88,7 +90,9 @@ jobs:
           --fixture artifacts/bin/WindowsIsland.PluginSecurityFixture/Release/net10.0/WindowsIsland.PluginSecurityFixture.dll
 
       - name: Build and verify standalone plugin SDK
-        run: ./packaging/Test-PluginSdk.ps1 -OutputRoot (Join-Path $env:RUNNER_TEMP 'wini-sdk')
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: ./packaging/Test-PluginSdk.ps1 -Version $env:APP_VERSION -OutputRoot (Join-Path $env:RUNNER_TEMP 'wini-sdk')
 
       - name: Upload standalone plugin SDK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -100,6 +104,9 @@ jobs:
 
       - name: Check update manifest generation
         run: ./packaging/Test-UpdateManifest.ps1
+
+      - name: Check release asset validation
+        run: ./packaging/Test-ReleaseAssetsRegression.ps1
 
       - name: Check installer policy snapshots
         run: ./packaging/Test-InstallerPolicy.ps1
@@ -170,6 +177,13 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.value }}
         run: ./packaging/Build-Inno.ps1 -Version $env:APP_VERSION
 
+      - name: Collect and verify release assets
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          Get-ChildItem -LiteralPath (Join-Path $env:RUNNER_TEMP 'wini-sdk/feed') -File | Copy-Item -Destination artifacts/distribution
+          ./packaging/Test-ReleaseAssets.ps1 -Directory artifacts/distribution -Version $env:APP_VERSION
+
       - name: Check isolated Inno installation and removal
         run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1
 
@@ -187,8 +201,11 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: WindowsIsland-diagnostics
+          include-hidden-files: true
           path: |
             artifacts/verification/**/*.log
             artifacts/verification/**/*.json
+            ${{ runner.temp }}/wini-sdk*/**/*.log
+            ${{ runner.temp }}/wini-sdk*/**/*.json
           if-no-files-found: ignore
           retention-days: 7

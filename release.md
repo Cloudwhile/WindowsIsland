@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 内置系统通知、微信、Telegram 和电源来源，各自拥有独立开关、连接状态及重试入口。
+- 内置系统通知、Telegram 和电源来源，各自拥有独立开关、连接状态及重试入口；微信通过独立官方插件接入。
 - 普通消息显示约五秒，新消息重新计时；跨来源的相同消息合并展示，重新连接不重放历史消息。
 - 支持插件固定内容、展开详情及按钮、开关、滑块交互；普通消息优先显示。
 - 提供八个位置、动画、毛玻璃、背景透明度和透明度过渡，适配 Windows 明暗主题。
@@ -31,4 +31,5 @@
 
 - [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.exe) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.exe.sha256)
 - [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip.sha256)
+- [插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Contracts.0.1.0.nupkg) · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Plugin.Cli.0.1.0.nupkg) · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Plugin.Samples.0.1.0.zip)
 - [使用文档](https://wini-docs.abszero.cc/) · [插件开发](https://wini-docs.abszero.cc/plugins)

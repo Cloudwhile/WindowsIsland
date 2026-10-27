@@ -1,23 +1,4 @@
 {
   "schema_version": 1,
-  "releases": [
-    {
-      "tag_name": "v0.1.7-alpha.1",
-      "name": "Windows Island v0.1.7-alpha.1",
-      "body": "# Windows Island v0.1.7-alpha.1\n\n> [!IMPORTANT]\n> 这是预发布版本，适合希望提前体验修复的用户。接收预发布更新默认关闭，可在更新页开启。\n\n## Fixed\n\n- 修复部分系统因缺少应用注册许可而初始化失败的问题，按需请求管理员授权后重试。\n- 修复卸载时出现运行时错误的问题，并清理安装生成的注册文件。\n- 修复浅色模式下通知弹窗周围出现白色矩形的问题。\n- 将未完成初始化或授权的提示明确为“系统通知尚未就绪”，避免与已连接的微信等独立来源混淆。\n\n## Security\n\n- 内置 .NET 与 Windows Desktop 运行时更新至 10.0.13。\n\n## Upgrade Notes\n\n- 可在更新页开启“接收预发布更新”后检查更新，也可下载下方安装器手动覆盖安装。\n- 安装器允许选择安装目录，按需申请管理员权限；升级时关闭同目录的消息岛实例，卸载时保留用户数据。\n- 应用内更新支持中断后续传，并显示下载进度与传输速率。\n- 系统通知需要完成初始化并允许通知访问；已连接的微信等独立来源和通知预览不依赖这一步。\n\n## Downloads\n\n适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。\n\n- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.7-alpha.1/WindowsIsland-0.1.7-alpha.1-win-x64.exe)\n- [SHA-256 校验文件](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.7-alpha.1/WindowsIsland-0.1.7-alpha.1-win-x64.exe.sha256)\n\n## Full Changelog\n\nhttps://github.com/Cloudwhile/WindowsIsland/compare/v0.1.6...v0.1.7-alpha.1\n",
-      "prerelease": true,
-      "assets": [
-        {
-          "name": "WindowsIsland-0.1.7-alpha.1-win-x64.exe",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.7-alpha.1/WindowsIsland-0.1.7-alpha.1-win-x64.exe",
-          "size": 81124631
-        },
-        {
-          "name": "WindowsIsland-0.1.7-alpha.1-win-x64.exe.sha256",
-          "browser_download_url": "https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.7-alpha.1/WindowsIsland-0.1.7-alpha.1-win-x64.exe.sha256",
-          "size": 106
-        }
-      ]
-    }
-  ]
+  "releases": []
 }

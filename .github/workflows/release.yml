@@ -44,16 +44,11 @@ jobs:
           path: distribution
 
       - name: Verify package checksum
-        working-directory: distribution
+        shell: pwsh
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          set -euo pipefail
-          for extension in exe zip; do
-            name="WindowsIsland-${RELEASE_TAG#v}-win-x64.$extension"
-            test -s "$name"
-            sha256sum --check "$name.sha256"
-          done
+          ./packaging/Test-ReleaseAssets.ps1 -Directory distribution -Version ($env:RELEASE_TAG.Substring(1))
 
       - name: Publish GitHub release
         env:
@@ -62,7 +57,8 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          name="WindowsIsland-${RELEASE_TAG#v}-win-x64"
+          version="${RELEASE_TAG#v}"
+          name="WindowsIsland-$version-win-x64"
           if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > "$RUNNER_TEMP/release-draft"; then
             if [[ "$(cat "$RUNNER_TEMP/release-draft")" != true ]]; then
               echo 'This release is already public. Published assets and notes must not be replaced.' >&2
@@ -75,7 +71,11 @@ jobs:
             fi
             gh release create "$RELEASE_TAG" "${options[@]}"
           fi
-          gh release upload "$RELEASE_TAG" "distribution/$name.exe" "distribution/$name.exe.sha256" "distribution/$name.zip" "distribution/$name.zip.sha256" --clobber
+          assets=("distribution/$name.exe" "distribution/$name.exe.sha256" "distribution/$name.zip" "distribution/$name.zip.sha256")
+          for file in "WindowsIsland.Contracts.$version.nupkg" "WindowsIsland.Plugin.Cli.$version.nupkg" "WindowsIsland.Plugin.Samples.$version.zip"; do
+            assets+=("distribution/$file" "distribution/$file.sha256")
+          done
+          gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
           gh release edit "$RELEASE_TAG" --notes-file release.md --draft=false
 
   update-feed:

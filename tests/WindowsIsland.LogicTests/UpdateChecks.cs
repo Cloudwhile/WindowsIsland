@@ -25,7 +25,7 @@ internal static class UpdateChecks
         check(Version("v1.2.3+build.5").CompareTo(Version("1.2.3+build.99")) == 0
             && Version("1.2.3-rc.123456789012345678901").CompareTo(Version("1.2.3-rc.99")) > 0,
             "Build metadata is ignored and long prerelease numbers retain numeric ordering");
-        check(new[] { "1.2", "01.2.3", "1.2.3-rc.01", "1.2.3-", "1.2.3 ", "v../../evil", "1.2.3+", "1.2.3-rc..1" }
+        check(new[] { "1.2", "01.2.3", "1.2.3-rc.01", "1.2.3-", "1.2.3 ", "v../../evil", "1.2.3+", "1.2.3-rc..1", "1.2.3\n", "v1.2.3\r\n" }
             .All(value => !ReleaseVersion.TryParse(value, out _)), "Malformed release tags cannot become update candidates");
         check(ReleaseVersion.FromInformationalVersion("0.1.0-rc.1+git123").Prerelease == "rc.1",
             "Current application versions retain prerelease information from assembly metadata");
@@ -115,9 +115,9 @@ internal static class UpdateChecks
         using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Environment.CurrentDirectory, "updates", "releases.json"))))
         {
             var published = document.RootElement.GetProperty("releases").EnumerateArray().Select(GitHubReleaseClient.ParseRelease).ToArray();
-            check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length == 1
+            check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length <= 1
                 && published.All(release => release is { Installer: not null, InstallerChecksum: not null }),
-                "The checked-in manifest retains only the latest published release with the installer and checksum assets");
+                "The checked-in manifest is empty before publication or contains one complete published installer release");
         }
 
         var root = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "updates", Guid.NewGuid().ToString("N"));
