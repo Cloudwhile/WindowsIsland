@@ -12,6 +12,7 @@ internal sealed partial class PluginManager : IDisposable
         public IMessageSource? Plugin;
         public PluginContext? Context;
         public IMessageSourceBackend? Backend;
+        public WeChatHostBroker? WeChat;
         public Action<PluginNotification>? Received;
         public Action<PluginNotificationAccess>? AccessChanged;
         public Task Cleanup = Task.CompletedTask;
@@ -164,12 +165,23 @@ internal sealed partial class PluginManager : IDisposable
                     entry.Plugin = plugin;
                     if (plugin.Id != entry.Registration.Definition.Id) throw new InvalidOperationException("Plugin identity mismatch.");
                     entry.Trust = external?.Trust;
+                    if (external is not null && WeChatHostBroker.IsOfficial(external.Manifest))
+                        entry.WeChat = new(() => _backends?.Invoke(plugin.Id), _dispatch,
+                            notification => DispatchHostWeChat(entry, plugin, notification));
                     var pluginSettings = external is null ? SettingsFor(entry) : await Task.Run(() => SettingsFor(entry));
+                    if (external is not null)
+                    {
+                        var fields = await Task.Run(() => PluginStaticSettings.Read(external.Directory));
+                        foreach (var field in fields ?? [])
+                            if (field.Type != PluginSettingType.Boolean)
+                                PluginSettingConstraints.Validate(field, pluginSettings.GetString(field.Key, (string?)field.DefaultValue));
+                    }
                     entry.Context = new PluginContext(plugin.Id, pluginSettings,
                         Diagnostic(entry), notification => DispatchNotification(entry, plugin, notification), type =>
                         {
                             if (_disposed || !ReferenceEquals(entry.Plugin, plugin)) return null;
-                            if (external is not null) return type == typeof(IPluginPermissions) ? entry.Trust
+                            if (external is not null) return type == typeof(IWeChatHost) ? entry.WeChat
+                                : type == typeof(IPluginPermissions) ? entry.Trust
                                 : type == typeof(IPluginStorage) && entry.Trust?.IsGranted(PluginPermissions.Settings) == true ? new PluginStorage(external.DataDirectory) : null;
                             if (type != typeof(IMessageSourceBackend)) return null;
                             return entry.Backend ??= _backends?.Invoke(plugin.Id);
@@ -203,6 +215,14 @@ internal sealed partial class PluginManager : IDisposable
         finally { _operations.Release(); }
     }
 
+    private void DispatchHostWeChat(Entry entry, IMessageSource plugin, PluginNotification notification) => Dispatch(entry, plugin, () =>
+    {
+        if (!entry.Active || !entry.Registration.Definition.IsEnabled(_settings) || entry.WeChat is null) return;
+        // 仅可信宿主监听器提供的消息保留点击进程；外部 RPC 消息仍走原权限检查。
+        if (notification.SourceId != BuiltInPluginIds.WeChat) throw new InvalidOperationException();
+        Received?.Invoke(PluginNotificationBridge.ToHost(notification));
+    });
+
     private void DispatchNotification(Entry entry, IMessageSource plugin, PluginNotification notification) => Dispatch(entry, plugin, () =>
     {
         if (!entry.Active || !entry.Registration.Definition.IsEnabled(_settings)) return;
@@ -213,7 +233,11 @@ internal sealed partial class PluginManager : IDisposable
         }
         if (notification.SourceId != entry.Registration.Definition.Id) throw new InvalidOperationException("Notification source identity mismatch.");
         Received?.Invoke(PluginNotificationBridge.ToHost(notification) with
-        { AllowActivation = entry.Trust?.IsGranted(PluginPermissions.Process) ?? true });
+        {
+            AllowActivation = entry.Trust?.IsGranted(PluginPermissions.Process) ?? true,
+            PluginOwner = entry.Registration.Definition.Metadata?.External is null ? null
+                : new(entry.Registration.Definition.Id, plugin, entry.EnableRevision)
+        });
     });
 
     private void Dispatch(Entry entry, IMessageSource plugin, Action action)
@@ -305,12 +329,21 @@ internal sealed partial class PluginManager : IDisposable
     public bool Allows(IslandNotification notification)
     {
         if (_disposed || !_settings.Allows(notification)) return false;
+        if (notification.PluginOwner is { } owner)
+        {
+            var publisher = Entries.FirstOrDefault(entry => entry.Registration.Definition.Id == owner.Id);
+            if (publisher is null || publisher.Removed || !publisher.Active
+                || publisher.Registration.Definition.Metadata?.External is null
+                || !ReferenceEquals(publisher.Plugin, owner.Instance) || publisher.EnableRevision != owner.Revision
+                || !publisher.Registration.Definition.IsEnabled(_settings)) return false;
+        }
         foreach (var entry in Entries)
         {
             if (!entry.Registration.Definition.Matches(notification)) continue;
             if (!entry.Active || entry.Plugin is null) return false;
             try
             {
+                if (entry.WeChat is { } weChat && !weChat.Allows(PluginNotificationBridge.ToContract(entry.Registration.Definition.Id, notification))) return false;
                 if (entry.Plugin is IPluginNotificationFilter filter
                     && !filter.Allows(PluginNotificationBridge.ToContract(entry.Registration.Definition.Id, notification))) return false;
             }
@@ -347,6 +380,9 @@ internal sealed partial class PluginManager : IDisposable
             entry.Active = false;
             entry.Plugin = null;
             entry.Backend = null;
+            try { entry.WeChat?.Dispose(); }
+            catch (Exception error) { Diagnostic(entry).Capture(error, "StopWeChat"); }
+            entry.WeChat = null;
             if (plugin is SandboxPluginProxy isolated) isolated.Revoke();
             entry.Context?.Dispose();
             entry.Context = null;

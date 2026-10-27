@@ -6,8 +6,11 @@ using System.Security.Principal;
 using System.Text;
 using System.Runtime.Versioning;
 using WindowsIsland.PluginIsolation;
+using WindowsIsland.Contracts;
 
 namespace WindowsIsland.Plugins;
+
+internal sealed record SandboxLaunch(PluginManifest Manifest, string HostRoot, string Directory, string DataDirectory);
 
 // Fail closed: the worker is resumed only after its OS token and enclosing job have been verified.
 internal sealed class SandboxProcess : IDisposable
@@ -23,7 +26,7 @@ internal sealed class SandboxProcess : IDisposable
     public string Sid { get; private set; } = "";
     public uint? ExitCode { get { lock (_processGate) return _process != 0 && SandboxNative.GetExitCodeProcess(_process, out var code) && code != 259 ? code : null; } }
 
-    public SandboxProcess(ExternalPlugin plugin)
+    public SandboxProcess(SandboxLaunch plugin)
     {
         try { Launch(plugin); }
         catch
@@ -36,7 +39,7 @@ internal sealed class SandboxProcess : IDisposable
         }
     }
 
-    private void Launch(ExternalPlugin plugin)
+    private void Launch(SandboxLaunch plugin)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         PluginPaths.CheckTree(plugin.Directory);
@@ -197,7 +200,7 @@ internal sealed class SandboxProcess : IDisposable
     }
 
     [SupportedOSPlatform("windows")]
-    private static string PrepareRuntime(ExternalPlugin plugin, string identity, SecurityIdentifier sid)
+    private static string PrepareRuntime(SandboxLaunch plugin, string identity, SecurityIdentifier sid)
     {
         var source = Path.Combine(AppContext.BaseDirectory, "PluginWorker");
         PluginPaths.CheckTree(source);

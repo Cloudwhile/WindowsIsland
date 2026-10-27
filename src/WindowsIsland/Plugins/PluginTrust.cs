@@ -8,6 +8,7 @@ internal sealed record PluginTrust(string[] Granted, string[] Denied) : IPluginP
     public static PluginTrust Create(PluginManifest manifest, IEnumerable<string>? approved = null)
     {
         var granted = manifest.Permissions.Where(permission => permission is PluginPermissions.Notifications or PluginPermissions.Settings
+            || permission == PluginPermissions.WeChat && WeChatHostBroker.IsOfficial(manifest)
             || permission == PluginPermissions.Network && manifest.Network is not null).ToArray();
         return new(granted, manifest.Permissions.Except(granted, StringComparer.Ordinal).ToArray());
     }

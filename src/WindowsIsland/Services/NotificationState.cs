@@ -4,10 +4,16 @@ internal enum NotificationAccess { NeedsRegistration, Waiting, Allowed, Denied, 
 
 internal enum NotificationSource { SystemNotification, ClientHook, Power, ClientAutomation }
 
+// 仅由宿主建立，插件 DTO 不能声明或继承其他运行实例的身份。
+internal sealed record PluginNotificationOwner(string Id, object Instance, long Revision);
+
 internal sealed record IslandNotification(uint Id, DateTimeOffset CreatedAt, string AppName, string Title, string Body,
     byte[]? AppIcon = null, NotificationSource Source = NotificationSource.SystemNotification,
     string? AppId = null, string? EventId = null, string? Symbol = null, byte[]? SenderAvatar = null, int? OriginProcessId = null,
-    bool IsMetadataUpdate = false, bool AllowActivation = true);
+    bool IsMetadataUpdate = false, bool AllowActivation = true)
+{
+    public PluginNotificationOwner? PluginOwner { get; init; }
+}
 
 internal sealed class NotificationTracker
 {

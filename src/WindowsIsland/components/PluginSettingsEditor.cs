@@ -7,7 +7,7 @@ using WindowsIsland.Services;
 
 namespace WindowsIsland.Components;
 
-/// <summary>使用宿主设置通道编辑插件声明的字符串和布尔值，与启停状态无关。</summary>
+/// <summary>使用宿主设置通道编辑插件声明的字段，与启停状态无关。</summary>
 internal sealed class PluginSettingsEditor : SettingsContent
 {
     public PluginSettingsEditor(string id, PluginSettingsModel model) : base(false)
@@ -34,16 +34,51 @@ internal sealed class PluginSettingsEditor : SettingsContent
                 };
                 editor = toggle;
             }
+            else if (field.Type == PluginSettingType.Password)
+            {
+                var password = new PasswordBox { MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch,
+                    PasswordRevealMode = PasswordRevealMode.Hidden,
+                    PlaceholderText = model.Settings.GetString(field.Key) is null ? "" : "••••••••" };
+                var edited = false;
+                password.PasswordChanged += (_, _) => edited = true;
+                password.LostFocus += (_, _) =>
+                {
+                    if (!edited) return;
+                    try
+                    {
+                        model.Settings.SetString(field.Key, password.Password.Length == 0 ? null : password.Password);
+                        password.Password = "";
+                        password.PlaceholderText = model.Settings.GetString(field.Key) is null ? "" : "••••••••";
+                        edited = false;
+                        _error.Visibility = Visibility.Collapsed;
+                    }
+                    catch (Exception error) { Failed(error); }
+                };
+                editor = password;
+            }
+            else if (field.Type == PluginSettingType.Choice)
+            {
+                var choices = new ComboBox { MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch,
+                    ItemsSource = field.Choices, SelectedItem = model.Settings.GetString(field.Key, (string?)field.DefaultValue) };
+                choices.SelectionChanged += (_, _) =>
+                {
+                    try { model.Settings.SetString(field.Key, choices.SelectedItem as string); _error.Visibility = Visibility.Collapsed; }
+                    catch (Exception error) { Failed(error); }
+                };
+                editor = choices;
+            }
             else
             {
                 var text = new TextBox { Text = model.Settings.GetString(field.Key, (string?)field.DefaultValue) ?? "",
                     TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Stretch, MinWidth = 0 };
-                text.TextChanged += (_, _) =>
+                void Save()
                 {
                     if (syncing) return;
-                    try { model.Settings.SetString(field.Key, text.Text); }
+                    try { model.Settings.SetString(field.Key, text.Text); _error.Visibility = Visibility.Collapsed; }
                     catch (Exception error) { Failed(error); }
-                };
+                }
+                if (field.Type == PluginSettingType.String && !field.Required) text.TextChanged += (_, _) => Save();
+                else text.LostFocus += (_, _) => Save();
                 editor = text;
             }
             AutomationProperties.SetAutomationId(editor, "PluginSetting." + id + "." + field.Key);

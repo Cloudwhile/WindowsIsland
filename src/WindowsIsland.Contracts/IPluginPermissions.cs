@@ -17,6 +17,8 @@ public static class PluginPermissions
     public const string Notifications = "notifications";
     /// <summary>提供插件自己的数据目录；插件偏好通过宿主设置服务保存。</summary>
     public const string Settings = "settings";
+    /// <summary>使用官方微信插件专属的宿主监听服务，不授予进程或桌面访问。</summary>
+    public const string WeChat = "wechat";
     /// <summary>为通知指定点击时激活的进程。</summary>
     public const string Process = "process";
     /// <summary>使用启用时确认联网须知的 IPluginNetwork 服务，不授予直接联网。</summary>
@@ -30,9 +32,9 @@ public static class PluginPermissions
     /// <summary>判断能力名称是否由当前合约定义。</summary>
     /// <param name="permission">能力名称。</param>
     /// <returns>属于已定义能力时为真。</returns>
-    public static bool IsKnown(string permission) => permission is Notifications or Settings or Process or Network or FileSystem or Native or Automation;
+    public static bool IsKnown(string permission) => permission is Notifications or Settings or WeChat or Process or Network or FileSystem or Native or Automation;
     /// <summary>判断已知能力是否需要单独授权。</summary>
     /// <param name="permission">能力名称。</param>
     /// <returns>属于高危能力时为真。</returns>
-    public static bool IsHighRisk(string permission) => permission is Process or Network or FileSystem or Native or Automation;
+    public static bool IsHighRisk(string permission) => permission is WeChat or Process or Network or FileSystem or Native or Automation;
 }

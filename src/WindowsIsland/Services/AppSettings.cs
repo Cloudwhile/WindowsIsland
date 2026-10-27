@@ -21,10 +21,10 @@ internal sealed record AppSettings(bool SetupCompleted = false, bool SystemNotif
 
     public bool Allows(IslandNotification notification)
     {
-        if (notification.Source == NotificationSource.Power) return Power;
+        if (notification.PluginOwner is null && notification.Source == NotificationSource.Power) return Power;
         var identity = MessengerIdentity.FromNotification(notification);
         if (identity is "wechat" or "telegram" && !AllowsClient(identity)) return false;
-        return notification.Source != NotificationSource.SystemNotification || SystemNotifications;
+        return notification.PluginOwner is not null || notification.Source != NotificationSource.SystemNotification || SystemNotifications;
     }
 }
 

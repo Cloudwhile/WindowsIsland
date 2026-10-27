@@ -6,12 +6,15 @@ namespace WindowsIsland.Plugins;
 
 // The only object representing external code in the host. It never loads the plugin assembly.
 internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSource, IPluginStatusProvider,
-    IPluginSettingsSchema, IPluginPolling, IPluginRetry, IPluginLifecycleAware
+    IPluginSettingsSchema, IPluginPolling, IPluginRetry, IPluginLifecycleAware, IPluginSettingsChanged
 {
     private SandboxProcess? _process;
     private IsolationRpc? _rpc;
     private IPluginContext? _context;
     private PluginNetworkBroker? _network;
+    private PluginRunSnapshot? _snapshot;
+    private IWeChatHost? _weChat;
+    private readonly SemaphoreSlim _weChatCommands = new(1, 1);
     private readonly CancellationTokenSource _services = new();
     private readonly CancellationTokenSource _regularCommands = new();
     private readonly CancellationTokenSource _commandLifetime = new();
@@ -28,6 +31,7 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
     public IReadOnlyList<PluginSetting> SettingsSchema => Volatile.Read(ref _description).Settings;
     public bool CanRetry => Volatile.Read(ref _disposed) == 0 && Volatile.Read(ref _revoked) == 0;
     public Task Termination => _terminated.Task;
+    public Task OnSettingsChangedAsync(IReadOnlyList<string> keys) => CommandAsync("settingsChanged", keys);
     public event Action<PluginNotification>? NotificationReceived;
 
     public async Task InitializeAsync(IPluginContext context)
@@ -38,13 +42,16 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
             ObjectDisposedException.ThrowIf(_disposed != 0 || _revoked != 0, this);
             if (_launch is not null) throw new InvalidOperationException();
             _context = context;
-            _network = new(external, () => Volatile.Read(ref _revoked) == 0 && Volatile.Read(ref _disposed) == 0);
+            _weChat = WeChatHostBroker.IsOfficial(external.Manifest) ? context.GetService<IWeChatHost>() : null;
             launch = _launch = Task.Run(() =>
             {
                 _regularCommands.Token.ThrowIfCancellationRequested();
                 if (Volatile.Read(ref _revoked) != 0 || Volatile.Read(ref _disposed) != 0)
                     throw new OperationCanceledException("The plugin was stopped before its worker launch.");
-                return new SandboxProcess(external);
+                _snapshot = PluginRunSnapshot.Open(external);
+                _network = new(external, () => Volatile.Read(ref _revoked) == 0 && Volatile.Read(ref _disposed) == 0,
+                    snapshot: _snapshot);
+                return new SandboxProcess(new(external.Manifest, external.HostRoot, external.Directory, external.DataDirectory));
             });
         }
         SandboxProcess process;
@@ -120,6 +127,24 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
                 else if (value.Kind == "Updated") pinned.Update(content);
                 else throw new InvalidDataException();
                 return null;
+            }
+            case "wechat":
+            {
+                var service = _weChat ?? throw new UnauthorizedAccessException();
+                using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(token, _services.Token);
+                await _weChatCommands.WaitAsync(cancellation.Token);
+                try
+                {
+                    cancellation.Token.ThrowIfCancellationRequested();
+                    return Read<string>() switch
+                    {
+                        "start" => await service.StartAsync().WaitAsync(cancellation.Token),
+                        "poll" => await service.PollAsync().WaitAsync(cancellation.Token),
+                        "retry" => await service.RetryAsync().WaitAsync(cancellation.Token),
+                        _ => throw new InvalidDataException()
+                    };
+                }
+                finally { _weChatCommands.Release(); }
             }
             case "network":
             {
@@ -241,16 +266,20 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
         }
     }
 
-    private static async Task KillAndWaitAsync(Task<SandboxProcess>? launch, SandboxProcess? process)
+    private async Task KillAndWaitAsync(Task<SandboxProcess>? launch, SandboxProcess? process)
     {
-        if (process is null && launch is not null)
+        try
         {
-            try { process = await launch.ConfigureAwait(false); }
-            catch (Exception error) when (error is not TimeoutException) { return; }
+            if (process is null && launch is not null)
+            {
+                try { process = await launch.ConfigureAwait(false); }
+                catch (Exception error) when (error is not TimeoutException) { return; }
+            }
+            if (process is null) return;
+            process.Dispose();
+            await process.ExitTask.ConfigureAwait(false);
         }
-        if (process is null) return;
-        process.Dispose();
-        await process.ExitTask.ConfigureAwait(false);
+        finally { Interlocked.Exchange(ref _snapshot, null)?.Dispose(); }
     }
 
     private static void ObserveLateFailure(Task task) => _ = task.ContinueWith(completed => _ = completed.Exception, CancellationToken.None,

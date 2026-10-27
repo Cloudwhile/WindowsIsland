@@ -364,7 +364,7 @@ public sealed partial class MainWindow : Window
     private bool AllowsNotification(IslandNotification notification)
     {
         if (_closed || !_plugins.Allows(notification)) return false;
-        if (_verification && notification.Source == NotificationSource.SystemNotification
+        if (_verification && notification.PluginOwner is null && notification.Source == NotificationSource.SystemNotification
             && notification.AppId != Windows.ApplicationModel.Package.Current.Id.FamilyName + "!App") return false;
         return true;
     }

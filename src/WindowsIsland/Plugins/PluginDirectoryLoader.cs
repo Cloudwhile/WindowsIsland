@@ -15,6 +15,7 @@ internal sealed class ExternalPlugin(PluginPaths paths, PluginManifest manifest,
     public PluginTrust Trust => PluginTrust.Read(this);
     public IMessageSource Create()
     {
+        PluginManifestReader.ValidateForHost(Manifest, ReleaseVersion.Current.Tag);
         if (!PluginConsentPolicy.HasConsent(this)) throw new UnauthorizedAccessException("Plugin consent is required.");
         PluginPaths.CheckTree(Directory);
         lock (_lifecycle)
@@ -80,12 +81,20 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
     {
         var id = manifest.Id;
         var external = new ExternalPlugin(paths, manifest, directory);
+        PluginConsentProvenance.Require(external);
         var author = manifest.SourceKind == PluginSourceKind.Official && manifest.DeveloperId == PluginCatalogClient.OfficialDeveloperId
             ? PluginCatalogClient.OfficialDeveloperId : manifest.Author;
         var metadata = new PluginMetadata(false, manifest.Version, PluginPaths.Relative(directory, manifest.EntryAssembly), author, external);
         var definition = new NotificationPluginDefinition(id, manifest.Name, "PluginToggle." + id, 0xE8A5,
             DiagnosticArea.Application, _ => store.GetPluginBoolean(id, "Host.Enabled", false),
             (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return s; }, _ => false, metadata);
+        if (WeChatHostBroker.IsOfficial(manifest))
+            definition = BuiltInPluginDefinitions.WeChat with
+            {
+                Metadata = metadata,
+                IsEnabled = s => s.WeChat && store.GetPluginBoolean(id, "Host.Enabled", false),
+                SetEnabled = (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return s with { WeChat = enabled }; }
+            };
         return new(definition, external.Create);
     }
 }

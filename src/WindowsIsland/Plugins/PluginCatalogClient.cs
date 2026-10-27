@@ -7,7 +7,6 @@ using WindowsIsland.Services;
 
 namespace WindowsIsland.Plugins;
 
-internal sealed record PluginSourceIndex(PluginSource Source, PluginCatalogEntry[] Plugins);
 
 internal sealed class PluginCatalogClient : IDisposable
 {

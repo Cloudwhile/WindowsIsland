@@ -64,7 +64,47 @@ internal sealed partial class SettingsStore
     public void SetPluginString(string id, string key, string? value) => SetPluginValue(id, key, value is null ? null : JsonValue.Create(value));
     public void SetPluginBoolean(string id, string key, bool value) => SetPluginValue(id, key, JsonValue.Create(value));
 
+    // 新秘密采用对象信封，与合法普通字符串完全分离；解密失败不降级为普通字符串。
+    internal void EnsurePluginSecret(string id, string key)
+    {
+        ValidatePluginKey(key);
+        lock (_gate)
+        {
+            if (PluginValue(id, key) is not JsonValue node || !node.TryGetValue<string>(out var legacy)) return;
+            var migrated = PluginSecretProtection.MigrateLegacy(id, key, legacy);
+            SetPluginValue(id, key, SecretEnvelope(migrated.Ciphertext, migrated.RequiresReset));
+        }
+    }
+
+    internal string? GetPluginSecret(string id, string key, string? fallback)
+    {
+        ValidatePluginKey(key);
+        lock (_gate)
+        {
+            if (PluginValue(id, key) is not JsonObject envelope || envelope["version"] is not JsonValue version
+                || !version.TryGetValue<int>(out var number) || number != 1
+                || envelope["kind"] is not JsonValue kind || !kind.TryGetValue<string>(out var format) || format != "dpapi-current-user"
+                || envelope["requiresReset"] is not JsonValue reset || !reset.TryGetValue<bool>(out var invalid) || invalid
+                || envelope["ciphertext"] is not JsonValue payload || !payload.TryGetValue<string>(out var ciphertext)) return fallback;
+            return PluginSecretProtection.Unprotect(id, key, ciphertext) ?? fallback;
+        }
+    }
+
+    internal void SetPluginSecret(string id, string key, string? value) => SetPluginValue(id, key,
+        value is null ? null : SecretEnvelope(PluginSecretProtection.Protect(id, key, value), false));
+
+    private static JsonObject SecretEnvelope(string ciphertext, bool requiresReset) => new()
+    {
+        ["version"] = 1, ["kind"] = "dpapi-current-user", ["ciphertext"] = ciphertext, ["requiresReset"] = requiresReset
+    };
+
     private JsonNode? PluginValue(string id, string key) => _pluginPreferences[id] is JsonObject values ? values[key] : null;
+
+    internal bool HasPluginValue(string id, string key)
+    {
+        ValidatePluginKey(key);
+        lock (_gate) return PluginValue(id, key) is not null;
+    }
 
     private void SetPluginValue(string id, string key, JsonNode? value)
     {

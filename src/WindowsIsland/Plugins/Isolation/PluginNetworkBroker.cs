@@ -5,7 +5,8 @@ using WindowsIsland.Contracts;
 namespace WindowsIsland.Plugins;
 
 internal sealed class PluginNetworkBroker(ExternalPlugin plugin, Func<bool> active,
-    Func<SocketsHttpHandler, HttpMessageHandler>? transportFactory = null) : IPluginNetwork
+    Func<SocketsHttpHandler, HttpMessageHandler>? transportFactory = null,
+    PluginRunSnapshot? snapshot = null) : IPluginNetwork
 {
     private readonly SemaphoreSlim _request = new(1, 1);
     private DateTimeOffset _lastRequest;
@@ -19,7 +20,7 @@ internal sealed class PluginNetworkBroker(ExternalPlugin plugin, Func<bool> acti
         if (!await _request.WaitAsync(0, token)) throw new InvalidOperationException("A network request is already pending.");
         try
         {
-            if (!active() || !PluginConsentPolicy.HasConsent(plugin) || !plugin.Trust.IsGranted(PluginPermissions.Network)
+            if (!active() || !plugin.Trust.IsGranted(PluginPermissions.Network)
                 || plugin.Manifest.Network is not { } disclosure)
                 throw new UnauthorizedAccessException();
             if (DateTimeOffset.UtcNow - _lastRequest < TimeSpan.FromSeconds(2)) throw new InvalidOperationException("Network request rate exceeded.");
@@ -32,8 +33,9 @@ internal sealed class PluginNetworkBroker(ExternalPlugin plugin, Func<bool> acti
             if (!disclosure.Origins.Any(value => Uri.TryCreate(value, UriKind.Absolute, out var declared)
                 && string.Equals(declared.GetLeftPart(UriPartial.Authority), origin, StringComparison.OrdinalIgnoreCase)))
                 throw new UnauthorizedAccessException();
+            // 廉价范围检查先行；不为超限正文分配副本，也不为拒绝的请求哈希整个插件包。
+            if (request.Body?.Length > PluginNetworkLimits.MaximumRequestBytes || request.Headers?.Count > 32) throw new InvalidDataException();
             var body = request.Body?.ToArray() ?? [];
-            if (body.Length > 1024 * 1024 || request.Headers?.Count > 32) throw new InvalidDataException();
             var headers = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var pair in request.Headers ?? new Dictionary<string, string>())
             {
@@ -44,7 +46,8 @@ internal sealed class PluginNetworkBroker(ExternalPlugin plugin, Func<bool> acti
             headers.Add("Host", uri.HostNameType == UriHostNameType.IPv6 ? "[" + uri.IdnHost.Trim('[', ']') + "]" : uri.IdnHost);
             headers.Add("Content-Length", body.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
             if (body.Length != 0) headers.TryAdd("Content-Type", "application/octet-stream");
-            if (!active() || !PluginConsentPolicy.HasConsent(plugin)) throw new UnauthorizedAccessException();
+            // 运行会话持有稳定文件句柄，仍逐次核对撤销、代次和树成员。
+            if (!active() || !(snapshot?.IsCurrent() ?? PluginConsentPolicy.HasConsent(plugin))) throw new UnauthorizedAccessException();
             using var transfer = CancellationTokenSource.CreateLinkedTokenSource(token);
             transfer.CancelAfter(TimeSpan.FromSeconds(30));
             var transferToken = transfer.Token;

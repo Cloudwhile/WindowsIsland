@@ -53,12 +53,52 @@ internal sealed class RevocablePluginSettings(IPluginSettings settings) : IPlugi
     { SettingsStore.ValidatePluginKey(key); if (Volatile.Read(ref _revoked) == 0) settings.SetBoolean(key, value); }
 }
 
-internal sealed class PluginSettings(SettingsStore store, string pluginId) : IPluginSettings
+internal sealed class PluginSettings : IPluginSettings
 {
-    public string? GetString(string key, string? defaultValue = null) => store.GetPluginString(pluginId, key, defaultValue);
+    private readonly SettingsStore store;
+    private readonly string pluginId;
+    private readonly IReadOnlyList<PluginSetting>? fields;
+    private readonly Action<string>? changed;
+
+    public PluginSettings(SettingsStore store, string pluginId, IReadOnlyList<PluginSetting>? fields = null,
+        Action<string>? changed = null)
+    {
+        this.store = store;
+        this.pluginId = pluginId;
+        this.fields = fields;
+        this.changed = changed;
+        // 类型升级时立即保护原值，不能将旧明文遗留在宿主设置文件中。
+        foreach (var field in fields ?? [])
+            if (field.Type == PluginSettingType.Password) store.EnsurePluginSecret(pluginId, field.Key);
+    }
+
+    private PluginSetting? Field(string key) => fields?.FirstOrDefault(field => field.Key == key);
+    public string? GetString(string key, string? defaultValue = null)
+    {
+        return Field(key)?.Type == PluginSettingType.Password ? store.GetPluginSecret(pluginId, key, defaultValue)
+            : store.GetPluginString(pluginId, key, defaultValue);
+    }
     public bool GetBoolean(string key, bool defaultValue = false) => store.GetPluginBoolean(pluginId, key, defaultValue);
-    public void SetString(string key, string? value) => store.SetPluginString(pluginId, key, value);
-    public void SetBoolean(string key, bool value) => store.SetPluginBoolean(pluginId, key, value);
+    public void SetString(string key, string? value)
+    {
+        var field = Field(key);
+        if (field is not null)
+        {
+            if (field.Type == PluginSettingType.Boolean) throw new InvalidDataException("Setting type mismatch.");
+            PluginSettingConstraints.Validate(field, value);
+        }
+        if (GetString(key) == value && (value is not null || !store.HasPluginValue(pluginId, key))) return;
+        if (field?.Type == PluginSettingType.Password) store.SetPluginSecret(pluginId, key, value);
+        else store.SetPluginString(pluginId, key, value);
+        changed?.Invoke(key);
+    }
+    public void SetBoolean(string key, bool value)
+    {
+        if (Field(key) is { Type: not PluginSettingType.Boolean }) throw new InvalidDataException("Setting type mismatch.");
+        var previous = store.GetPluginBoolean(pluginId, key, !value);
+        store.SetPluginBoolean(pluginId, key, value);
+        if (previous != value) changed?.Invoke(key);
+    }
 }
 
 internal sealed class PluginDiagnostics(string id, DiagnosticArea area) : IPluginDiagnostics

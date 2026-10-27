@@ -95,6 +95,12 @@ internal sealed class WorkerSession : IDisposable
                     if (!_started) throw new InvalidOperationException("Worker is not running.");
                     await _context!.InteractAsync(Read<PinnedControlInteraction>(payload)).WaitAsync(linked.Token).ConfigureAwait(false);
                     break;
+                case "settingsChanged":
+                    var keys = Read<string[]>(payload);
+                    if (keys.Length > 64 || keys.Any(key => string.IsNullOrWhiteSpace(key) || key.Length > 128)) throw new InvalidDataException();
+                    if (_started && plugin is IPluginSettingsChanged handler)
+                        await handler.OnSettingsChangedAsync(keys).WaitAsync(linked.Token).ConfigureAwait(false);
+                    break;
                 default:
                     throw new InvalidDataException("Unknown worker operation.");
             }

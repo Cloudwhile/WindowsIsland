@@ -52,6 +52,7 @@ internal enum PluginErrorCode
     CatalogJson = 47,
     CatalogTimeout = 48,
     CatalogCache = 49,
+    HostVersion = 50,
 }
 
 internal sealed class PluginException : IOException

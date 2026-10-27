@@ -730,7 +730,7 @@
   <data name="PluginConsentDestinations" xml:space="preserve"><value>Network destinations</value></data>
   <data name="PluginConsentPurpose" xml:space="preserve"><value>Purpose</value></data>
   <data name="PluginConsentDataCategories" xml:space="preserve"><value>Data categories</value></data>
-  <data name="PluginConsentAcceptNetwork" xml:space="preserve"><value>I have read the network access and data transfer information above</value></data>
+  <data name="PluginConsentAcceptNetwork" xml:space="preserve"><value>I agree to background network access as described above. Data categories are declared by the developer; automatic blocking of all sensitive content is not guaranteed.</value></data>
   <data name="PluginConsentRequired" xml:space="preserve"><value>Read the terms and review the requested access before enabling this plugin.</value></data>
   <data name="PluginConsentChanged" xml:space="preserve"><value>The plugin version or consent information changed. Review it again.</value></data>
   <data name="PluginInstallationReviewTitle" xml:space="preserve"><value>Review before installing this plugin</value></data>

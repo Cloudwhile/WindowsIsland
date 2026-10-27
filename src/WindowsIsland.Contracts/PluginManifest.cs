@@ -19,4 +19,8 @@ namespace WindowsIsland.Contracts;
 public sealed record PluginManifest(string Id, string Name, string Version, string EntryAssembly, string EntryType,
     int ContractVersion, string[] Permissions, string? Author = null, string? Description = null,
     string DeveloperId = "", string? DeveloperName = null, string? RepositoryUrl = null,
-    PluginSourceKind SourceKind = PluginSourceKind.Manual, PluginTerms? Terms = null, PluginNetworkDisclosure? Network = null);
+    PluginSourceKind SourceKind = PluginSourceKind.Manual, PluginTerms? Terms = null, PluginNetworkDisclosure? Network = null)
+{
+    /// <summary>可选的最低宿主 SemVer 版本；省略时仅检查合约大版本。</summary>
+    public string? MinimumHostVersion { get; init; }
+}

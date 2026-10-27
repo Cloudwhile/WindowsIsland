@@ -22,6 +22,8 @@ internal sealed partial class PluginManager
         var switched = false;
         var wasRemoved = _store.IsPluginRemoved(manifest.Id);
         var wasEnabled = false;
+        string? previousGeneration = null;
+        string? previousProvenance = null;
         System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
         await _operations.WaitAsync(token);
         try
@@ -30,6 +32,8 @@ internal sealed partial class PluginManager
             ObjectDisposedException.ThrowIf(_disposed, this);
             PluginPaths.CheckLinks(target);
             previous = Entries.FirstOrDefault(e => e.Registration.Definition.Id == manifest.Id);
+            previousGeneration = PluginConsentPolicy.ReadGeneration(_paths.Root, manifest.Id);
+            previousProvenance = PluginConsentProvenance.Read(_paths.Root, manifest.Id);
             wasEnabled = previous?.Registration.Definition.IsEnabled(_store.Current) == true;
             if (previous is not null && previous.Registration.Definition.Metadata?.External is not { } existing)
                 throw new PluginException(PluginErrorCode.IdConflict, "插件标识与现有插件冲突。");
@@ -58,6 +62,10 @@ internal sealed partial class PluginManager
                 catch { if (Directory.Exists(backup)) Directory.Move(backup, target); throw; }
             }, token);
             switched = true;
+            PluginConsentPolicy.WriteGeneration(_paths.Root, manifest.Id, Guid.NewGuid().ToString("N"));
+            if (manifest.SourceKind == PluginSourceKind.Official)
+                PluginConsentProvenance.Record(new ExternalPlugin(_paths, manifest, target));
+            else PluginConsentProvenance.Restore(_paths.Root, manifest.Id, null);
             token.ThrowIfCancellationRequested();
             _store.MarkExternalRemoved(manifest.Id, false);
             // 安装只放置和验证文件；无论来源和旧版开启状态，新载荷都须由用户主动启用。
@@ -110,6 +118,8 @@ internal sealed partial class PluginManager
                 PluginPaths.DeleteTree(target);
                 if (Directory.Exists(backup)) { PluginPaths.CheckTree(backup); Directory.Move(backup, target); }
             });
+            PluginConsentPolicy.WriteGeneration(_paths.Root, manifest.Id, previousGeneration);
+            PluginConsentProvenance.Restore(_paths.Root, manifest.Id, previousProvenance);
             _store.MarkExternalRemoved(manifest.Id, wasRemoved);
             var restoreEnabled = wasEnabled && previous?.Registration.Definition.Metadata?.External is { } original
                 && await Task.Run(() => PluginConsentPolicy.HasConsent(original));

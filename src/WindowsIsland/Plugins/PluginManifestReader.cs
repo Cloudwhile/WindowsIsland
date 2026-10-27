@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Encodings.Web;
 using System.Text;
 using WindowsIsland.Contracts;
-using WindowsIsland.Services;
 
 namespace WindowsIsland.Plugins;
 
@@ -12,10 +11,7 @@ internal static class PluginManifestReader
     public static bool Reserved(string id) => BuiltInPluginIds.IsReserved(id);
     // C13：开发者标识与目录使用同一字符集，不带插件前缀。
     public static bool DeveloperIdValid(string? id) => id is { Length: > 0 and <= 64 } && PluginId.IsValid(PluginId.Prefix + id);
-    public static bool GitHubRepository(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
-        && uri.Scheme == "https" && uri.Host == "github.com" && uri.IsDefaultPort && uri.UserInfo.Length == 0
-        && uri.Query.Length == 0 && uri.Fragment.Length == 0 && uri.AbsolutePath.Trim('/').Split('/') is [var owner, var repo]
-        && owner.Length > 0 && repo.Length > 0;
+    public static bool GitHubRepository(string? value) => PluginCatalogPolicy.Repository(value);
 
     public static PluginManifest Read(string root, string? expectedId = null)
     {
@@ -30,6 +26,7 @@ internal static class PluginManifestReader
         Validate(manifest);
         if (expectedId is not null && manifest.Id != expectedId) throw new PluginException(PluginErrorCode.DirectoryId, "目录名称与插件标识不一致。");
         if (!File.Exists(PluginPaths.Relative(root, manifest.EntryAssembly))) throw new PluginException(PluginErrorCode.Entry, "找不到入口程序集。");
+        _ = PluginStaticSettings.Read(root);
         return manifest;
     }
 
@@ -40,6 +37,8 @@ internal static class PluginManifestReader
         if (!PluginId.IsValid(manifest.Id) || manifest.Id.Length > 80 || Reserved(manifest.Id)) throw new PluginException(PluginErrorCode.Id, "插件标识无效或与内置插件冲突。");
         if (!PluginContract.IsCompatible(manifest.ContractVersion)) throw new PluginException(PluginErrorCode.Contract, "插件合约版本与消息岛不兼容。");
         if (!CatalogVersion.TryParse(manifest.Version, out _)) throw new PluginException(PluginErrorCode.Version, "插件版本必须符合 SemVer。");
+        if (manifest.MinimumHostVersion is not null && !CatalogVersion.TryParse(manifest.MinimumHostVersion, out _))
+            throw new PluginException(PluginErrorCode.HostVersion, "manifest.json $.minimumHostVersion: 使用 SemVer，例如 0.1.0。");
         if (string.IsNullOrWhiteSpace(manifest.Name) || manifest.Name.Length > 200 || string.IsNullOrWhiteSpace(manifest.EntryType))
             throw new PluginException(PluginErrorCode.EntryName, "插件名称或入口类型无效。");
         if (manifest.DeveloperId != "" && !DeveloperIdValid(manifest.DeveloperId)) throw new PluginException(PluginErrorCode.DeveloperId, "开发者标识无效。");
@@ -48,6 +47,14 @@ internal static class PluginManifestReader
             || manifest.Permissions.Distinct(StringComparer.Ordinal).Count() != manifest.Permissions.Length)
             throw new PluginException(PluginErrorCode.Permissions, "插件权限声明无效。");
         ValidateSecurityMetadata(manifest);
+    }
+
+    internal static void ValidateForHost(PluginManifest manifest, string hostVersion)
+    {
+        if (!CatalogVersion.TryParse(hostVersion.StartsWith('v') ? hostVersion[1..] : hostVersion, out var host))
+            throw new PluginException(PluginErrorCode.HostVersion, "目标宿主版本必须符合 SemVer，例如 0.1.0。");
+        if (manifest.MinimumHostVersion is { } minimum && (!CatalogVersion.TryParse(minimum, out var required) || host.CompareTo(required) < 0))
+            throw new PluginException(PluginErrorCode.HostVersion, "目标宿主低于 manifest.json $.minimumHostVersion；升级宿主或选择兼容的插件版本。");
     }
 
     internal static void ValidateSecurityMetadata(PluginManifest manifest)

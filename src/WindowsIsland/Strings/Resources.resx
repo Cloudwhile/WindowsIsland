@@ -730,7 +730,7 @@
   <data name="PluginConsentDestinations" xml:space="preserve"><value>网络目的地</value></data>
   <data name="PluginConsentPurpose" xml:space="preserve"><value>用途</value></data>
   <data name="PluginConsentDataCategories" xml:space="preserve"><value>数据类别</value></data>
-  <data name="PluginConsentAcceptNetwork" xml:space="preserve"><value>我已阅读以上联网与数据发送说明</value></data>
+  <data name="PluginConsentAcceptNetwork" xml:space="preserve"><value>我同意插件按以上说明在后台联网。数据类别由开发者声明，无法保证自动阻止所有敏感内容。</value></data>
   <data name="PluginConsentRequired" xml:space="preserve"><value>请先阅读条款并确认插件授权，再启用此插件。</value></data>
   <data name="PluginConsentChanged" xml:space="preserve"><value>插件版本或授权内容已改变，请重新确认。</value></data>
   <data name="PluginInstallationReviewTitle" xml:space="preserve"><value>安装插件前核对</value></data>

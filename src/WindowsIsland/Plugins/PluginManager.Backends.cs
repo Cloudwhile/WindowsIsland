@@ -9,7 +9,6 @@ internal sealed partial class PluginManager
     public static PluginManager CreateBuiltIns(BuiltInPluginContext context, SettingsStore settings) => new(
     [
         new(BuiltInPluginDefinitions.System, () => new SystemNotificationPlugin()),
-        new(BuiltInPluginDefinitions.WeChat, () => new WeChatPlugin()),
         new(BuiltInPluginDefinitions.Telegram, () => new TelegramPlugin()),
         new(BuiltInPluginDefinitions.Power, () => new PowerPlugin())
     ], settings, action =>

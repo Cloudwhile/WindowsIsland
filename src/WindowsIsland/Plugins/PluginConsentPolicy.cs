@@ -25,12 +25,17 @@ internal static class PluginConsentPolicy
             manifest.Id, manifest.Name, manifest.Version, manifest.Author, manifest.DeveloperId, manifest.DeveloperName,
             manifest.SourceKind, Permissions = manifest.Permissions.Order(StringComparer.Ordinal).ToArray(), manifest.Terms, manifest.Network
         }, PluginManifestReader.Json);
+        var packageHash = HashPackage(external.Directory);
+        PluginConsentProvenance.Require(external, packageHash);
         return new(manifest.Id, manifest.Name, manifest.Version, manifest.DeveloperId, manifest.DeveloperName, manifest.Author,
-            manifest.SourceKind, HashPackage(external.Directory), Hash(Encoding.UTF8.GetBytes(disclosure)), manifest.Terms, manifest.Network,
-            Array.AsReadOnly(manifest.Permissions.ToArray()));
+            manifest.SourceKind, packageHash, Hash(Encoding.UTF8.GetBytes(disclosure)), manifest.Terms, manifest.Network,
+            Array.AsReadOnly(manifest.Permissions.ToArray()), ReadGeneration(external.HostRoot, manifest.Id) ?? "");
     }
 
-    public static bool HasConsent(ExternalPlugin external)
+    public static bool HasConsent(ExternalPlugin external) => HasConsent(external, null);
+
+    // 仅供已锁定整个安装树的运行会话使用。
+    internal static bool HasConsent(ExternalPlugin external, PluginConsentDescriptor? locked)
     {
         try
         {
@@ -42,7 +47,10 @@ internal static class PluginConsentPolicy
             }
             if (receipt is not { Schema: 1 } || receipt.PluginId != external.Manifest.Id
                 || receipt.AcceptedAt <= DateTimeOffset.UnixEpoch || receipt.AcceptedAt > DateTimeOffset.UtcNow.AddMinutes(5)) return false;
-            return receipt.Fingerprint == Describe(external).Fingerprint;
+            if (locked is null) return receipt.Fingerprint == Describe(external).Fingerprint;
+            PluginConsentProvenance.Require(external, locked.PackageSha256);
+            return locked.InstallGeneration == (ReadGeneration(external.HostRoot, external.Manifest.Id) ?? "")
+                && receipt.Fingerprint == locked.Fingerprint;
         }
         catch { return false; }
     }
@@ -69,9 +77,28 @@ internal static class PluginConsentPolicy
         if (File.Exists(path + ".tmp")) PluginFileSafety.CheckSingleLink(path + ".tmp");
         return path;
     }
+    internal static string? ReadGeneration(string root, string id)
+    {
+        var path = PluginHostFiles.PathFor(root, "host-installations", id);
+        if (!File.Exists(path)) return null;
+        using var stream = PluginFileSafety.OpenSingleLinkRead(path);
+        if (stream.Length > 128) throw new InvalidDataException("Invalid installation generation.");
+        using var reader = new StreamReader(stream);
+        var value = reader.ReadToEnd();
+        if (!Guid.TryParseExact(value, "N", out _)) throw new InvalidDataException("Invalid installation generation.");
+        return value;
+    }
+
+    internal static void WriteGeneration(string root, string id, string? generation)
+    {
+        var path = PluginHostFiles.PathFor(root, "host-installations", id);
+        if (generation is null) { if (File.Exists(path)) File.Delete(path); }
+        else PluginHostFiles.WriteAtomic(path, generation);
+    }
+
     private static string ReceiptPath(ExternalPlugin external) => PluginHostFiles.PathFor(external.HostRoot, "host-consents", external.Manifest.Id);
 
-    private static string HashPackage(string directory)
+    internal static string HashPackage(string directory)
     {
         var files = Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
             .OrderBy(path => Path.GetRelativePath(directory, path), StringComparer.Ordinal).ToArray();
