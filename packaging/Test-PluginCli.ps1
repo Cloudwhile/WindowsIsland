@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$OutputRoot)
+﻿param([Parameter(Mandatory=$true)][string]$OutputRoot, [string]$Version = '0.1.0')
 $ErrorActionPreference = 'Stop'
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 if (Test-Path -LiteralPath $OutputRoot) { throw 'Use a new isolated output directory.' }
@@ -13,12 +13,12 @@ function Assert($condition, [string]$name) {
     $checks.Add($name)
     Write-Output "PASS: $name"
 }
-dotnet pack "$repository/src/WindowsIsland.Plugin.Cli/WindowsIsland.Plugin.Cli.csproj" -c Release -o $feed --disable-build-servers
+dotnet pack "$repository/src/WindowsIsland.Plugin.Cli/WindowsIsland.Plugin.Cli.csproj" -c Release "-p:Version=$Version" -o $feed --disable-build-servers
 Assert ($LASTEXITCODE -eq 0) 'CLI tool package builds'
 # 只使用本轮 feed 安装，不使用全局工具目录或 NuGet 公共源。
 $config = Join-Path $OutputRoot 'NuGet.Config'
 '<configuration><packageSources><clear /></packageSources></configuration>' | Set-Content $config -Encoding UTF8
-dotnet tool install WindowsIsland.Plugin.Cli --tool-path $toolPath --add-source $feed --configfile $config
+dotnet tool install WindowsIsland.Plugin.Cli --version $Version --tool-path $toolPath --add-source $feed --configfile $config
 Assert ($LASTEXITCODE -eq 0) 'Install standalone CLI from local feed'
 $cli = Join-Path $toolPath 'wini-plugin.exe'
 function Invoke-Cli {
@@ -56,7 +56,11 @@ try {
     $manifest.permissions = @('unknown')
     [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 10))
     Invoke-Cli validate Examplenotification
-    Assert ($cliResult -ne 0) 'Unknown permissions fail validation'
+    Assert ($cliResult -eq 0) 'Developer-defined permission labels pass validation'
+    $manifest.permissions = @('notifications', 'notifications')
+    [IO.File]::WriteAllText($manifestPath, ($manifest | ConvertTo-Json -Depth 10))
+    Invoke-Cli validate Examplenotification
+    Assert ($cliResult -ne 0) 'Duplicate permission labels fail validation'
     [IO.File]::WriteAllText($manifestPath, $original)
     $entry = Join-Path $OutputRoot 'expanded-notification/Examplenotification.dll'
     $packageRoot = Join-Path $OutputRoot 'expanded-notification'

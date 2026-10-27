@@ -18,8 +18,6 @@ internal static class PackageProject
             ?? throw new InvalidDataException("manifest.json: 需要 JSON 对象。");
         PluginManifestReader.Validate(manifest);
         _ = PluginPaths.Relative(root, manifest.EntryAssembly);
-        if (manifest.Permissions.Any(p => !PluginPermissions.IsKnown(p)))
-            throw new InvalidDataException("manifest.json $.permissions: 存在未知权限；例如 [\"notifications\"]。");
         if (manifest.Permissions.Contains(PluginPermissions.Network) && manifest.Network is null)
             throw new InvalidDataException("manifest.json $.network: network 权限必须提供 origins、purpose 和 dataCategories。");
         _ = PluginStaticSettings.Read(root);

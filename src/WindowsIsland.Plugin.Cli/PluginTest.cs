@@ -47,6 +47,7 @@ internal static class PluginTest
                         HostVersion: typeof(IIslandPlugin).Assembly.GetName().Version!.ToString(), CodeDirectory: stage), timeout.Token);
                     await rpc.CallAsync<WorkerDescription>("start", token: timeout.Token);
                     await Task.Delay(scenario.WaitMilliseconds, timeout.Token);
+                    await host.WaitForActivity(timeout.Token);
                     foreach (var interaction in scenario.Interactions)
                     {
                         host.ValidateInteraction(interaction);
@@ -54,6 +55,7 @@ internal static class PluginTest
                         await rpc.CallAsync<WorkerDescription>("interaction", interaction, timeout.Token);
                         await host.WaitForUpdate(revision, timeout.Token);
                     }
+                    await rpc.CallAsync<WorkerDescription>("flush", token: timeout.Token);
                     host.CheckExpectations();
                     await rpc.CallAsync<WorkerDescription>("stop", token: timeout.Token);
                     var notifications = host.Notifications;

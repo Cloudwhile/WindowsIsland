@@ -14,7 +14,6 @@
     <Description>Windows Island plugin templates and package validation tools.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackCliWorker</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="/" />
@@ -42,13 +41,6 @@
         <RelativePath>PluginWorker\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
         <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       </ResolvedFileToPublish>
-    </ItemGroup>
-  </Target>
-  <Target Name="PackCliWorker" DependsOnTargets="CopyCliWorker">
-    <ItemGroup>
-      <TfmSpecificPackageFile Include="@(_CliWorkerFiles)">
-        <PackagePath>tools/$(TargetFramework)/any/PluginWorker/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
-      </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
 </Project>

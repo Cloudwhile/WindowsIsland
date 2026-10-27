@@ -73,6 +73,10 @@ internal sealed class WorkerSession : IDisposable
                     await plugin.StopAsync().WaitAsync(linked.Token).ConfigureAwait(false);
                     _started = false;
                     break;
+                case "flush":
+                    if (!_started) throw new InvalidOperationException("Worker is not running.");
+                    await _context!.FlushAsync(linked.Token).ConfigureAwait(false);
+                    break;
                 case "poll":
                     if (_started && plugin is IPluginPolling polling)
                         await polling.PollAsync().WaitAsync(linked.Token).ConfigureAwait(false);

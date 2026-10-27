@@ -8,7 +8,7 @@ namespace WindowsIsland.PluginWorker;
 internal sealed class WorkerContext : IPluginContext, IPluginSettings, IPluginDiagnostics,
     IPluginStorage, IPluginPermissions, IPinnedContentSource, IPluginNetwork, IDisposable
 {
-    private sealed record Outbound(string Method, object Payload);
+    private sealed record Outbound(string? Method, object? Payload, TaskCompletionSource? Barrier = null);
     private readonly IsolationRpc _rpc;
     private readonly CancellationTokenSource _lifetime;
     private readonly HashSet<string> _granted;
@@ -128,15 +128,25 @@ internal sealed class WorkerContext : IPluginContext, IPluginSettings, IPluginDi
             await foreach (var item in _outbound.Reader.ReadAllAsync(_lifetime.Token).ConfigureAwait(false))
             {
                 if (Volatile.Read(ref _revoked) != 0) return;
+                if (item.Barrier is { } barrier) { barrier.TrySetResult(); continue; }
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
                 timeout.CancelAfter(TimeSpan.FromSeconds(15));
-                try { await _rpc.CallAsync<JsonElement>(item.Method, item.Payload, timeout.Token).ConfigureAwait(false); }
+                try { await _rpc.CallAsync<JsonElement>(item.Method!, item.Payload, timeout.Token).ConfigureAwait(false); }
                 catch (Exception) when (!_lifetime.IsCancellationRequested) { }
             }
         }
         catch (OperationCanceledException) { }
         catch (IOException) { }
         catch (ObjectDisposedException) { }
+    }
+
+    public async Task FlushAsync(CancellationToken token)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await _outbound.Writer.WriteAsync(new(null, null, completion), timeout.Token).ConfigureAwait(false);
+        await completion.Task.WaitAsync(timeout.Token).ConfigureAwait(false);
     }
 
     private static void ValidateKey(string key)

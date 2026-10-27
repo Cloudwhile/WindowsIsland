@@ -24,7 +24,7 @@ public static class CliRegressionProfile {
  [DllImport("advapi32.dll")] public static extern IntPtr FreeSid(IntPtr sid);
 }
 "@
-foreach($mode in @('wrong-source','no-permission','invalid-pinned','throw-start','valid')) {
+foreach($mode in @('wrong-source','no-permission','invalid-pinned','throw-start','valid','delayed')) {
     $project=Join-Path $OutputRoot $mode
     New-Item -ItemType Directory -Path "$project/src","$project/sdk" | Out-Null
     Copy-Item "$repository/tests/WindowsIsland.PluginCliFixture/ReviewSource.cs" "$project/src/Plugin.cs"
@@ -35,9 +35,10 @@ foreach($mode in @('wrong-source','no-permission','invalid-pinned','throw-start'
  <ItemGroup><Compile Include="src/Plugin.cs"/><Reference Include="WindowsIsland.Contracts"><HintPath>sdk/WindowsIsland.Contracts.dll</HintPath><Private>false</Private></Reference></ItemGroup>
 </Project>
 '@ | Set-Content "$project/Fixture.csproj" -Encoding UTF8
-    $permissions=if($mode -eq 'no-permission') {@()} else {@('notifications')}
+    $permissions=if($mode -eq 'no-permission') {@()} elseif($mode -in @('valid','delayed')) {@('notifications','custom_capability')} else {@('notifications')}
     Write-Json "$project/manifest.json" @{id='wini_plugin_cli_regression';name='CLI regression';version='1.0.0';entryAssembly='Fixture.dll';entryType='WindowsIsland.PluginCliFixture.ReviewSource';contractVersion=1;permissions=@($permissions)}
-    $count=if($mode -eq 'valid') {1} else {0}
+    $success=$mode -in @('valid','delayed')
+    $count=if($success) {1} else {0}
     Write-Json "$project/plugin.test.json" @{schemaVersion=1;scenarios=@(@{waitMilliseconds=600;minimumNotifications=$count;maximumNotifications=$count;settings=@{mode=$mode}})}
     # 预期错误不能被 PowerShell 5.1 的原生 stderr 行为提前截断。
     $previousPreference=$ErrorActionPreference
@@ -45,7 +46,7 @@ foreach($mode in @('wrong-source','no-permission','invalid-pinned','throw-start'
     & $CliPath test $project 2>&1 | ForEach-Object {Write-Output $_.ToString()}
     $code=$LASTEXITCODE
     $ErrorActionPreference=$previousPreference
-    Assert (($mode -eq 'valid' -and $code -eq 0) -or ($mode -ne 'valid' -and $code -ne 0)) "$mode has the expected test exit code"
+    Assert (($success -and $code -eq 0) -or (!$success -and $code -ne 0)) "$mode has the expected test exit code"
     $test=@(Get-ChildItem "$project/.wini/tests" -Directory)
     Assert ($test.Count -eq 1) "$mode emits one isolated test result"
     $cleanup=Get-Content "$($test[0].FullName)/cleanup.json" -Raw | ConvertFrom-Json

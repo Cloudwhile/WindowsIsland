@@ -43,7 +43,7 @@ internal static class PluginManifestReader
             throw new PluginException(PluginErrorCode.EntryName, "插件名称或入口类型无效。");
         if (manifest.DeveloperId != "" && !DeveloperIdValid(manifest.DeveloperId)) throw new PluginException(PluginErrorCode.DeveloperId, "开发者标识无效。");
         if (manifest.RepositoryUrl is not null && !GitHubRepository(manifest.RepositoryUrl)) throw new PluginException(PluginErrorCode.Repository, "仓库必须是公开 GitHub 仓库地址。");
-        if (manifest.Permissions is null || manifest.Permissions.Length > 64 || manifest.Permissions.Any(p => string.IsNullOrWhiteSpace(p) || p.Length > 80)
+        if (manifest.Permissions is null || manifest.Permissions.Length > 64 || manifest.Permissions.Any(p => !PluginCatalogPolicy.Identifier(p, 80))
             || manifest.Permissions.Distinct(StringComparer.Ordinal).Count() != manifest.Permissions.Length)
             throw new PluginException(PluginErrorCode.Permissions, "插件权限声明无效。");
         PluginDesktopPolicy.Validate(manifest);

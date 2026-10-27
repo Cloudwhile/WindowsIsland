@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$OutputRoot)
+﻿param([Parameter(Mandatory=$true)][string]$OutputRoot, [string]$Version = '0.1.0')
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path $PSScriptRoot -Parent
 $OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
@@ -12,13 +12,13 @@ function Assert($condition, [string]$name) {
     $checks.Add($name)
     Write-Output "PASS: $name"
 }
-dotnet pack "$repository/src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" -c Release -o $feed --disable-build-servers
+dotnet pack "$repository/src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" -c Release "-p:Version=$Version" -o $feed --disable-build-servers
 Assert ($LASTEXITCODE -eq 0) 'Build standalone Contracts package'
-dotnet pack "$repository/src/WindowsIsland.Plugin.Cli/WindowsIsland.Plugin.Cli.csproj" -c Release -o $feed --disable-build-servers
+dotnet pack "$repository/src/WindowsIsland.Plugin.Cli/WindowsIsland.Plugin.Cli.csproj" -c Release "-p:Version=$Version" -o $feed --disable-build-servers
 Assert ($LASTEXITCODE -eq 0) 'Build CLI package with worker runtime'
 $config = Join-Path $OutputRoot 'NuGet.Config'
 '<configuration><packageSources><clear /></packageSources></configuration>' | Set-Content $config -Encoding UTF8
-dotnet tool install WindowsIsland.Plugin.Cli --tool-path $toolPath --add-source $feed --configfile $config
+dotnet tool install WindowsIsland.Plugin.Cli --version $Version --tool-path $toolPath --add-source $feed --configfile $config
 Assert ($LASTEXITCODE -eq 0) 'Install CLI from isolated local feed'
 $cli = Join-Path $toolPath 'wini-plugin.exe'
 $projects = Join-Path $OutputRoot 'projects'
@@ -53,7 +53,16 @@ try {
         Assert ($LASTEXITCODE -eq 0) "Inspect $template package"
     }
 } finally { Pop-Location }
-foreach ($sample in Get-ChildItem "$repository/samples" -Directory) {
+$releaseSamples = Join-Path $OutputRoot 'release-samples'
+Copy-Item -LiteralPath "$repository/samples" -Destination $releaseSamples -Recurse
+foreach ($sample in Get-ChildItem $releaseSamples -Directory) {
+    $sourceProject = @(Get-ChildItem "$($sample.FullName)/*.csproj")
+    Assert ($sourceProject.Count -eq 1) "$($sample.Name) release sample project exists"
+    $definition = [xml](Get-Content $sourceProject[0].FullName -Raw)
+    foreach ($reference in $definition.SelectNodes('/Project/ItemGroup/PackageReference[@Include="WindowsIsland.Contracts"]')) {
+        $reference.SetAttribute('Version', $Version)
+    }
+    $definition.Save($sourceProject[0].FullName)
     $target = Join-Path $projects $sample.Name
     Copy-Item -LiteralPath $sample.FullName -Destination $target -Recurse
     $project = @(Get-ChildItem "$target/*.csproj")
@@ -65,9 +74,10 @@ foreach ($sample in Get-ChildItem "$repository/samples" -Directory) {
     & $cli pack $target
     Assert ($LASTEXITCODE -eq 0) "$($sample.Name) independent sample package"
 }
-Compress-Archive -Path "$repository/samples/*" -DestinationPath "$feed/WindowsIsland.Plugin.Samples.zip"
+Compress-Archive -Path "$releaseSamples/*" -DestinationPath "$feed/WindowsIsland.Plugin.Samples.$Version.zip"
 Get-ChildItem $feed -File | Where-Object { $_.Extension -in '.nupkg', '.zip' } | ForEach-Object {
-    (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() | Set-Content ($_.FullName + '.sha256')
+    $digest = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText(($_.FullName + '.sha256'), "$digest  $($_.Name)`n", [Text.UTF8Encoding]::new($false))
 }
 $checks | ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'checks.json') -Encoding UTF8
 Write-Output "$($checks.Count) SDK checks passed."

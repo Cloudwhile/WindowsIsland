@@ -100,7 +100,7 @@ internal sealed class TestHost(PluginManifest manifest, PluginTest.TestScenario 
     public async Task WaitForUpdate(int previousRevision, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(3));
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
         while (PinnedRevision <= previousRevision) await Task.Delay(25, timeout.Token);
     }
 
@@ -117,6 +117,33 @@ internal sealed class TestHost(PluginManifest manifest, PluginTest.TestScenario 
             if (scenario.ExpectedCompactText is { } expected && _pinned?.CompactText != expected)
                 throw new InvalidOperationException("固定内容交互结果不符合场景预期。");
             CheckDiagnostics();
+        }
+    }
+
+    public async Task WaitForActivity(CancellationToken token)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        try
+        {
+            while (true)
+            {
+                lock (_gate)
+                {
+                    if (_rejectedCallbacks != 0 || _notifications > scenario.MaximumNotifications
+                        || _networkRequests > scenario.NetworkRequests || _deniedNetworkRequests > scenario.DeniedNetworkRequests
+                        || _diagnostics > scenario.Diagnostics) CheckExpectations();
+                    if (_notifications >= scenario.MinimumNotifications && _networkRequests >= scenario.NetworkRequests
+                        && _deniedNetworkRequests >= scenario.DeniedNetworkRequests && _diagnostics >= scenario.Diagnostics
+                        && (scenario.Interactions.Length == 0 || _pinned?.Controls?.Any(c => c.Id == scenario.Interactions[0].ControlId) == true)) return;
+                }
+                await Task.Delay(25, timeout.Token);
+            }
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            CheckExpectations();
+            throw new InvalidOperationException("等待插件回调超时。");
         }
     }
 
