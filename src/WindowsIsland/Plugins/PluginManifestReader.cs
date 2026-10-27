@@ -75,7 +75,9 @@ internal static class PluginManifestReader
         var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var value in network.Origins)
         {
-            if (value is null || value.Length > 2048 || !Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            if (value is null || value.Length > 2048 || value != value.Trim()
+                || value.Any(char.IsControl) || value.IndexOfAny(['?', '#', '\\', '@']) >= 0
+                || !Uri.TryCreate(value, UriKind.Absolute, out var uri)
                 || uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0
                 || uri.AbsolutePath != "/" || uri.Host.Length == 0
                 || !origins.Add(uri.GetComponents(UriComponents.SchemeAndServer, UriFormat.UriEscaped))) Invalid();

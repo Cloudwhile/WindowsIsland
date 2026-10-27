@@ -94,7 +94,7 @@ internal static class PluginCatalogSecurityChecks
             var valid = transport.Plugins;
             foreach (var invalid in new[] { "{}", valid.Replace("\"id\":", "\"id\":\"wini_plugin_bad\",\"id\":"),
                 valid.Replace("\"contractVersion\":1", "\"contractVersion\":1.0"),
-                Json(new[] { entry with { Permissions = ["unknown"] } }), Json(new[] { entry with { Sha256 = entry.Sha256.ToUpperInvariant() } }),
+                Json(new[] { entry with { Permissions = ["invalid-permission"] } }), Json(new[] { entry with { Sha256 = entry.Sha256.ToUpperInvariant() } }),
                 Json(new[] { entry with { DownloadUrl = "https://github.com/example/plugins/releases/download/%2f/a.zip" } }),
                 Json(new[] { entry with { DownloadUrl = "https://github.com/example/plugins/releases/download/../a.zip" } }) })
             {

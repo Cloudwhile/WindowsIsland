@@ -16,6 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Markdig" Version="1.4.2" />
+    <EmbeddedResource Include="Fixtures/plugin-contract.json" />
     <Compile Include="../../src/WindowsIsland/Services/FileDialogProtocol.cs" Link="FileDialogProtocol.cs" />
     <Compile Include="../../src/WindowsIsland/Services/IslandScheduler.cs" Link="IslandScheduler.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PinnedContentPolicy.cs" Link="Plugins/PinnedContentPolicy.cs" />

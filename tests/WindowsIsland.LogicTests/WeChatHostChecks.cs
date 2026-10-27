@@ -2,6 +2,9 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using System.Net;
+using System.IO.Compression;
 using WindowsIsland.Contracts;
 using WindowsIsland.Plugins;
 using WindowsIsland.Services;
@@ -87,9 +90,24 @@ internal static class WeChatHostChecks
             await manager.StartAsync();
             using (var manual = await new PluginInstaller(paths).PrepareAsync(zip))
                 Check(!manual.Trust.IsGranted("wechat"), "Manual ZIP cannot self-assert the official WeChat capability");
-            using (var package = await new PluginInstaller(paths).PrepareAsync(zip, PluginSourceKind.Official))
-                await manager.InstallAsync(package);
+            using var archive = ZipFile.OpenRead(zip);
+            using var manifestReader = new StreamReader(archive.GetEntry("manifest.json")!.Open());
+            using var packageManifest = JsonDocument.Parse(manifestReader.ReadToEnd());
+            var packageVersion = packageManifest.RootElement.GetProperty("version").GetString();
+            var catalogFile = Path.Combine(Path.GetDirectoryName(zip)!, "catalog-" + packageVersion + ".json");
+            var entry = JsonSerializer.Deserialize<PluginCatalogEntry>(await File.ReadAllTextAsync(catalogFile), PluginManifestReader.Json)
+                ?? throw new InvalidDataException();
+            var bytes = await File.ReadAllBytesAsync(zip);
+            Check(packageManifest.RootElement.GetProperty("minHostVersion").GetString() == entry.MinHostVersion
+                && packageManifest.RootElement.GetProperty("minimumHostVersion").GetString() == entry.MinHostVersion,
+                "Package and catalog declare the same minimum host version for the source and SDK");
+            Check(entry.Sha256 == Convert.ToHexStringLower(SHA256.HashData(bytes)), "Generated official index matches the actual independent ZIP");
+            using var library = new PluginLibrary(manager, paths,
+                new PluginCatalogClient(new PackageCatalog(entry, bytes)), new PluginCatalogClient(new PackageCatalog(entry, bytes)));
+            await library.Catalog.RefreshAsync();
+            await library.InstallOfficialAsync(library.Catalog.State.Sources.Single().Plugins.Single(), []);
             external = manager.Snapshot().Single().Definition.Metadata!.External!;
+            Check(PluginConsentProvenance.Verify(external), "Official catalog download records verified installation provenance");
             Check(manager.Snapshot().Single().StatusKey == "Off" && backends.Count == 0 && store.Current.WeChat,
                 "Installing the official package preserves the existing preference and does not start listening");
             await manager.SetEnabledAsync(Manifest.Id, true);
@@ -132,6 +150,27 @@ internal static class WeChatHostChecks
 
     private static PluginNotification Message() => new(Manifest.Id, "会话", null, "合成测试消息", DateTimeOffset.UtcNow,
         DeduplicationKey: "uia/1", OriginProcessId: 42, AppName: "微信", AppId: "wechat", Kind: PluginNotificationKind.ClientAutomation);
+
+    private sealed class PackageCatalog(PluginCatalogEntry entry, byte[] package) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            var address = request.RequestUri?.AbsoluteUri;
+            HttpContent content = address switch
+            {
+                PluginCatalogClient.DefaultBaseUrl + "api/sources" => new StringContent(JsonSerializer.Serialize(new[]
+                {
+                    new PluginSource(entry.DeveloperId, "winiofficial", entry.RepositoryUrl,
+                        PluginCatalogClient.DefaultBaseUrl + "api/sources/" + entry.DeveloperId + "/plugins")
+                }, PluginManifestReader.Json)),
+                PluginCatalogClient.DefaultBaseUrl + "api/sources/winiofficial/plugins" =>
+                    new StringContent(JsonSerializer.Serialize(new[] { entry }, PluginManifestReader.Json)),
+                _ when address == entry.DownloadUrl => new ByteArrayContent(package),
+                _ => throw new InvalidOperationException("Unexpected catalog request.")
+            };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        }
+    }
 
     private sealed class Backend : IMessageSourceBackend, IPluginRetry
     {

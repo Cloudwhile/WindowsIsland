@@ -20,6 +20,7 @@ internal static partial class PluginCatalogPolicy
     }
     public static bool Identifier(string? value, int limit) => value is { Length: > 0 } && value.Length <= limit && IdentifierPattern().IsMatch(value);
     public static bool Repository(string? value) => value is not null && RepositoryPattern().IsMatch(value)
+        && value["https://github.com/".Length..].Split('/').All(part => part is not ("." or ".."))
         && !value.EndsWith(".git", StringComparison.OrdinalIgnoreCase);
     public static void Source(PluginSource? source, Uri baseUri)
     {
@@ -35,7 +36,7 @@ internal static partial class PluginCatalogPolicy
         if (string.IsNullOrWhiteSpace(entry.Name) || entry.Name.Length > 200 || entry.Description is null || entry.Description.Length > 8000) Fail(PluginErrorCode.IndexMetadata, "C19");
         if (!CatalogVersion.TryParse(entry.Version, out _) || !CatalogVersion.TryParse(entry.MinHostVersion, out _)) Fail(PluginErrorCode.IndexMetadata, "C20");
         if (entry.ContractVersion < 1) Fail(PluginErrorCode.IndexMetadata, "C21");
-        if (entry.Permissions is null || entry.Permissions.Length > 64 || entry.Permissions.Any(p => !Identifier(p, 80) || !PluginPermissions.IsKnown(p))
+        if (entry.Permissions is null || entry.Permissions.Length > 64 || entry.Permissions.Any(p => !Identifier(p, 80))
             || entry.Permissions.Distinct(StringComparer.Ordinal).Count() != entry.Permissions.Length) Fail(PluginErrorCode.IndexMetadata, "C22");
         if (entry.Sha256 is not { Length: 64 } || !entry.Sha256.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) Fail(PluginErrorCode.IndexMetadata, "C23");
         if (!Download(entry.DownloadUrl, source.RepositoryUrl)) Fail(PluginErrorCode.IndexMetadata, "C24");
@@ -48,7 +49,9 @@ internal static partial class PluginCatalogPolicy
     }
     private static bool Download(string? value, string repository)
     {
-        if (value is null || !Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != "github.com"
+        if (value is null || !value.StartsWith(repository + "/releases/download/", StringComparison.Ordinal)
+            || value.Any(c => char.IsControl(c) || char.IsWhiteSpace(c))
+            || !Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != "github.com"
             || !uri.IsDefaultPort || uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0
             || value.Contains('?') || value.Contains('#') || value.Contains('\\') || AuthorityHasUserInfo(value)) return false;
         // 校验原始路径，避免 Uri 提前折叠点段；逐层解码，拒绝编码或双重编码的分隔符。
@@ -58,7 +61,8 @@ internal static partial class PluginCatalogPolicy
         var path = value[authorityEnd..];
         if (!path.StartsWith(prefix, StringComparison.Ordinal)) return false;
         var segments = path[prefix.Length..].Split('/');
-        if (segments.Length != 2 || segments.Any(s => s.Length == 0) || !segments[1].EndsWith(".zip", StringComparison.Ordinal)) return false;
+        if (segments.Length != 2 || segments.Any(s => s.Length == 0 || s == "." || s.Contains('%'))
+            || segments[1].Length <= 4 || !segments[1].EndsWith(".zip", StringComparison.Ordinal)) return false;
         foreach (var segment in segments)
         {
             var decoded = segment;

@@ -1,5 +1,12 @@
 using WindowsIsland.Services;
 
+if (args.FirstOrDefault() == "--plugin-contract")
+{
+    await WindowsIsland.LogicTests.PluginPlatformContractChecks.RunAsync(args.ElementAtOrDefault(1));
+    await WindowsIsland.LogicTests.PluginCatalogContractChecks.RunAsync();
+    return;
+}
+
 if (args is ["--plugin-audit"])
 {
     await WindowsIsland.LogicTests.PluginStaticSettingsChecks.RunAsync();

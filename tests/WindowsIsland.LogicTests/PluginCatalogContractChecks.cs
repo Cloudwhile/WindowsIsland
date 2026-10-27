@@ -42,6 +42,7 @@ internal static class PluginCatalogContractChecks
     }
     public static async Task RunAsync()
     {
+        await PluginPlatformContractChecks.RunAsync();
         await ValidationAsync();
         await TransportAsync();
         await PluginCatalogCacheChecks.RunAsync();
@@ -91,7 +92,7 @@ internal static class PluginCatalogContractChecks
             ("C19", Entry() with { Description = new string('a',8001) }), ("C19", Entry() with { Description = null! }),
             ("C20", Entry() with { Version = "v1.0.0" }), ("C20", Entry() with { Version = "1.00.0" }),
             ("C20", Entry() with { Version = "1.0.0-01" }), ("C20", Entry() with { MinHostVersion = "1.0" }),
-            ("C22", Entry() with { Permissions = ["unknown"] }), ("C22", Entry() with { Permissions = ["Network"] }),
+            ("C22", Entry() with { Permissions = ["invalid-permission"] }), ("C22", Entry() with { Permissions = ["Network"] }),
             ("C22", Entry() with { Permissions = ["network", "network"] }), ("C22", Entry() with { Permissions = [""] }),
             ("C22", Entry() with { Permissions = Enumerable.Repeat("network",65).ToArray() }), ("C22", Entry() with { Permissions = null! }),
             ("C23", Entry() with { Sha256 = new string('A',64) }), ("C23", Entry() with { Sha256 = new string('g',64) }),
