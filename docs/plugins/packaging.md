@@ -1,5 +1,9 @@
 # 打包与分发
 
+使用 [SDK 工具](./sdk.md) 时，在项目目录执行 `wini-plugin pack` 即可构建、校验入口和依赖、生成 ZIP 与摘要。已有发布包不会被覆盖。以下说明也适用于手动打包。
+
+建议按 `wini-plugin validate` → `wini-plugin test` → `wini-plugin pack` 执行。功能测试通过后，仍需导入 ZIP 检查真实界面与授权流程；独立示例的 CI 使用相同命令链路。
+
 ## ZIP 结构
 
 ```text

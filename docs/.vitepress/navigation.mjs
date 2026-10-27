@@ -23,13 +23,19 @@ export const sidebar = [
     items: [
       { text: '开发概览', link: '/plugins' },
       { text: '创建第一个插件', link: '/plugins/getting-started' },
+      { text: 'SDK 与命令行工具', link: '/plugins/sdk' },
+      { text: '示例库', link: '/plugins/samples' },
       { text: '清单与标识', link: '/plugins/manifest' },
       { text: '通知与元数据', link: '/plugins/notifications' },
       { text: '生命周期与设置', link: '/plugins/lifecycle' },
+      { text: '静态设置与敏感值', link: '/plugins/settings' },
+      { text: 'API 参考', link: '/plugins/api' },
       { text: '固定内容与交互', link: '/plugins/pinned-content' },
       { text: '权限与诊断', link: '/plugins/permissions' },
       { text: '打包与分发', link: '/plugins/packaging' },
-      { text: '目录接口契约', link: '/plugins/catalog' }
+      { text: '错误码与排错', link: '/plugins/errors' },
+      { text: '发布兼容性与迁移', link: '/plugins/migration' },
+      { text: '平台目录协议（高级，尚未开放）', link: '/plugins/catalog' }
     ]
   }
 ]

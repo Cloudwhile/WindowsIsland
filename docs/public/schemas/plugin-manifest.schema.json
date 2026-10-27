@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Windows Island plugin manifest",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "version",
+    "entryAssembly",
+    "entryType",
+    "contractVersion",
+    "permissions"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^wini_plugin_[a-z][a-z0-9_]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "minimumHostVersion": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*)?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$"
+    },
+    "entryAssembly": {
+      "type": "string"
+    },
+    "entryType": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contractVersion": {
+      "const": 1
+    },
+    "permissions": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      }
+    },
+    "author": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 200
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 8000
+    },
+    "developerId": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^(?:[a-z][a-z0-9_]*)?$"
+    },
+    "developerName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repositoryUrl": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/(?![A-Za-z0-9_.-]*\\.[gG][iI][tT]$)[A-Za-z0-9_.-]+$"
+    },
+    "sourceKind": {
+      "enum": [
+        "BuiltIn",
+        "Official",
+        "Manual",
+        0,
+        1,
+        2
+      ]
+    },
+    "terms": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "required": [
+        "revision",
+        "text"
+      ],
+      "properties": {
+        "revision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536
+        }
+      }
+    },
+    "network": {
+      "anyOf": [
+        {
+          "type": "object",
+          "required": [
+            "origins",
+            "purpose",
+            "dataCategories"
+          ],
+          "properties": {
+            "origins": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "maxLength": 2048,
+                "pattern": "^https://[^/?#@]+/?$"
+              }
+            },
+            "purpose": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "dataCategories": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "notice": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "minLength": 1,
+              "maxLength": 65536
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  }
+}

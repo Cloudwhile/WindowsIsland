@@ -66,9 +66,11 @@ Sources are built-in plugins with independent switches and connection status.
 | Source | Notifications |
 | --- | --- |
 | Windows notifications | New system notifications, including those from apps such as QQ |
-| WeChat | New messages and unread previews from a signed-in desktop client, with conversation avatars when available and support for muted conversations |
+| WeChat (official plugin) | New messages and unread previews from a signed-in desktop client, with conversation avatars when available and support for muted conversations |
 | Telegram | New messages from a signed-in desktop client |
 | Power | Power connection, charging, disconnection and full-charge events |
+
+WeChat is a separate official plugin installed through the default plugin source, which is not yet open.
 
 The island starts with new messages when a source connects or is re-enabled. Muted WeChat conversations stay quiet, and previous messages are not replayed. Turning off one source leaves the others running.
 

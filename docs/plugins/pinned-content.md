@@ -38,43 +38,11 @@ pinned?.Remove("task-status");
 
 ## 添加数据控件
 
-支持按钮、开关和滑块。先注册交互处理器，再提交含控件的快照：
+下面是 [FixedControls 独立示例](./samples.md)的完整入口。按钮增加计数，滑块调整步长，开关决定按钮是否可用；每次交互后提交完整快照。入口只使用数据控件，不直接访问窗口。
 
-```csharp
-var pinned = context.PinnedContent;
-if (pinned is null) return;
+<<< ../../samples/FixedControls/src/Plugin.cs
 
-var enabled = context.Settings.GetBoolean("enabled", true);
-var snapshot = new PinnedContent(
-    "controls", context.PluginId, "接收状态", enabled ? "已开启" : "已关闭",
-    Controls:
-    [
-        new PinnedControl("enabled", "接收消息", PinnedControlKind.Toggle, IsOn: enabled),
-        new PinnedControl("volume", "音量", PinnedControlKind.Slider,
-            Minimum: 0, Maximum: 100, Value: 50, Step: 1),
-        new PinnedControl("refresh", "刷新", PinnedControlKind.Button, Symbol: "Refresh")
-    ]);
-
-pinned.SetInteractionHandler(interaction =>
-{
-    if (interaction.ContentId == "controls"
-        && interaction.ControlId == "enabled" && interaction.IsOn is { } value)
-    {
-        context.Settings.SetBoolean("enabled", value);
-        snapshot = snapshot with
-        {
-            CompactText = value ? "已开启" : "已关闭",
-            Controls = snapshot.Controls!.Select(control => control.Id == "enabled"
-                ? control with { IsOn = value } : control).ToArray()
-        };
-        pinned.Update(snapshot);
-    }
-    return Task.CompletedTask;
-});
-pinned.Submit(snapshot);
-```
-
-示例仅处理开关；插件需要为自己的按钮和滑块添加业务处理。交互返回的是用户请求，完成后提交新的快照来确认最终显示值。
+将滑块设为 3，点击增加后应显示 3；关闭开关后按钮禁用，再开启并点击后应显示 6。`StopAsync` 取消后台任务、注销处理器并撤下内容。
 
 回调在后台按插件串行执行。宿主检查当前实例、内容、控件是否可用，以及滑块范围和步长；回调异常只影响当前插件。停止时取消注册并释放插件自己的资源，迟到的旧回调不能恢复内容。
 

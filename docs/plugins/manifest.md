@@ -1,5 +1,7 @@
 # 清单与标识
 
+机器可读定义：[manifest JSON Schema](/schemas/plugin-manifest.schema.json)。`minimumHostVersion` 可指定最低宿主 SemVer，例如 `0.1.0`；省略时只检查合约大版本，详见[兼容性](./migration.md)。
+
 每个插件 ZIP 根目录都包含一个 `manifest.json`。宿主先验证清单与程序集元数据，再创建插件入口。
 
 ## 标识格式
@@ -21,7 +23,7 @@ wini_plugin_<name>
 | `wini_plugin_my_source` | `wini_plugin_2source` | 名称以数字开头 |
 | `wini_plugin_my__source_` | `wini_plugin_my-source` | 包含连字符 |
 
-内置标识 `wini_plugin_system`、`wini_plugin_wechat`、`wini_plugin_telegram`、`wini_plugin_power`，以及停用来源的保留标识 `wini_plugin_countdown`，不能由外部插件占用。
+内置标识 `wini_plugin_system`、`wini_plugin_telegram`、`wini_plugin_power`，以及停用来源的保留标识 `wini_plugin_countdown`，不能由外部插件占用。微信已采用外部适配器；其宿主代理能力另需验证默认插件源凭据及指定身份，填写 `wini_plugin_wechat` 标识不会授予该能力。
 
 插件入口的 `Id`、清单的 `id` 和提交通知时的 `SourceId` 必须相同。不要将插件版本加入标识，同一个插件更新时保持标识稳定。
 
@@ -64,7 +66,9 @@ wini_plugin_<name>
 
 清单最大 256 KiB。路径使用 `/` 分隔，不能包含绝对路径、`..`、反斜线或重解析点。
 
-开发者标识使用与名称相同的小写规则，最长 64 字符，不带 `wini_plugin_` 前缀。`repositoryUrl` 应为 `https://github.com/owner/repository` 形式，不带查询参数或片段。
+需要启用前配置时，可在同一 ZIP 根目录加入可选的 [`settings.schema.json`](./lifecycle.md#启用前配置-静态声明)，不需要修改 manifest 字段。它仅包含数据，安装时一并校验。
+
+开发者标识使用与名称相同的小写规则，最长 64 字符，不带 `wini_plugin_` 前缀。`repositoryUrl` 应为 `https://github.com/owner/repository` 形式；owner 和 repository 仅包含 ASCII 字母、数字、下划线、点和连字符。不带末尾斜杠、`.git` 后缀、端口、查询参数或片段。手动包与目录索引使用同一校验规则。
 
 ## 条款与联网须知
 
@@ -93,10 +97,10 @@ wini_plugin_<name>
 
 ## 入口与依赖
 
-入口必须是实现 `IIslandPlugin` 或 `IMessageSource` 的公开非抽象类，且具有公开无参数构造函数。构造函数只准备本地状态，初始化和监听分别放在生命周期方法中。
+入口必须是实现 `IIslandPlugin` 的公开非抽象类，且具有公开无参数构造函数。需要事件通知通道时实现其派生接口 `IMessageSource`。构造函数只准备本地状态，初始化和监听分别放在生命周期方法中。
 
 仅引用公共 Contracts，不依赖宿主主程序集。所有非平台托管依赖都应随包提供；宿主共享自身的 Contracts 实例。
 
 ## 来源归属
 
-`PluginManifest` 也包含 `SourceKind`，但安装器和扫描器按实际安装来源设置它。手动填写 `sourceKind` 无法获得官方身份、权限或自定义面板资格。
+`PluginManifest` 也包含 `SourceKind`，但来源身份由宿主安装记录及包完整性校验确定。手动填写 `sourceKind` 或复制到 `official` 目录无法获得官方身份或权限；缺少有效来源凭据的默认目录包需要重新导入。外部插件均不能提交自定义 XAML。

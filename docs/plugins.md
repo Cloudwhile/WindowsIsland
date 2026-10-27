@@ -5,61 +5,40 @@
 | 文档 | 内容 |
 | --- | --- |
 | [创建第一个插件](./plugins/getting-started.md) | 项目、完整入口示例与首次安装 |
+| [SDK 与命令行工具](./plugins/sdk.md) | 工具安装、构建、功能测试与打包 |
+| [示例库](./plugins/samples.md) | 通知、固定控件和联网的独立项目 |
 | [清单与标识](./plugins/manifest.md) | `manifest.json`、`wini_plugin_<name>` 与字段说明 |
 | [通知与元数据](./plugins/notifications.md) | DTO、事件、去重、头像补全和点击激活 |
 | [生命周期与设置](./plugins/lifecycle.md) | 启停、取消与设置声明 |
 | [固定内容与交互](./plugins/pinned-content.md) | 持续显示、详情、控件与交互回调 |
 | [权限与诊断](./plugins/permissions.md) | 能力声明、信任边界与结构化诊断 |
-| [目录接口契约](./plugins/catalog.md) | 目录端点、字段、官方身份、更新与下架语义 |
 | [打包与分发](./plugins/packaging.md) | ZIP 结构、校验与发布检查 |
+| [平台目录协议（高级，尚未开放）](./plugins/catalog.md) | 面向目录服务实现者，不是创建首个 ZIP 插件的前置步骤 |
 
 插件只引用 `WindowsIsland.Contracts`，入口实现 `IIslandPlugin`，通知来源可实现
 `IMessageSource`。宿主负责调度和窗口，插件经 `IPluginContext` 提交通知及固定内容。
 
+| 需求 | 当前能力 |
+| --- | --- |
+| 发送通知、提交固定内容和控件 | 声明 `notifications`，使用上下文；已有事件模型可使用 `IMessageSource` |
+| 保存字符串和布尔配置 | 使用 `context.Settings`，无需 `settings` 权限 |
+| 使用独立数据目录 | 声明 `settings` 并查询 `IPluginStorage` |
+| 同步插件自己的数据 | 声明 `network` 和联网须知，用户确认后通过宿主代理发送 |
+| 直接操作宿主窗口、读取其他插件数据或提交自定义 XAML | 不开放 |
+
+开发顺序：先运行最小通知示例，再添加设置、固定内容或联网，最后校验清单并打包。异常时从[调试失败](./plugins/permissions.md#调试失败)开始排查。
+
 ## 合约与能力发现
 
-`PluginContract.IsCompatible` 只接受相同且为正整数的合约大版本。一个大版本内
-不得向现有接口增加必填方法。新的宿主能力通过 `context.GetService<T>()` 查询，
-未提供时返回 `null`，插件应保留无此能力时的降级路径；固定内容服务是现有范例。
-插件侧扩展采用可选接口，按所需能力实现。
-
-合约大版本 `1` 的程序集版本固定为 `1.0.0.0`，不随宿主版本改变。插件版本、
-宿主版本和合约版本分别管理；引用对应的合约 DLL，并使用可选服务发现新增能力。
-
-`context.HostVersion` 是宿主的完整版本字符串。
-`context.PreviousVersion` 是安装操作替换的插件版本，首次安装为 `null`。
-这两个属性均提供默认实现，不要求插件实现宿主上下文，也不改变合约大版本。
+合约大版本必须与宿主一致，版本 `1` 的程序集版本固定为 `1.0.0.0`。可选服务通过 `context.GetService<T>()` 查询，未提供时返回 `null`，插件应保留降级路径。入口与依赖见[清单与标识](./plugins/manifest.md#入口与依赖)，宿主及上版插件版本见[版本上下文](./plugins/lifecycle.md#版本上下文)。
 
 ## 设置界面
 
-入口可实现 `IPluginSettingsSchema`，用 `SettingsSchema` 返回 `PluginSetting` 数据。
-仅支持 `PluginSettingType.String` 和 `Boolean`，与 `IPluginSettings` 一一对应：
-
-```csharp
-public IReadOnlyList<PluginSetting> SettingsSchema =>
-[
-    new("endpoint", PluginSettingType.String, "服务地址", "https://example.com"),
-    new("enabled", PluginSettingType.Boolean, "接收消息", true)
-];
-```
-
-键必须非空白且不超过 128 字符，同一 schema 不得重复。默认值必须是对应的
-string（可为 null）或 bool。标题、默认值和业务校验归插件负责，宿主不把
-这些内容写进清单。schema 在初始化前即可读取，读取不能依赖监听已启动。
-点击插件进入的详情页使用原生文本框和开关，变更立即写入
-`IPluginSettings`，运行实例读同一存储，不因编辑重启。无设置页自定义 XAML。
-外部插件首次提供动态设置前需要先完成授权并启用，停用时不执行插件代码读取 schema。
+包内 `settings.schema.json` 可声明启用前可编辑的字符串和布尔设置，无需执行 DLL。旧插件仍可使用 `IPluginSettingsSchema` 动态声明，需先授权并启用。字段规则、保存行为和数据目录见[生命周期与设置](./plugins/lifecycle.md)。
 
 ## 生命周期
 
-入口可实现 `IPluginLifecycleAware`。宿主先调用 `OnStoppingAsync(reason)`，
-再调用 `StopAsync` 和 `Dispose`。原因包括 `Disabled`、`Removed`、`Updating`、
-`Shutdown`、`Failed`。停用先撤销上下文投递及旧代次写入能力，再异步清理；
-插件应在初始化时保留清理所需的资源，不依赖停止后的上下文重新申请服务。
-
-卸载在删除代码前调用可选的 `OnUninstallAsync`。钩子失败记本机诊断，继续删除；
-插件设置与数据目录保留，同标识重装可继续读取。已停用或未授权的外部插件不会为卸载而创建清理实例。
-更新时当前实例收到 `Updating`，替换后的实例通过 `PreviousVersion` 取得此次安装替换的版本。
+插件按初始化、启动、停止和释放的顺序运行。后台任务必须支持取消，停止后不能继续投递。完整时序、停止原因和卸载钩子见[生命周期](./plugins/lifecycle.md#调用顺序)。
 
 ## 权限与启用确认
 
@@ -75,11 +54,7 @@ string（可为 null）或 bool。标题、默认值和业务校验归插件负�
 
 ## 清单与目录发现
 
-清单 `Description` 最多 8000 字符，`Author` 最多 200 字符，与默认插件源项一致。
-安装和扫描均校验清单与 PE 元数据，预校验不执行插件入口代码。
-设置页手动刷新重新扫描 `Plugins/official` 和 `Plugins/community` 目录，只增加有效的新目录；坏目录独立
-记录诊断。删除标记不会因扫描清除，目录缺失也不会自动删除已注册项。
-重新安装仍走原安装确认及权限流程，可以显式清除删除标记。
+首次开发使用手动 ZIP 导入即可。字段和来源规则见[清单与标识](./plugins/manifest.md)，安装和分发步骤见[打包与分发](./plugins/packaging.md)。[平台目录协议](./plugins/catalog.md)供进阶阅读，开放平台目前尚未开放。
 
 ## 本地验证
 
