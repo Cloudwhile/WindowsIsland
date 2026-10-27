@@ -1,0 +1,12 @@
+{
+  "id": "wini_plugin_fixedcontrols",
+  "name": "FixedControls",
+  "version": "1.0.0",
+  "entryAssembly": "FixedControls.dll",
+  "entryType": "FixedControls.Plugin",
+  "contractVersion": 1,
+  "permissions": [
+    "notifications"
+  ],
+  "author": "Plugin author"
+}

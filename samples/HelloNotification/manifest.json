@@ -1,0 +1,12 @@
+{
+  "id": "wini_plugin_hellonotification",
+  "name": "HelloNotification",
+  "version": "1.0.0",
+  "entryAssembly": "HelloNotification.dll",
+  "entryType": "HelloNotification.Plugin",
+  "contractVersion": 1,
+  "permissions": [
+    "notifications"
+  ],
+  "author": "Plugin author"
+}

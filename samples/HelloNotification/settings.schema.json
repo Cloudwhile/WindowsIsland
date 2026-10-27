@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "fields": [
+    {
+      "key": "enabled",
+      "type": "boolean",
+      "title": "运行示例",
+      "default": true
+    }
+  ]
+}

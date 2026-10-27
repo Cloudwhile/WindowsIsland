@@ -6,5 +6,13 @@
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+    <PackageId>WindowsIsland.Contracts</PackageId>
+    <Description>Public .NET contracts for Windows Island plugins.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/Cloudwhile/WindowsIsland</RepositoryUrl>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
 </Project>

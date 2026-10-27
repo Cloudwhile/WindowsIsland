@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/WindowsIsland.Plugin.Cli/WindowsIsland.Plugin.Cli.csproj" />
     <Project Path="src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
     <Project Path="src/WindowsIsland.PluginIsolation/WindowsIsland.PluginIsolation.csproj" />
     <Project Path="src/WindowsIsland.PluginWorker/WindowsIsland.PluginWorker.csproj" />

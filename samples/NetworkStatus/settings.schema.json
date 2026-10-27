@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "fields": [
+    {
+      "key": "enabled",
+      "type": "boolean",
+      "title": "运行示例",
+      "default": true
+    },
+    {
+      "key": "send",
+      "type": "boolean",
+      "title": "发送示例请求",
+      "default": false
+    }
+  ]
+}

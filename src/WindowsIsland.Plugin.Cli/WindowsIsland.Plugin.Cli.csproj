@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Worker 是独立运行时载荷，不作为 CLI 的托管引用加载。 -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    <PublishDir>$(MSBuildThisFileDirectory)..\..\artifacts\publish\PluginCli\</PublishDir>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>wini-plugin</ToolCommandName>
+    <PackageId>WindowsIsland.Plugin.Cli</PackageId>
+    <Description>Windows Island plugin templates and package validation tools.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackCliWorker</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+    <Compile Include="../WindowsIsland/Plugins/PluginSourceIndex.cs" Link="Validation/PluginSourceIndex.cs" />
+    <ProjectReference Include="../WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+    <ProjectReference Include="../WindowsIsland.PluginIsolation/WindowsIsland.PluginIsolation.csproj" />
+    <ProjectReference Include="../WindowsIsland.PluginWorker/WindowsIsland.PluginWorker.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;PublishDir" />
+    <Compile Include="../WindowsIsland/Plugins/Isolation/SandboxProcess.cs;../WindowsIsland/Plugins/Isolation/SandboxNative.cs;../WindowsIsland/Plugins/Isolation/SandboxAccess.cs" Link="Isolation/%(Filename)%(Extension)" />
+    <Compile Include="../WindowsIsland/Plugins/PluginManifestReader.cs;../WindowsIsland/Plugins/PluginStaticSettings.cs;../WindowsIsland/Plugins/PluginSettingConstraints.cs;../WindowsIsland/Plugins/PluginPaths.cs;../WindowsIsland/Plugins/PluginFileSafety.cs;../WindowsIsland/Plugins/PluginAssemblyValidator.cs;../WindowsIsland/Plugins/PluginException.cs;../WindowsIsland/Plugins/PluginCatalogPolicy.cs;../WindowsIsland/Plugins/CatalogVersion.cs;../WindowsIsland/Plugins/BuiltInPluginIds.cs" Link="Validation/%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Target Name="CopyCliWorker" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
+    <PropertyGroup>
+      <_WorkerPlatformPath Condition="'$(Platform)' != '' and '$(Platform)' != 'AnyCPU' and '$(Platform)' != 'Any CPU'">$(Platform)\</_WorkerPlatformPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <_CliWorkerFiles Include="$(MSBuildProjectDirectory)\..\..\artifacts\bin\WindowsIsland.PluginWorker\$(_WorkerPlatformPath)$(Configuration)\net10.0\win-x64\**\*" />
+    </ItemGroup>
+    <Error Condition="'@(_CliWorkerFiles)' == ''" Text="The isolated SDK worker is missing." />
+    <Copy SourceFiles="@(_CliWorkerFiles)" DestinationFiles="@(_CliWorkerFiles->'$(TargetDir)PluginWorker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(_CliWorkerFiles)">
+        <RelativePath>PluginWorker\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+  <Target Name="PackCliWorker" DependsOnTargets="CopyCliWorker">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_CliWorkerFiles)">
+        <PackagePath>tools/$(TargetFramework)/any/PluginWorker/%(RecursiveDir)%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+</Project>
