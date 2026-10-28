@@ -77,9 +77,13 @@ try {
             $root = Wait-For {
                 $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children,
                     [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id))
-                foreach ($window in $windows) { if (Find-Control $window 'PreviewNotification') { return $window } }
+                foreach ($window in $windows) { if (Find-Control $window 'SettingsNavappearance') { return $window } }
             }
-            $preview = Find-Control $root 'PreviewNotification'
+            (Find-Control $root 'SettingsNavappearance').GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+            $preview = Wait-For {
+                $button = Find-Control $root 'PreviewNotification'
+                if ($button -and !$button.Current.IsOffscreen -and $button.Current.IsEnabled) { $button }
+            }
             $backdrop.Activate()
             [void][IslandOverlayProbe]::SetForegroundWindow($backdrop.Handle)
             [Windows.Forms.Application]::DoEvents()

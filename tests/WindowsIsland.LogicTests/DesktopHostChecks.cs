@@ -148,7 +148,7 @@ internal static class DesktopHostChecks
             return Task.FromResult(new DesktopTree("fixture",[
                 Node(-1,"","",50032,"root"),Node(0,"会话","session_list",50008,"sessions"),
                 Node(1,preview,"session_item_会话",50007,"session"),Node(0,"会话","chat_input_field",50004,"input"),
-                Node(0,"消息","chat_message_list",50008,"messages"),Node(4,"合成消息","",50007,"message/"+unread)]));
+                Node(0,"消息","chat_message_list",50008,"messages"),Node(4,"合成消息","",50007,"message/"+unread)]) { ObservedAt = DateTimeOffset.Now });
         }
         public Task<byte[]?> ReadImageAsync(DesktopImage request,CancellationToken token=default)=>Task.FromResult<byte[]?>(null);
         public Task<byte[]> ReadModuleAsync(DesktopRead request,CancellationToken token=default)=>throw new UnauthorizedAccessException();

@@ -98,6 +98,7 @@
 | `DesktopTree.#ctor(String,DesktopNode[])` | 描述有时限的可访问性快照。 | Token：仅当前服务实例可使用的快照标识。<br>Nodes：按父节点先于子节点排序的元素。 |
 | `DesktopTree.Token` | 仅当前服务实例可使用的快照标识。 | — |
 | `DesktopTree.Nodes` | 按父节点先于子节点排序的元素。 | — |
+| `DesktopTree.ObservedAt` | 采集快照时的宿主本地时间，包含客户端时间标签对应的 UTC 偏移。 | — |
 | `DesktopRead` | 请求读取客户端模块内的有界区间。 | ProcessId：客户端进程标识。<br>Module：清单声明的模块名。<br>Offset：文件偏移或模块内存相对偏移。<br>Count：读取字节数。 |
 | `DesktopRead.#ctor(Int32,String,Int64,Int32)` | 请求读取客户端模块内的有界区间。 | ProcessId：客户端进程标识。<br>Module：清单声明的模块名。<br>Offset：文件偏移或模块内存相对偏移。<br>Count：读取字节数。 |
 | `DesktopRead.ProcessId` | 客户端进程标识。 | — |

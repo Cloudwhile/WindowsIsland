@@ -69,7 +69,11 @@ public sealed record DesktopNode(int Parent, string Name, string AutomationId, s
 
 /// <summary>描述有时限的可访问性快照。</summary>
 /// <param name="Token">仅当前服务实例可使用的快照标识。</param><param name="Nodes">按父节点先于子节点排序的元素。</param>
-public sealed record DesktopTree(string Token, DesktopNode[] Nodes);
+public sealed record DesktopTree(string Token, DesktopNode[] Nodes)
+{
+    /// <summary>采集快照时的宿主本地时间，包含客户端时间标签对应的 UTC 偏移。</summary>
+    public DateTimeOffset ObservedAt { get; init; }
+}
 
 /// <summary>请求读取客户端模块内的有界区间。</summary>
 /// <param name="ProcessId">客户端进程标识。</param><param name="Module">清单声明的模块名。</param>

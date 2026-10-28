@@ -70,7 +70,7 @@ internal sealed partial class PluginDesktopBroker
             }
         }
         CheckWindow(processId, handle);
-        var tree = new DesktopTree(Guid.NewGuid().ToString("N"), nodes.ToArray());
+        var tree = new DesktopTree(Guid.NewGuid().ToString("N"), nodes.ToArray()) { ObservedAt = DateTimeOffset.Now };
         _trees.Add(tree.Token, new(processId, handle, tree, elements.ToArray()));
         return tree;
     }, token);
