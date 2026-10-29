@@ -12,6 +12,16 @@ bool ResolveProfile(bool fixture, CaptureProfile& profile) {
         profile.update = reinterpret_cast<void*>(GetProcAddress(module, "FixtureUpdate"));
         profile.paintText = reinterpret_cast<void*>(GetProcAddress(module, "FixturePaintText"));
         profile.vtable = 0x5447464958545552;
+        if (GetEnvironmentVariableW(L"WINI_TELEGRAM_FIXTURE_QT6", nullptr, 0)) {
+            profile.qt6 = true;
+            profile.titleOffset = 0x110;
+            profile.bodyOffset = 0x180;
+            profile.startedOffset = 0x230;
+            profile.imageOffset = 0x100;
+            profile.imagePixelsOffset = 56;
+            profile.imageFormatOffset = 64;
+            profile.imageStrideOffset = 72;
+        }
         return profile.update && profile.paintText;
     }
     if (_wcsicmp(name, L"Telegram.exe")) return false;
@@ -19,9 +29,34 @@ bool ResolveProfile(bool fixture, CaptureProfile& profile) {
     auto dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
     if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
     auto nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
-    // Telegram Desktop 7.2.9 x64. Host additionally verifies the complete executable hash.
-    if (nt->Signature != IMAGE_NT_SIGNATURE || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64
-        || nt->FileHeader.TimeDateStamp != 0x6aab9a36 || nt->OptionalHeader.SizeOfImage != 0xe430000) return false;
+    // The host also verifies the complete executable hash for each exact profile.
+    if (nt->Signature != IMAGE_NT_SIGNATURE || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64) return false;
+    if (nt->FileHeader.TimeDateStamp == 0x6ad91cc2 && nt->OptionalHeader.SizeOfImage == 0xf3ca000) {
+        constexpr unsigned char updateBytes[] = {0x48,0x8b,0xc4,0x48,0x89,0x58,0x10,0x48,0x89,0x70,0x18,0x48,0x89,0x78,0x20,0x55};
+        constexpr unsigned char paintBytes[] = {0x48,0x89,0x5c,0x24,0x18,0x48,0x89,0x74,0x24,0x20,0x55,0x57,0x41,0x56,0x48,0x8d};
+        if (memcmp(base + 0x32dfd60, updateBytes, sizeof(updateBytes))
+            || memcmp(base + 0x32dfb60, paintBytes, sizeof(paintBytes))) return false;
+        profile.update = base + 0x32dfd60;
+        profile.paintText = base + 0x32dfb60;
+        profile.vtable = reinterpret_cast<uintptr_t>(base + 0x923cc10);
+        profile.qt6 = true;
+        // Ui::Text::String begins with a style pointer; QString follows it.
+        profile.titleOffset = 0x110;
+        profile.bodyOffset = 0x180;
+        profile.startedOffset = 0x230;
+        profile.imageOffset = 0x100;
+        profile.imagePixelsOffset = 56;
+        profile.imageFormatOffset = 64;
+        profile.imageStrideOffset = 72;
+        profile.photoX = reinterpret_cast<const int*>(base + 0xecc5c78);
+        profile.photoY = reinterpret_cast<const int*>(base + 0xecc5c7c);
+        profile.photoSize = reinterpret_cast<const int*>(base + 0xecc5c80);
+        profile.pixelRatio = reinterpret_cast<const int*>(base + 0xa5fa1e8);
+        profile.rtl = reinterpret_cast<const bool*>(base + 0xecbd10f);
+        return true;
+    }
+    // Telegram Desktop 7.2.9 x64, Qt 5.
+    if (nt->FileHeader.TimeDateStamp != 0x6aab9a36 || nt->OptionalHeader.SizeOfImage != 0xe430000) return false;
     constexpr unsigned char updateBytes[] = {0x48,0x89,0x5c,0x24,0x10,0x48,0x89,0x74,0x24,0x18,0x48,0x89,0x7c,0x24,0x20,0x55};
     constexpr unsigned char paintBytes[] = {0x48,0x89,0x5c,0x24,0x18,0x55,0x56,0x57,0x48,0x8d,0x6c,0x24,0xb9,0x48,0x81,0xec};
     if (memcmp(base + 0x2b7f020, updateBytes, sizeof(updateBytes))

@@ -6,14 +6,16 @@ namespace {
 // Text always comes from QString; this does not capture the desktop or recognize pixels.
 bool CopyAvatar(void* object, const CaptureProfile& profile, unsigned char* output) noexcept {
     __try {
-        auto image = *reinterpret_cast<const unsigned char**>(static_cast<unsigned char*>(object) + 0x110);
+        auto image = *reinterpret_cast<const unsigned char**>(static_cast<unsigned char*>(object) + profile.imageOffset);
         if (!image) return false;
         const auto width = *reinterpret_cast<const int*>(image + 4);
         const auto height = *reinterpret_cast<const int*>(image + 8);
         const auto depth = *reinterpret_cast<const int*>(image + 12);
-        const auto format = *reinterpret_cast<const int*>(image + 48);
-        const auto pixels = *reinterpret_cast<const unsigned char* const*>(image + 40);
-        if (width < 80 || width > 4096 || height < 40 || height > 4096 || depth != 32 || format != 6 || !pixels) return false;
+        const auto format = *reinterpret_cast<const int*>(image + profile.imageFormatOffset);
+        const auto pixels = *reinterpret_cast<const unsigned char* const*>(image + profile.imagePixelsOffset);
+        const auto stride = *reinterpret_cast<const intptr_t*>(image + profile.imageStrideOffset);
+        if (width < 80 || width > 4096 || height < 40 || height > 4096 || depth != 32 || format != 6 || !pixels
+            || stride < width * 4 || stride > 4096 * 4) return false;
         const auto ratio = profile.pixelRatio ? *profile.pixelRatio : 1;
         const auto size = (profile.photoSize ? *profile.photoSize : 62) * ratio;
         auto left = (profile.photoX ? *profile.photoX : 9) * ratio;
@@ -22,7 +24,7 @@ bool CopyAvatar(void* object, const CaptureProfile& profile, unsigned char* outp
         if (ratio < 1 || ratio > 8 || size < 8 || size > 1024 || left < 0 || top < 0 || left + size > width || top + size > height) return false;
         for (int y = 0; y < 64; ++y) {
             for (int x = 0; x < 64; ++x) {
-                const auto source = pixels + ((top + y * size / 64) * width + left + x * size / 64) * 4;
+                const auto source = pixels + (top + y * size / 64) * stride + (left + x * size / 64) * 4;
                 memcpy(output + (y * 64 + x) * 4, source, 4);
             }
         }

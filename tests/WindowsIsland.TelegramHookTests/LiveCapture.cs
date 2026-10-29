@@ -3,7 +3,7 @@ using WindowsIsland.Services;
 
 internal static class LiveCapture
 {
-    public static async Task RunAsync(string dll)
+    public static async Task RunAsync(string dll, bool attachOnly = false)
     {
         using var client = Process.GetProcessesByName("Telegram").Single();
         var message = new TaskCompletionSource<IslandNotification>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -11,12 +11,22 @@ internal static class LiveCapture
         {
             await session.AttachAsync(dll);
             Console.WriteLine("PASS: Verified Telegram executable and connected the native DLL bridge");
+            if (attachOnly)
+            {
+                await Task.Delay(2000);
+                if (client.HasExited || !session.IsConnected)
+                    throw new InvalidOperationException("Telegram exited or disconnected after attaching the bridge.");
+                Console.WriteLine("PASS: The real Telegram executable remains alive with its verified capture profile attached");
+            }
+            else
+            {
             var notification = await message.Task.WaitAsync(TimeSpan.FromSeconds(60));
             if (string.IsNullOrWhiteSpace(notification.Body) || string.IsNullOrWhiteSpace(notification.Title))
                 throw new InvalidOperationException("The actual Telegram notification did not supply title and body.");
             Console.WriteLine($"PASS: Actual Telegram popup supplied original UTF-16 title ({notification.Title.Length} chars) and body ({notification.Body.Length} chars)");
             if (notification.SenderAvatar is not { Length: > 0 }) throw new InvalidOperationException("Telegram avatar buffer was unavailable.");
             Console.WriteLine($"PASS: The actual popup supplied its avatar image ({notification.SenderAvatar.Length} PNG bytes)");
+            }
         }
         var timeout = Stopwatch.StartNew();
         bool Loaded()

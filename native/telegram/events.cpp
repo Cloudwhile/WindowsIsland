@@ -7,15 +7,15 @@ std::array<Signature, 128> recent{};
 size_t cursor = 0;
 SRWLOCK lock = SRWLOCK_INIT;
 
-uint64_t Started(void* object) noexcept {
-    __try { return *reinterpret_cast<const uint64_t*>(static_cast<unsigned char*>(object) + 0x228); }
+uint64_t Started(void* object, size_t offset) noexcept {
+    __try { return *reinterpret_cast<const uint64_t*>(static_cast<unsigned char*>(object) + offset); }
     __except (EXCEPTION_EXECUTE_HANDLER) { return 0; }
 }
 }
 
-bool FirstNotification(void* object) noexcept {
+bool FirstNotification(void* object, size_t startedOffset) noexcept {
     // Palette and privacy changes redraw the same popup; they are not new messages.
-    const Signature signature{reinterpret_cast<uintptr_t>(object), Started(object)};
+    const Signature signature{reinterpret_cast<uintptr_t>(object), Started(object, startedOffset)};
     if (!signature.started) return false;
     AcquireSRWLockExclusive(&lock);
     for (const auto& item : recent) {

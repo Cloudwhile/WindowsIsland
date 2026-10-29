@@ -9,7 +9,11 @@ namespace WindowsIsland.Services;
 
 internal static class TelegramHookInjector
 {
-    private const string SupportedHash = "D7680288560339FFE89FFEA10B603C87E35AAB1AD5DB5DD516E62D55FD5DA8DC";
+    private static readonly HashSet<string> SupportedHashes =
+    [
+        "D7680288560339FFE89FFEA10B603C87E35AAB1AD5DB5DD516E62D55FD5DA8DC", // 7.2.9 x64, Qt 5
+        "CEE6F5F0E1F9556E827FB65C9EB422DBEE3ECA7B7723A29D6F1502756E6CA666"  // 7.3.3 x64, Qt 6
+    ];
 
     public static string Attach(int processId, string hookPath, string pipeName, bool fixture = false)
     {
@@ -25,7 +29,8 @@ internal static class TelegramHookInjector
         {
             if (!process.ProcessName.Equals("Telegram", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Unexpected Telegram process.");
             using var file = File.OpenRead(executable);
-            if (Convert.ToHexString(SHA256.HashData(file)) != SupportedHash) throw new NotSupportedException("Telegram binary has no verified capture profile.");
+            if (!SupportedHashes.Contains(Convert.ToHexString(SHA256.HashData(file))))
+                throw new NotSupportedException("Telegram binary has no verified capture profile.");
         }
 
         var runtimePath = ResolveFilePath(dll.Handle);

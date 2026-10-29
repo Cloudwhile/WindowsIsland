@@ -15,7 +15,8 @@ void Check(bool result, string text) { if (!result) throw new InvalidOperationEx
 bool Reject(Action action) { try { action(); return false; } catch (InvalidDataException) { return true; } }
 
 IntegrityChecks.Run(dll, hookRoot, Check);
-if (args.Length > 1) IntegrityChecks.VerifyHost(args[1], dll, Check);
+var hostAssembly = args.Skip(1).FirstOrDefault(argument => !argument.StartsWith("--", StringComparison.Ordinal));
+if (hostAssembly is not null) IntegrityChecks.VerifyHost(hostAssembly, dll, Check);
 
 var header = new byte[TelegramHookProtocol.HeaderSize];
 BinaryPrimitives.WriteUInt32LittleEndian(header, TelegramHookProtocol.Magic);
@@ -31,13 +32,17 @@ BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(44), uint.MaxValue);
 Check(Reject(() => TelegramHookProtocol.ReadHeader(header, 123)), "Unbounded payload lengths are rejected before allocation");
 Check(Reject(() => TelegramHookProtocol.ReadText(packet, [])), "Truncated payloads are rejected");
 
-if (args.Contains("--live"))
+if (args.Contains("--live") || args.Contains("--attach-only"))
 {
-    await LiveCapture.RunAsync(isolatedDll);
+    try { await LiveCapture.RunAsync(isolatedDll, args.Contains("--attach-only")); }
+    finally { Directory.Delete(hookRoot, true); }
     return;
 }
 
-using var child = Process.Start(new ProcessStartInfo(fixture) { UseShellExecute = false, CreateNoWindow = true })!;
+var start = new ProcessStartInfo(fixture) { UseShellExecute = false, CreateNoWindow = true };
+if (args.Contains("--qt6")) start.Environment["WINI_TELEGRAM_FIXTURE_QT6"] = "1";
+else start.Environment.Remove("WINI_TELEGRAM_FIXTURE_QT6");
+using var child = Process.Start(start)!;
 var received = new ConcurrentQueue<IslandNotification>();
 try
 {

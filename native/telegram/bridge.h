@@ -32,6 +32,12 @@ struct CaptureProfile {
     uintptr_t vtable = 0;
     size_t titleOffset = 0x120;
     size_t bodyOffset = 0x180;
+    size_t startedOffset = 0x228;
+    size_t imageOffset = 0x110;
+    size_t imagePixelsOffset = 40;
+    size_t imageFormatOffset = 48;
+    size_t imageStrideOffset = 56;
+    bool qt6 = false;
     const int* photoX = nullptr;
     const int* photoY = nullptr;
     const int* photoSize = nullptr;
@@ -40,7 +46,7 @@ struct CaptureProfile {
 };
 bool ResolveProfile(bool fixture, CaptureProfile& profile);
 bool InstallCapture(const CaptureProfile& profile);
-bool FirstNotification(void* object) noexcept;
+bool FirstNotification(void* object, size_t startedOffset) noexcept;
 void RemoveCapture();
 std::vector<unsigned char> ReadAvatar(void* object, const CaptureProfile& profile);
 void QueueMessage(uintptr_t object, std::wstring title, std::wstring body, std::vector<unsigned char> avatar) noexcept;

@@ -21,13 +21,24 @@ thread_local Frame* current = nullptr;
 // Copy synchronously while Telegram owns the live string, before its cache is cleared.
 bool CopyQString(void* object, size_t offset, wchar_t* result, int capacity, int& length) noexcept {
     __try {
-        auto data = *reinterpret_cast<const unsigned char**>(static_cast<unsigned char*>(object) + offset);
-        if (!data) return false;
-        auto size = *reinterpret_cast<const int*>(data + 4);
-        auto dataOffset = *reinterpret_cast<const intptr_t*>(data + 16);
-        if (size < 0 || size > 65536 || dataOffset < 0 || dataOffset > 0x100000) return false;
-        length = (std::min)(size, capacity - 1);
-        memcpy(result, data + dataOffset, static_cast<size_t>(length) * sizeof(wchar_t));
+        auto field = static_cast<const unsigned char*>(object) + offset;
+        const unsigned char* text = nullptr;
+        intptr_t size = 0;
+        if (profile.qt6) {
+            // Qt 6 QString stores QArrayDataPointer { header, data, size }.
+            text = *reinterpret_cast<const unsigned char* const*>(field + 8);
+            size = *reinterpret_cast<const intptr_t*>(field + 16);
+        } else {
+            auto data = *reinterpret_cast<const unsigned char* const*>(field);
+            if (!data) return false;
+            size = *reinterpret_cast<const int*>(data + 4);
+            auto dataOffset = *reinterpret_cast<const intptr_t*>(data + 16);
+            if (dataOffset < 0 || dataOffset > 0x100000) return false;
+            text = data + dataOffset;
+        }
+        if (!text || size < 0 || size > 65536) return false;
+        length = static_cast<int>((std::min)(size, static_cast<intptr_t>(capacity - 1)));
+        memcpy(result, text, static_cast<size_t>(length) * sizeof(wchar_t));
         if (length && result[length - 1] >= 0xd800 && result[length - 1] <= 0xdbff) --length;
         result[length] = 0;
         return true;
@@ -65,7 +76,7 @@ void __fastcall HookUpdate(void* object) {
     current = frame.previous;
     try {
         auto title = Read(object, profile.titleOffset, 1024);
-        if (!title.empty() && FirstNotification(object)) QueueMessage(reinterpret_cast<uintptr_t>(object), std::move(title), std::move(frame.body), ReadAvatar(object, profile));
+        if (!title.empty() && FirstNotification(object, profile.startedOffset)) QueueMessage(reinterpret_cast<uintptr_t>(object), std::move(title), std::move(frame.body), ReadAvatar(object, profile));
     }
     catch (...) { }
 }
