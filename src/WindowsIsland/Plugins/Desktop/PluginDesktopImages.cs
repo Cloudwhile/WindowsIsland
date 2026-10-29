@@ -100,11 +100,16 @@ internal sealed partial class PluginDesktopBroker
 
     private static byte[] Encode(Image image)
     {
-        using var bitmap = new Bitmap(64, 64, PixelFormat.Format24bppRgb);
+        using var bitmap = new Bitmap(64, 64, PixelFormat.Format32bppArgb);
+        using var attributes = new ImageAttributes();
+        attributes.SetWrapMode(System.Drawing.Drawing2D.WrapMode.TileFlipXY);
         using (var graphics = Graphics.FromImage(bitmap))
         {
+            graphics.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
             graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            graphics.DrawImage(image, 0, 0, 64, 64);
+            graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+            graphics.DrawImage(image, new Rectangle(0, 0, 64, 64), 0, 0, image.Width, image.Height,
+                GraphicsUnit.Pixel, attributes);
         }
         using var stream = new MemoryStream(); bitmap.Save(stream, ImageFormat.Png); return stream.ToArray();
     }

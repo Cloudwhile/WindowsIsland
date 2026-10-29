@@ -20,7 +20,7 @@ $targetsPath = Join-Path $runRoot 'UiChecks.targets'
 [IO.File]::WriteAllText($targetsPath, $targets)
 Push-Location $repoRoot
 try {
-    dotnet build src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64 --no-restore "-p:CustomAfterMicrosoftCommonTargets=$targetsPath" "-p:OutDir=$runRoot/app/" *> (Join-Path $runRoot 'build.log')
+    dotnet build src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64 --no-restore -m:1 -p:UseSharedCompilation=false "-p:CustomAfterMicrosoftCommonTargets=$targetsPath" "-p:OutDir=$runRoot/app/" *> (Join-Path $runRoot 'build.log')
     if ($LASTEXITCODE -ne 0) { Get-Content (Join-Path $runRoot 'build.log') -Tail 20; throw 'UI verification build failed.' }
     $process = Start-Process -FilePath (Join-Path $runRoot 'app/WindowsIsland.exe') -ArgumentList '--verify-local', '--verify-light' -WindowStyle Hidden -PassThru
     if (-not $process.WaitForExit(45000)) { $process.Kill(); throw "UI verification timed out: $runRoot" }

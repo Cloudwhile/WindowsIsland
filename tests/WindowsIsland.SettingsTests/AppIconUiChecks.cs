@@ -7,6 +7,8 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Graphics.Imaging;
 using WindowsIsland.Components;
+using WindowsIsland.Plugins;
+using System.Reflection;
 
 namespace WindowsIsland;
 
@@ -74,6 +76,35 @@ internal static class AppIconUiChecks
             encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied, (uint)rendered.PixelWidth,
                 (uint)rendered.PixelHeight, 96, 96, pixels);
             await encoder.FlushAsync();
+            panel.Children.Clear();
+            panel.Background = new SolidColorBrush(Microsoft.UI.Colors.White);
+            var encode = typeof(PluginDesktopBroker).GetMethod("Encode", BindingFlags.Static | BindingFlags.NonPublic)!;
+            foreach (var physical in new[] { 40, 60, 80 })
+            {
+                using var source = new Bitmap(physical, physical, PixelFormat.Format32bppArgb);
+                using (var graphics = Graphics.FromImage(source)) graphics.Clear(Color.CornflowerBlue);
+                var portrait = new AppIcon(physical / rootScale);
+                portrait.SetCircular(true);
+                panel.Children.Add(portrait);
+                await Task.Delay(100);
+                await portrait.ShowAsync("Portrait fixture", (byte[])encode.Invoke(null, [source])!);
+                await Task.Delay(100);
+                var circle = new RenderTargetBitmap();
+                await circle.RenderAsync(portrait);
+                var circlePixels = (await circle.GetPixelsAsync()).ToArray();
+                var left = (circle.PixelHeight / 2 * circle.PixelWidth + 1) * 4;
+                var right = (circle.PixelHeight / 2 * circle.PixelWidth + circle.PixelWidth - 2) * 4;
+                Check(Enumerable.Range(0, 4).All(channel => Math.Abs(circlePixels[left + channel] - circlePixels[right + channel]) <= 2)
+                    && circlePixels[right] >= 230 && circlePixels[right + 2] >= 95,
+                    $"Circular {physical}px portrait renders matching left and right edges without a dark seam");
+            }
+            await rendered.RenderAsync(panel);
+            pixels = (await rendered.GetPixelsAsync()).ToArray();
+            using var portraitFile = File.Create(Path.Combine(output, "portrait-edges.png"));
+            var portraitEncoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, portraitFile.AsRandomAccessStream());
+            portraitEncoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied, (uint)rendered.PixelWidth,
+                (uint)rendered.PixelHeight, 96, 96, pixels);
+            await portraitEncoder.FlushAsync();
             File.WriteAllText(Path.Combine(output, "app-icons.success"), results.Count.ToString());
         }
         catch (Exception error)
