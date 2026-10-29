@@ -29,6 +29,26 @@ internal sealed partial class PluginDesktopBroker
         foreach (var key in _trees.Where(pair => Stopwatch.GetElapsedTime(pair.Value.Created) > TimeSpan.FromSeconds(5)
             || pair.Value.Window == handle).Select(pair => pair.Key).ToArray()) { _trees[key].Dispose(); _trees.Remove(key); }
         while (_trees.Count >= 8) { var key = _trees.Keys.First(); _trees[key].Dispose(); _trees.Remove(key); }
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                var tree = ReadTree(processId, handle, token);
+                _trees.Add(tree.Value.Token, tree);
+                return tree.Value;
+            }
+            catch (Exception error) when (error is ElementNotAvailableException or COMException)
+            {
+                token.ThrowIfCancellationRequested(); _lifetime.Token.ThrowIfCancellationRequested();
+                CheckWindow(processId, handle);
+                if (attempt >= 1) throw new IOException("Window accessibility is unavailable.", error);
+                // Discard the entire failed snapshot. A rebuilt provider must never be combined with old row identities.
+            }
+        }
+    }, token);
+
+    private Tree ReadTree(int processId, nint handle, CancellationToken token)
+    {
         var root = AutomationElement.FromHandle(handle) ?? throw new IOException("Window accessibility is unavailable.");
         var nodes = new List<DesktopNode>();
         var elements = new List<AutomationElement>();
@@ -71,9 +91,8 @@ internal sealed partial class PluginDesktopBroker
         }
         CheckWindow(processId, handle);
         var tree = new DesktopTree(Guid.NewGuid().ToString("N"), nodes.ToArray()) { ObservedAt = DateTimeOffset.Now };
-        _trees.Add(tree.Token, new(processId, handle, tree, elements.ToArray()));
-        return tree;
-    }, token);
+        return new(processId, handle, tree, elements.ToArray());
+    }
 
     private static string Text(string? value, int maximum) => value is null ? "" : value.Length <= maximum ? value : value[..maximum];
     private static void CheckWindow(int processId, nint handle)

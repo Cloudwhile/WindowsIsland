@@ -241,6 +241,7 @@ DoNotDisturbChecks.Run(Check);
 WindowsPreferencesChecks.Run(Check);
 SettingsChecks.Run(Check);
 WeChatRoutingChecks.Run(Check);
+PluginConversationSnapshotChecks.Run(Check);
 StatusChecks.Run(Check);
 ToastImageChecks.Run(Check);
 NotificationImageStoreChecks.Run(Check);

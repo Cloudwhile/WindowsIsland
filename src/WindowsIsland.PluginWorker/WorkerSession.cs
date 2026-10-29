@@ -7,6 +7,8 @@ namespace WindowsIsland.PluginWorker;
 internal sealed class WorkerSession : IDisposable
 {
     private readonly SemaphoreSlim _operations = new(1, 1);
+    private readonly object _descriptions = new();
+    private long _descriptionRevision;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TaskCompletionSource<IsolationRpc> _attached = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private WorkerLoadContext? _loadContext;
@@ -22,6 +24,14 @@ internal sealed class WorkerSession : IDisposable
         // 同步设置 API 可以在构造/初始化时重入 RPC，不能占住管道读循环。
         await Task.Yield();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
+        if (method == "describe")
+        {
+            linked.Token.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (!_initialized) throw new InvalidOperationException("Worker is not initialized.");
+            // Callbacks can arrive during a lifecycle command or flush. A status read must not wait on that command.
+            return Describe();
+        }
         await _operations.WaitAsync(linked.Token).ConfigureAwait(false);
         try
         {
@@ -115,6 +125,11 @@ internal sealed class WorkerSession : IDisposable
 
     private WorkerDescription Describe()
     {
+        lock (_descriptions) return DescribeCore();
+    }
+
+    private WorkerDescription DescribeCore()
+    {
         var status = (_plugin as IPluginStatusProvider)?.Status
             ?? new PluginStatus(_started ? PluginConnectionState.Connected : PluginConnectionState.NotRunning);
         if (!Enum.IsDefined(status.State) || !Enum.IsDefined(status.Reason))
@@ -135,7 +150,7 @@ internal sealed class WorkerSession : IDisposable
         if (rules.Length > 1024 || rules.Any(rule => rule is null || string.IsNullOrWhiteSpace(rule.AppId) || rule.AppId.Length > 256
             || string.IsNullOrWhiteSpace(rule.Conversation) || rule.Conversation.Length > 4096 || rule.ProcessId is <= 0))
             throw new InvalidDataException("Invalid conversation policy.");
-        return new(status, settings.ToArray(), rules);
+        return new(status, settings.ToArray(), rules, ++_descriptionRevision);
     }
 
     private void OnNotification(PluginNotification notification) => _context?.PublishNotification(notification);

@@ -16,6 +16,7 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
     private IPluginDesktop? _desktop;
     private readonly SemaphoreSlim _desktopCommands = new(1, 1);
     private long _descriptionAt;
+    private long _descriptionRevision = -1;
     private readonly CancellationTokenSource _services = new();
     private readonly CancellationTokenSource _regularCommands = new();
     private readonly CancellationTokenSource _commandLifetime = new();
@@ -129,6 +130,16 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
                     || value.Symbol?.Length > 64 || !Enum.IsDefined(value.Kind)) throw new InvalidDataException();
                 var target = value.OriginProcessId is { } processId && _desktop is IPluginDesktopProcessScope scope && scope.OwnsProcess(processId)
                     ? value.OriginProcessId : null;
+                if (_desktop is not null)
+                {
+                    // The first message can precede the next scheduled poll of its conversation policy.
+                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token, _services.Token);
+                    timeout.CancelAfter(TimeSpan.FromSeconds(3));
+                    var description = await (_rpc ?? throw new ObjectDisposedException(nameof(SandboxPluginProxy)))
+                        .CallAsync<WorkerDescription>("describe", token: timeout.Token) ?? throw new InvalidDataException();
+                    ApplyDescription(description);
+                    if (_revoked != 0 || _disposed != 0) throw new ObjectDisposedException(nameof(SandboxPluginProxy));
+                }
                 NotificationReceived?.Invoke(value with { OriginProcessId = target }); return null;
             }
             case "pinned":
@@ -192,30 +203,7 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
             reply = rpc.CallAsync<WorkerDescription>(method, payload, timeout.Token);
             var description = await reply.WaitAsync(timeout.Token)
                 ?? throw new InvalidDataException();
-            if (description.Status is null || !Enum.IsDefined(description.Status.State) || !Enum.IsDefined(description.Status.Reason)
-                || description.Settings is null || description.Settings.Length > 128) throw new InvalidDataException();
-            var keys = new HashSet<string>(StringComparer.Ordinal);
-            var fields = description.Settings.Select(field =>
-            {
-                if (field is null || string.IsNullOrWhiteSpace(field.Key) || field.Key.Length > 128 || !keys.Add(field.Key)
-                    || string.IsNullOrWhiteSpace(field.Title) || field.Title.Length > 512 || !Enum.IsDefined(field.Type)) throw new InvalidDataException();
-                object? value = field.DefaultValue;
-                if (value is JsonElement json) value = json.ValueKind switch
-                {
-                    JsonValueKind.String when field.Type == PluginSettingType.String => json.GetString(),
-                    JsonValueKind.True or JsonValueKind.False when field.Type == PluginSettingType.Boolean => json.GetBoolean(),
-                    JsonValueKind.Null when field.Type == PluginSettingType.String => null,
-                    _ => throw new InvalidDataException()
-                };
-                if (value is string text && text.Length > 65536) throw new InvalidDataException();
-                return field with { DefaultValue = value };
-            }).ToArray();
-            var rules = description.ConversationRules;
-            if (rules is { Length: > 1024 } || rules?.Any(rule => rule is null || string.IsNullOrWhiteSpace(rule.AppId) || rule.AppId.Length > 256
-                || string.IsNullOrWhiteSpace(rule.Conversation) || rule.Conversation.Length > 4096 || rule.ProcessId is <= 0) == true)
-                throw new InvalidDataException();
-            Volatile.Write(ref _descriptionAt, System.Diagnostics.Stopwatch.GetTimestamp());
-            Volatile.Write(ref _description, description with { Settings = fields, ConversationRules = rules?.ToArray() });
+            ApplyDescription(description);
         }
         catch (OperationCanceledException) when (!cleanup && Volatile.Read(ref _revoked) != 0) { throw; }
         catch { Dispose(); throw; }
@@ -223,6 +211,40 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
         {
             if (reply is { IsCompleted: false }) ObserveLateFailure(reply);
             if (entered) _commands.Release();
+        }
+    }
+
+    private void ApplyDescription(WorkerDescription description)
+    {
+        if (description.Status is null || !Enum.IsDefined(description.Status.State) || !Enum.IsDefined(description.Status.Reason)
+            || description.Settings is null || description.Settings.Length > 128) throw new InvalidDataException();
+        var keys = new HashSet<string>(StringComparer.Ordinal);
+        var fields = description.Settings.Select(field =>
+        {
+            if (field is null || string.IsNullOrWhiteSpace(field.Key) || field.Key.Length > 128 || !keys.Add(field.Key)
+                || string.IsNullOrWhiteSpace(field.Title) || field.Title.Length > 512 || !Enum.IsDefined(field.Type)) throw new InvalidDataException();
+            object? value = field.DefaultValue;
+            if (value is JsonElement json) value = json.ValueKind switch
+            {
+                JsonValueKind.String when field.Type == PluginSettingType.String => json.GetString(),
+                JsonValueKind.True or JsonValueKind.False when field.Type == PluginSettingType.Boolean => json.GetBoolean(),
+                JsonValueKind.Null when field.Type == PluginSettingType.String => null,
+                _ => throw new InvalidDataException()
+            };
+            if (value is string text && text.Length > 65536) throw new InvalidDataException();
+            return field with { DefaultValue = value };
+        }).ToArray();
+        var rules = description.ConversationRules;
+        if (rules is { Length: > 1024 } || rules?.Any(rule => rule is null || string.IsNullOrWhiteSpace(rule.AppId) || rule.AppId.Length > 256
+            || string.IsNullOrWhiteSpace(rule.Conversation) || rule.Conversation.Length > 4096 || rule.ProcessId is <= 0) == true)
+            throw new InvalidDataException();
+        if (description.Revision < 0) throw new InvalidDataException();
+        lock (_lifecycle)
+        {
+            if (description.Revision <= _descriptionRevision) return;
+            _descriptionRevision = description.Revision;
+            Volatile.Write(ref _descriptionAt, System.Diagnostics.Stopwatch.GetTimestamp());
+            Volatile.Write(ref _description, description with { Settings = fields, ConversationRules = rules?.ToArray() });
         }
     }
 

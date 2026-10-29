@@ -66,13 +66,14 @@ internal static class DesktopHostChecks
             using var archive = ZipFile.OpenRead(zip);
             using var reader = new StreamReader(archive.GetEntry("manifest.json")!.Open());
             var packageManifest = JsonSerializer.Deserialize<PluginManifest>(await reader.ReadToEndAsync(), PluginManifestReader.Json)!;
+            store.Save(store.Current with { IncludePrereleaseUpdates = CatalogVersion.Parse(packageManifest.Version).IsPrerelease });
             var catalogPath = Path.Combine(Path.GetDirectoryName(zip)!, "catalog-" + packageManifest.Version + ".json");
             var entry = JsonSerializer.Deserialize<PluginCatalogEntry>(await File.ReadAllTextAsync(catalogPath), PluginManifestReader.Json)!;
             var bytes = await File.ReadAllBytesAsync(zip);
             Check(entry.MinHostVersion == packageManifest.MinimumHostVersion && entry.Sha256 == Convert.ToHexStringLower(SHA256.HashData(bytes)),
                 "The generated catalog matches the actual package and minimum host version");
             using var library = new PluginLibrary(manager, paths, new PluginCatalogClient(new PackageCatalog(entry, bytes)),
-                new PluginCatalogClient(new PackageCatalog(entry, bytes)));
+                new PluginCatalogClient(new PackageCatalog(entry, bytes)), settings: store);
             await library.Catalog.RefreshAsync();
             await library.InstallOfficialAsync(library.Catalog.State.Sources.Single().Plugins.Single(), []);
             external = manager.Snapshot().Single().Definition.Metadata!.External!;
@@ -89,18 +90,23 @@ internal static class DesktopHostChecks
             services[0].Emit();
             await UntilAsync(() => received.Count == 1);
             Check(received[0] is { OriginProcessId: 42, AllowActivation: true }, "Only a tracked client retains notification click activation");
+            services[0].Conversation = "首次出现的会话";
+            var arrivalDeadline = DateTimeOffset.UtcNow.AddSeconds(5);
+            while (received.Count < 2 && DateTimeOffset.UtcNow < arrivalDeadline) await Task.Delay(25);
+            Check(received.Count == 2 && received[1].Title == "首次出现的会话" && manager.Allows(received[1]),
+                "The first new-conversation message passes the production proxy filter without a scheduled policy poll");
             services[0].Muted = true;
-            await UntilAsync(() => !manager.Allows(received[0] with { PluginOwner = null, Source = NotificationSource.SystemNotification }));
+            await UntilAsync(() => !manager.Allows(received[1] with { PluginOwner = null, Source = NotificationSource.SystemNotification }));
             Check(true, "Worker conversation rules suppress matching notifications from other sources");
             var old = services[0];
             await manager.SetEnabledAsync(Manifest.Id, false);
             Check(old.Disposals == 1 && !store.Current.WeChat, "Disabling revokes desktop mediation and preserves legacy switch semantics");
             old.Emit(); await Task.Delay(650);
-            Check(received.Count == 1, "A revoked generation cannot publish late messages");
+            Check(received.Count == 2, "A revoked generation cannot publish late messages");
             await manager.SetEnabledAsync(Manifest.Id, true);
             await UntilAsync(() => manager.Snapshot().Single().StatusKey == "Connected");
-            services[1].Emit(); await UntilAsync(() => received.Count == 2);
-            Check(received[0].EventId != received[1].EventId, "Re-enable establishes a distinct worker event generation");
+            services[1].Emit(); await UntilAsync(() => received.Count == 3);
+            Check(received[0].EventId != received[2].EventId, "Re-enable establishes a distinct worker event generation");
             Directory.CreateDirectory(external.DataDirectory);
             File.WriteAllText(Path.Combine(external.DataDirectory,"keep.txt"),"保留数据");
             await manager.RemoveAsync(Manifest.Id); await external.VerifyUnloadAsync();
@@ -130,6 +136,7 @@ internal static class DesktopHostChecks
         public int Calls, Disposals;
         private int _unread = 1;
         public volatile bool Muted;
+        public volatile string Conversation = "会话";
         public void Emit() => Interlocked.Increment(ref _unread);
         public bool OwnsProcess(int id) => id == 42 && Disposals == 0;
         public void Dispose() => Interlocked.Increment(ref Disposals);
@@ -143,11 +150,12 @@ internal static class DesktopHostChecks
         public Task<DesktopTree> ReadTreeAsync(int processId, long window, CancellationToken token = default)
         {
             var unread = Volatile.Read(ref _unread);
-            var preview = $"会话\n合成消息\n{DateTimeOffset.Now:HH:mm}\n{unread}条未读消息"+(Muted?"\n消息免打扰":"");
+            var conversation = Conversation;
+            var preview = $"{conversation}\n合成消息\n{DateTimeOffset.Now:HH:mm}\n{unread}条未读消息"+(Muted?"\n消息免打扰":"");
             DesktopNode Node(int parent,string name,string id,int type,string runtime) => new(parent,name,id,"Fixture",type,"Incoming","",runtime,default,false);
             return Task.FromResult(new DesktopTree("fixture",[
                 Node(-1,"","",50032,"root"),Node(0,"会话","session_list",50008,"sessions"),
-                Node(1,preview,"session_item_会话",50007,"session"),Node(0,"会话","chat_input_field",50004,"input"),
+                Node(1,preview,"session_item_"+conversation,50007,"session"),Node(0,conversation,"chat_input_field",50004,"input"),
                 Node(0,"消息","chat_message_list",50008,"messages"),Node(4,"合成消息","",50007,"message/"+unread)]) { ObservedAt = DateTimeOffset.Now });
         }
         public Task<byte[]?> ReadImageAsync(DesktopImage request,CancellationToken token=default)=>Task.FromResult<byte[]?>(null);
