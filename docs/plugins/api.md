@@ -34,12 +34,27 @@
 | `IPluginContext.PinnedContent` | 获取固定内容提交能力；未提供时为空引用。 | — |
 | `IPluginContext.PublishNotification(PluginNotification)` | 从任意线程提交通知，由宿主入队并调度到界面线程。 | notification：来源标识与当前插件标识一致的通知数据。<br>此调用不等待渲染；宿主校对来源标识，停止或释放后的延迟通知由宿主丢弃。 |
 | `IPluginDesktop` | 通过宿主访问清单声明且经来源验证的桌面客户端；不向插件传递原生句柄。 | — |
+| `IPluginDesktop.OpenBridgeAsync(DesktopBridge,Threading.CancellationToken)` | 为已核验客户端连接包内原生桥接；旧宿主不提供此能力。 | — |
+| `IPluginDesktop.ReadBridgeAsync(Int32,Threading.CancellationToken)` | 取出桥接的有界原始字节；数据协议由插件解释。 | — |
+| `IPluginDesktop.CloseBridgeAsync(Int32,Threading.CancellationToken)` | 关闭客户端桥接并撤销管道。 | — |
 | `IPluginDesktop.FindClientsAsync(Threading.CancellationToken)` | 枚举允许的客户端及其模块、窗口。 | — |
 | `IPluginDesktop.ReadTreeAsync(Int32,Int64,Threading.CancellationToken)` | 读取指定客户端窗口的有界可访问性快照。 | — |
 | `IPluginDesktop.ReadModuleAsync(DesktopRead,Threading.CancellationToken)` | 读取已声明模块文件的一段内容。 | — |
 | `IPluginDesktop.ReadMemoryAsync(DesktopRead,Threading.CancellationToken)` | 读取已声明模块在客户端内存中的一段内容。 | — |
 | `IPluginDesktop.SetFlagAsync(DesktopFlag,Threading.CancellationToken)` | 核对加载模块锚点后设置单字节布尔标记；宿主在撤销时恢复原值。 | — |
 | `IPluginDesktop.ReadImageAsync(DesktopImage,Threading.CancellationToken)` | 读取快照元素提供的本地图像，或捕获该元素内的指定区域。 | — |
+| `DesktopBridge` | 请求从已验证安装包加载原生桥接，不接受包外路径或任意入口函数。 | ProcessId：当前桌面代理枚举到的客户端。<br>Library：包根目录内 DLL 文件名。<br>Sha256：插件构建嵌入的原生载荷摘要。<br>TargetSha256：已适配客户端可执行文件的完整摘要。<br>Magic：原生桥接握手标记。<br>Version：原生桥接协议版本。 |
+| `DesktopBridge.#ctor(Int32,String,String,String,UInt32,UInt32)` | 请求从已验证安装包加载原生桥接，不接受包外路径或任意入口函数。 | ProcessId：当前桌面代理枚举到的客户端。<br>Library：包根目录内 DLL 文件名。<br>Sha256：插件构建嵌入的原生载荷摘要。<br>TargetSha256：已适配客户端可执行文件的完整摘要。<br>Magic：原生桥接握手标记。<br>Version：原生桥接协议版本。 |
+| `DesktopBridge.ProcessId` | 当前桌面代理枚举到的客户端。 | — |
+| `DesktopBridge.Library` | 包根目录内 DLL 文件名。 | — |
+| `DesktopBridge.Sha256` | 插件构建嵌入的原生载荷摘要。 | — |
+| `DesktopBridge.TargetSha256` | 已适配客户端可执行文件的完整摘要。 | — |
+| `DesktopBridge.Magic` | 原生桥接握手标记。 | — |
+| `DesktopBridge.Version` | 原生桥接协议版本。 | — |
+| `DesktopBridgeData` | 有界桥接读取结果。 | Connected：客户端管道是否仍然连接。<br>Bytes：自上次读取以来的字节，最多 1 MiB。 |
+| `DesktopBridgeData.#ctor(Boolean,Byte[])` | 有界桥接读取结果。 | Connected：客户端管道是否仍然连接。<br>Bytes：自上次读取以来的字节，最多 1 MiB。 |
+| `DesktopBridgeData.Connected` | 客户端管道是否仍然连接。 | — |
+| `DesktopBridgeData.Bytes` | 自上次读取以来的字节，最多 1 MiB。 | — |
 | `PluginDesktopScope` | 声明允许访问的进程名、模块名及用途；此声明不自行授予能力。 | Processes：不带扩展名的客户端进程名。<br>Modules：允许读取的模块文件名。<br>Purpose：供使用者核对的访问用途。 |
 | `PluginDesktopScope.#ctor(String[],String[],String)` | 声明允许访问的进程名、模块名及用途；此声明不自行授予能力。 | Processes：不带扩展名的客户端进程名。<br>Modules：允许读取的模块文件名。<br>Purpose：供使用者核对的访问用途。 |
 | `PluginDesktopScope.Processes` | 不带扩展名的客户端进程名。 | — |

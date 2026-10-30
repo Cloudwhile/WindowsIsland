@@ -107,3 +107,7 @@ context.Diagnostics.Write(new PluginDiagnostic(
 4. 在开发环境修复后重新编译并导入。
 
 本机报告不会自动上传；公开反馈前检查报告和附件。宿主诊断不能替代插件对后台任务异常和取消的正常处理。
+
+### 官方 Telegram 插件
+
+Telegram 为独立插件 `wini_plugin_telegram`，声明 `notifications`、`automation`、`process` 及 `desktop` 客户端范围。默认插件源安装凭据、开发者 `winiofficial` 与仓库 `https://github.com/WinIOfficial/wini_plugin_telegram` 共同决定桌面代理授权；手动导入不会取得连接能力。Telegram 的版本适配、消息解析、头像编码与弹窗回退由插件实现。

@@ -23,7 +23,7 @@ wini_plugin_<name>
 | `wini_plugin_my_source` | `wini_plugin_2source` | 名称以数字开头 |
 | `wini_plugin_my__source_` | `wini_plugin_my-source` | 包含连字符 |
 
-内置标识 `wini_plugin_system`、`wini_plugin_telegram`、`wini_plugin_power`，以及停用来源的保留标识 `wini_plugin_countdown`，不能由外部插件占用。微信已采用外部适配器；其宿主代理能力另需验证默认插件源凭据及指定身份，填写 `wini_plugin_wechat` 标识不会授予该能力。
+内置标识 `wini_plugin_system`、`wini_plugin_power`，以及停用来源的保留标识 `wini_plugin_countdown`，不能由外部插件占用。微信和 Telegram 使用独立外部插件标识 `wini_plugin_wechat`、`wini_plugin_telegram`；宿主代理能力另需验证默认插件源凭据及指定身份，填写这些标识不会自行授予能力。
 
 插件入口的 `Id`、清单的 `id` 和提交通知时的 `SourceId` 必须相同。不要将插件版本加入标识，同一个插件更新时保持标识稳定。
 

@@ -67,10 +67,12 @@ Sources include built-in sources and separately installed plugins, each with an 
 | --- | --- |
 | Windows notifications | New system notifications, including those from apps such as QQ |
 | WeChat (official plugin) | New messages and unread previews from a signed-in desktop client, with conversation avatars when available and support for muted conversations |
-| Telegram | New messages from a signed-in desktop client |
+| Telegram (official plugin) | New messages and available conversation avatars from a signed-in desktop client |
 | Power | Power connection, charging, disconnection and full-charge events |
 
 WeChat is a separate official plugin by `winiofficial`. The default plugin source is available; check **Plugin management → Discover plugins** for its listing and install it there. Its WeChat connection requires verification through the default source; manually importing the ZIP does not grant this capability.
+
+Telegram is also a separately installed official plugin by `winiofficial`. Install it from **Plugin management → Discover plugins** when listed, then read its terms and enable it. Telegram connectivity requires a verified default-source installation.
 
 The island starts with new messages when a source connects or is re-enabled. Muted WeChat conversations stay quiet, and previous messages are not replayed. Turning off one source leaves the others running.
 
