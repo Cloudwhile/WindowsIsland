@@ -8,8 +8,8 @@ internal static class PluginCatalogChecks
 {
     public static async Task RunAsync(string root, Action<bool, string> check)
     {
-        var builtIns = new[] { BuiltInPluginDefinitions.System,
-            BuiltInPluginDefinitions.Telegram, BuiltInPluginDefinitions.Power };
+        var builtIns = new[] { BuiltInPluginDefinitions.System, BuiltInPluginDefinitions.Power };
+        check(!BuiltInPluginIds.IsReserved(BuiltInPluginIds.Telegram), "The separately installed Telegram adapter is not reserved");
         check(!BuiltInPluginIds.IsReserved(BuiltInPluginIds.WeChat),
             "The separately installed WeChat adapter is not a reserved built-in identity");
         check(builtIns.All(d => d.Metadata is { IsBuiltIn: true, Author: "winiofficial" } metadata

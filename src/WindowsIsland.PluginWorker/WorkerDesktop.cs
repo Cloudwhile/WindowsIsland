@@ -6,6 +6,9 @@ namespace WindowsIsland.PluginWorker;
 
 internal sealed class WorkerDesktop(IsolationRpc rpc, CancellationToken lifetime) : IPluginDesktop
 {
+    public Task<bool> OpenBridgeAsync(DesktopBridge request, CancellationToken token = default) => CallAsync<bool>("bridgeOpen", request, token);
+    public Task<DesktopBridgeData> ReadBridgeAsync(int processId, CancellationToken token = default) => CallAsync<DesktopBridgeData>("bridgeRead", processId, token);
+    public Task<bool> CloseBridgeAsync(int processId, CancellationToken token = default) => CallAsync<bool>("bridgeClose", processId, token);
     private async Task<T> CallAsync<T>(string operation, object? payload, CancellationToken token)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, lifetime);

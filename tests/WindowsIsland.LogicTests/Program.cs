@@ -17,6 +17,12 @@ if (args is ["--plugin-audit"])
     return;
 }
 
+if (args is ["--telegram-plugin", var telegramZip])
+{
+    await WindowsIsland.LogicTests.TelegramHostChecks.RunPackageAsync(Path.GetFullPath(telegramZip));
+    return;
+}
+
 if (args is ["--wechat-plugin", var pluginZip])
 {
     await WindowsIsland.LogicTests.DesktopHostChecks.RunPackageAsync(Path.GetFullPath(pluginZip));

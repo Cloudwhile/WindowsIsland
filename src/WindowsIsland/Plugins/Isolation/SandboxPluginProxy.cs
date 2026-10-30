@@ -38,7 +38,7 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
 
     public bool Allows(PluginNotification notification)
     {
-        if (_desktop is null) return true;
+        if (_desktop is null || external.Manifest.Id == BuiltInPluginIds.Telegram) return true;
         if (Volatile.Read(ref _revoked) != 0 || Volatile.Read(ref _disposed) != 0
             || System.Diagnostics.Stopwatch.GetElapsedTime(Volatile.Read(ref _descriptionAt)) > TimeSpan.FromSeconds(10)) return false;
         var identity = WindowsIsland.Services.MessengerIdentity.FromNotification(PluginNotificationBridge.ToHost(notification));
@@ -130,7 +130,7 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
                     || value.Symbol?.Length > 64 || !Enum.IsDefined(value.Kind)) throw new InvalidDataException();
                 var target = value.OriginProcessId is { } processId && _desktop is IPluginDesktopProcessScope scope && scope.OwnsProcess(processId)
                     ? value.OriginProcessId : null;
-                if (_desktop is not null)
+                if (_desktop is not null && external.Manifest.Id == BuiltInPluginIds.WeChat)
                 {
                     // The first message can precede the next scheduled poll of its conversation policy.
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token, _services.Token);

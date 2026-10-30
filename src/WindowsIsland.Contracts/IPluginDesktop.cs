@@ -3,6 +3,15 @@ namespace WindowsIsland.Contracts;
 /// <summary>通过宿主访问清单声明且经来源验证的桌面客户端；不向插件传递原生句柄。</summary>
 public interface IPluginDesktop
 {
+    /// <summary>为已核验客户端连接包内原生桥接；旧宿主不提供此能力。</summary>
+    Task<bool> OpenBridgeAsync(DesktopBridge request, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    /// <summary>取出桥接的有界原始字节；数据协议由插件解释。</summary>
+    Task<DesktopBridgeData> ReadBridgeAsync(int processId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
+    /// <summary>关闭客户端桥接并撤销管道。</summary>
+    Task<bool> CloseBridgeAsync(int processId, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
     /// <summary>枚举允许的客户端及其模块、窗口。</summary>
     Task<DesktopClient[]> FindClientsAsync(CancellationToken cancellationToken = default);
     /// <summary>读取指定客户端窗口的有界可访问性快照。</summary>
@@ -16,6 +25,20 @@ public interface IPluginDesktop
     /// <summary>读取快照元素提供的本地图像，或捕获该元素内的指定区域。</summary>
     Task<byte[]?> ReadImageAsync(DesktopImage request, CancellationToken cancellationToken = default);
 }
+
+/// <summary>请求从已验证安装包加载原生桥接，不接受包外路径或任意入口函数。</summary>
+/// <param name="ProcessId">当前桌面代理枚举到的客户端。</param>
+/// <param name="Library">包根目录内 DLL 文件名。</param>
+/// <param name="Sha256">插件构建嵌入的原生载荷摘要。</param>
+/// <param name="TargetSha256">已适配客户端可执行文件的完整摘要。</param>
+/// <param name="Magic">原生桥接握手标记。</param>
+/// <param name="Version">原生桥接协议版本。</param>
+public sealed record DesktopBridge(int ProcessId, string Library, string Sha256, string TargetSha256, uint Magic, uint Version);
+
+/// <summary>有界桥接读取结果。</summary>
+/// <param name="Connected">客户端管道是否仍然连接。</param>
+/// <param name="Bytes">自上次读取以来的字节，最多 1 MiB。</param>
+public sealed record DesktopBridgeData(bool Connected, byte[] Bytes);
 
 /// <summary>声明允许访问的进程名、模块名及用途；此声明不自行授予能力。</summary>
 /// <param name="Processes">不带扩展名的客户端进程名。</param>

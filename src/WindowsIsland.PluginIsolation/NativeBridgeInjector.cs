@@ -5,73 +5,98 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
-namespace WindowsIsland.Services;
+namespace WindowsIsland.PluginIsolation;
 
-internal static class TelegramHookInjector
+public static class NativeBridgeInjector
 {
-    private static readonly HashSet<string> SupportedHashes =
-    [
-        "D7680288560339FFE89FFEA10B603C87E35AAB1AD5DB5DD516E62D55FD5DA8DC", // 7.2.9 x64, Qt 5
-        "CEE6F5F0E1F9556E827FB65C9EB422DBEE3ECA7B7723A29D6F1502756E6CA666"  // 7.3.3 x64, Qt 6
-    ];
-
-    public static string Attach(int processId, string hookPath, string pipeName, bool fixture = false)
+    public static string Attach(int processId, string hookPath, string pipeName, string digest,
+        string targetDigest, uint magic, uint version, bool fixture = false, long? expectedStartedAt = null)
     {
-        using var dll = TelegramHookIntegrity.Open(hookPath);
+        using var dll = NativeBridgeIntegrity.Open(hookPath, digest);
         using var process = Process.GetProcessById(processId);
-        var executable = process.MainModule?.FileName ?? throw new InvalidOperationException("Telegram executable is unavailable.");
-        if (fixture)
-        {
-            if (!Path.GetFileName(executable).Equals("WindowsIsland.TelegramFixture.exe", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Unexpected hook fixture executable.");
-        }
-        else
-        {
-            if (!process.ProcessName.Equals("Telegram", StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Unexpected Telegram process.");
-            using var file = File.OpenRead(executable);
-            if (!SupportedHashes.Contains(Convert.ToHexString(SHA256.HashData(file))))
-                throw new NotSupportedException("Telegram binary has no verified capture profile.");
-        }
-
+        var executable = process.MainModule?.FileName ?? throw new InvalidOperationException("Client executable is unavailable.");
+        using (var file = File.OpenRead(executable))
+            if (!string.Equals(Convert.ToHexString(SHA256.HashData(file)), targetDigest, StringComparison.OrdinalIgnoreCase))
+                throw new NotSupportedException("Client binary has no verified capture profile.");
         var runtimePath = ResolveFilePath(dll.Handle);
         if (process.Modules.Cast<ProcessModule>().Any(module =>
-            module.ModuleName.Equals("WindowsIsland.TelegramHook.dll", StringComparison.OrdinalIgnoreCase)
+            module.ModuleName.Equals(Path.GetFileName(hookPath), StringComparison.OrdinalIgnoreCase)
             && !ModulePathMatches(module, runtimePath)))
-            throw new InvalidOperationException("Another Telegram bridge is still attached.");
+            throw new InvalidOperationException("Another native bridge is still attached.");
         using var target = OpenProcess(0x043A, false, processId);
         if (target.IsInvalid) throw new Win32Exception();
+        if (expectedStartedAt is { } expected)
+        {
+            if (!GetProcessTimes(target, out var created, out _, out _, out _)) throw new Win32Exception();
+            var fileTime = ((long)(uint)created.dwHighDateTime << 32) | (uint)created.dwLowDateTime;
+            if (DateTime.FromFileTimeUtc(fileTime).Ticks != expected) throw new UnauthorizedAccessException();
+        }
         if (!IsWow64Process2(target, out var machine, out var nativeMachine) || machine != 0 || nativeMachine != 0x8664)
-            throw new NotSupportedException("Telegram hook requires a matching x64 process.");
+            throw new NotSupportedException("Native bridge hook requires a matching x64 process.");
 
+        var entryOffset = ExportOffset(runtimePath, "StartHook");
         var remoteModule = FindModule(process, runtimePath);
         var loaded = remoteModule == 0;
         if (loaded)
         {
             RunWithBytes(target, RemoteSystemFunction(process, "LoadLibraryW"), Encoding.Unicode.GetBytes(runtimePath + "\0"));
             remoteModule = FindModule(process, runtimePath);
-            if (remoteModule == 0) throw new InvalidOperationException("Telegram hook DLL did not load.");
+            if (remoteModule == 0) throw new InvalidOperationException("Native bridge hook DLL did not load.");
         }
-        var local = NativeLibrary.Load(runtimePath);
-        try
+        // Read the export RVA as PE data. Never load external native code into the host.
+        var start = remoteModule + entryOffset;
+        var configuration = new byte[16 + 256 * sizeof(char)];
+        BitConverter.GetBytes(magic).CopyTo(configuration, 0);
+        BitConverter.GetBytes(version).CopyTo(configuration, 4);
+        BitConverter.GetBytes(fixture ? 1u : 0u).CopyTo(configuration, 8);
+        BitConverter.GetBytes((uint)Environment.ProcessId).CopyTo(configuration, 12);
+        var name = Encoding.Unicode.GetBytes("\\\\.\\pipe\\" + pipeName + "\0");
+        if (name.Length > 512) throw new ArgumentException("Bridge pipe name is too long.");
+        name.CopyTo(configuration, 16);
+        var result = RunWithBytes(target, start, configuration);
+        if (result != 0)
         {
-            var start = remoteModule + (NativeLibrary.GetExport(local, "StartHook") - local);
-            var configuration = new byte[16 + 256 * sizeof(char)];
-            BitConverter.GetBytes(TelegramHookProtocol.Magic).CopyTo(configuration, 0);
-            BitConverter.GetBytes((uint)TelegramHookProtocol.Version).CopyTo(configuration, 4);
-            BitConverter.GetBytes(fixture ? 1u : 0u).CopyTo(configuration, 8);
-            BitConverter.GetBytes((uint)Environment.ProcessId).CopyTo(configuration, 12);
-            var name = Encoding.Unicode.GetBytes("\\\\.\\pipe\\" + pipeName + "\0");
-            if (name.Length > 512) throw new ArgumentException("Bridge pipe name is too long.");
-            name.CopyTo(configuration, 16);
-            var result = RunWithBytes(target, start, configuration);
-            if (result != 0)
-            {
-                if (loaded && result != 2) RunRemote(target, RemoteSystemFunction(process, "FreeLibrary"), remoteModule);
-                throw new InvalidOperationException($"Telegram native hook initialization failed ({result}).");
-            }
+            if (loaded && result != 2) RunRemote(target, RemoteSystemFunction(process, "FreeLibrary"), remoteModule);
+            throw new InvalidOperationException($"Native bridge initialization failed ({result}).");
         }
-        finally { NativeLibrary.Free(local); }
         return executable;
+    }
+
+    private static int ExportOffset(string path, string name)
+    {
+        using var stream = File.OpenRead(path);
+        using var pe = new System.Reflection.PortableExecutable.PEReader(stream);
+        if (pe.PEHeaders.CoffHeader.Machine != System.Reflection.PortableExecutable.Machine.Amd64
+            || pe.PEHeaders.PEHeader is not { } header) throw new InvalidDataException();
+        var directory = header.ExportTableDirectory;
+        var data = pe.GetSectionData(directory.RelativeVirtualAddress).GetContent(0, 40).ToArray();
+        uint U(int offset) => BitConverter.ToUInt32(data, offset);
+        var count = U(24);
+        if (count is 0 or > 4096) throw new InvalidDataException();
+        var names = pe.GetSectionData(checked((int)U(32))).GetContent(0, checked((int)count * 4)).ToArray();
+        var ordinals = pe.GetSectionData(checked((int)U(36))).GetContent(0, checked((int)count * 2)).ToArray();
+        for (var index = 0; index < count; index++)
+        {
+            var bytes = pe.GetSectionData(BitConverter.ToInt32(names, index * 4)).GetReader();
+            var labelBytes = new List<byte>();
+            while (true)
+            {
+                if (bytes.RemainingBytes == 0 || labelBytes.Count >= 256) throw new InvalidDataException();
+                var value = bytes.ReadByte();
+                if (value == 0) break;
+                labelBytes.Add(value);
+            }
+            var label = Encoding.UTF8.GetString(labelBytes.ToArray());
+            if (label != name) continue;
+            var ordinal = BitConverter.ToUInt16(ordinals, index * 2);
+            if (ordinal >= U(20)) throw new InvalidDataException();
+            var offset = BitConverter.ToInt32(pe.GetSectionData(checked((int)U(28))).GetContent(ordinal * 4, 4).ToArray());
+            if (offset <= 0 || offset >= header.SizeOfImage
+                || offset >= directory.RelativeVirtualAddress && offset < directory.RelativeVirtualAddress + directory.Size)
+                throw new InvalidDataException();
+            return offset;
+        }
+        throw new InvalidDataException("Native bridge entry is unavailable.");
     }
 
     private static nint FindModule(Process process, string path)
@@ -132,12 +157,15 @@ internal static class TelegramHookInjector
         using var thread = CreateRemoteThread(process, 0, 0, function, parameter, 0, out _);
         if (thread.IsInvalid) throw new Win32Exception();
         var status = WaitForSingleObject(thread, 5000);
-        if (status == 0x102) throw new TimeoutException("Telegram hook initialization timed out.");
+        if (status == 0x102) throw new TimeoutException("Native bridge hook initialization timed out.");
         if (status != 0 || !GetExitCodeThread(thread, out var result)) throw new Win32Exception();
         return result;
     }
 
     [DllImport("kernel32.dll", SetLastError = true)] private static extern SafeProcessHandle OpenProcess(uint access, bool inherit, int id);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern bool GetProcessTimes(SafeProcessHandle process,
+        out System.Runtime.InteropServices.ComTypes.FILETIME created, out System.Runtime.InteropServices.ComTypes.FILETIME exited,
+        out System.Runtime.InteropServices.ComTypes.FILETIME kernel, out System.Runtime.InteropServices.ComTypes.FILETIME user);
     [DllImport("kernel32.dll", SetLastError = true)] private static extern bool IsWow64Process2(SafeProcessHandle process, out ushort machine, out ushort nativeMachine);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern nint GetModuleHandle(string name);
     [DllImport("kernel32.dll", CharSet = CharSet.Ansi)] private static extern nint GetProcAddress(nint module, string name);

@@ -58,12 +58,10 @@
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\packaging\Unregister-Package.ps1" Link="Unregister-Package.ps1"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\native\vendor\minhook\LICENSE.txt" Link="Licenses\MinHook.txt"
-      CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\artifacts\native\Release\WindowsIsland.TelegramHook.dll" Link="WindowsIsland.TelegramHook.dll"
-      CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
-  <Import Project="../../packaging/TelegramHookIntegrity.targets" />
+  <Target Name="RemoveExtractedTelegramPayload" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
+    <Delete Files="$(TargetDir)WindowsIsland.TelegramHook.dll;$(TargetDir)Licenses\MinHook.txt;$(PublishDir)WindowsIsland.TelegramHook.dll;$(PublishDir)Licenses\MinHook.txt" />
+  </Target>
   <Target Name="PrepareInitializationRuntime" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
     <Copy SourceFiles="$(IntermediateOutputPath)MsixContent\AppxManifest.xml"
       DestinationFiles="$(TargetDir)Initialization\RuntimeManifest.xml" SkipUnchangedFiles="true" />

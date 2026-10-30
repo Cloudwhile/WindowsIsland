@@ -34,14 +34,18 @@ internal sealed partial class PluginDesktopBroker : IPluginDesktop, IPluginDeskt
     private readonly TaskCompletionSource _disposed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private int _revoked;
 
-    public PluginDesktopBroker(PluginManifest manifest, string hostRoot)
+    public PluginDesktopBroker(PluginManifest manifest, string hostRoot, string? pluginDirectory = null)
     {
         PluginDesktopPolicy.Validate(manifest);
         if (!PluginDesktopPolicy.IsAllowed(manifest)) throw new UnauthorizedAccessException();
         _hostRoot = Path.GetFullPath(hostRoot);
+        _pluginDirectory = pluginDirectory is null ? null : Path.GetFullPath(pluginDirectory);
+        _allowBridge = manifest.Id == "wini_plugin_telegram" && ScopeForBridge(manifest);
         var scope = manifest.Desktop!;
         _scope = new(scope.Processes.ToArray(), scope.Modules.ToArray(), scope.Purpose);
     }
+
+    private static bool ScopeForBridge(PluginManifest manifest) => manifest.Desktop!.Processes.SequenceEqual(["Telegram"]);
 
     public bool OwnsProcess(int id) => Volatile.Read(ref _revoked) == 0 && Volatile.Read(ref _processIds).Contains(id);
 
@@ -198,7 +202,7 @@ internal sealed partial class PluginDesktopBroker : IPluginDesktop, IPluginDeskt
     private static bool Matches(Client client, Module module, DesktopFlag request) => request.Anchors.All(anchor =>
         Read(client, module, anchor.Offset, anchor.Bytes.Length).AsSpan().SequenceEqual(anchor.Bytes));
 
-    private void RemoveClient(int id) { if (_clients.Remove(id, out var client)) DisposeClient(client); }
+    private void RemoveClient(int id) { CloseBridge(id); if (_clients.Remove(id, out var client)) DisposeClient(client); }
     private static void DisposeClient(Client client)
     {
         try
@@ -228,7 +232,7 @@ internal sealed partial class PluginDesktopBroker : IPluginDesktop, IPluginDeskt
         if (Interlocked.Exchange(ref _revoked, 1) != 0) return;
         Volatile.Write(ref _processIds, []);
         _lifetime.Cancel();
-        _ = FinishAsync();
+        _ = Task.Run(FinishAsync);
     }
 
     private async Task FinishAsync()

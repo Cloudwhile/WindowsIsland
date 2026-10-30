@@ -3,18 +3,18 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
 
-namespace WindowsIsland.Services;
+namespace WindowsIsland.PluginIsolation;
 
-// 摘要由构建时的原生载荷生成并嵌入宿主，不信任 DLL 旁可替换的摘要文件。
-internal sealed class TelegramHookIntegrity : IDisposable
+// 摘要由已验证的插件提供；同句柄核验并持有文件与全部祖先目录。
+public sealed class NativeBridgeIntegrity : IDisposable
 {
     private readonly List<SafeFileHandle> _directories = [];
     private FileStream? _file;
     public SafeFileHandle Handle => _file!.SafeFileHandle;
 
-    public static TelegramHookIntegrity Open(string path)
+    public static NativeBridgeIntegrity Open(string path, string expected)
     {
-        var verified = new TelegramHookIntegrity();
+        var verified = new NativeBridgeIntegrity();
         try
         {
             var full = Path.GetFullPath(path);
@@ -36,16 +36,11 @@ internal sealed class TelegramHookIntegrity : IDisposable
             if (!GetFileInformationByHandle(file, out var data) || data.NumberOfLinks != 1
                 || (data.Attributes & (uint)(FileAttributes.ReparsePoint | FileAttributes.Directory)) != 0
                 || verified._file.Length is <= 0 or > 64 * 1024 * 1024) throw Invalid();
-            using var resource = typeof(TelegramHookIntegrity).Assembly.GetManifestResourceStream("WindowsIsland.TelegramHook.sha256")
-                ?? throw Invalid();
-            if (resource.Length > 256) throw Invalid();
-            using var reader = new StreamReader(resource);
-            var expected = reader.ReadToEnd().Trim();
             if (expected.Length != 64 || !expected.All(Uri.IsHexDigit)
                 || !string.Equals(Convert.ToHexString(SHA256.HashData(verified._file)), expected, StringComparison.OrdinalIgnoreCase)) throw Invalid();
             return verified;
         }
-        catch { verified.Dispose(); throw new TelegramHookIntegrityException(); }
+        catch { verified.Dispose(); throw new NativeBridgeIntegrityException(); }
     }
 
     public void Dispose()
@@ -55,7 +50,7 @@ internal sealed class TelegramHookIntegrity : IDisposable
         _directories.Clear();
     }
 
-    private static TelegramHookIntegrityException Invalid() => new();
+    private static NativeBridgeIntegrityException Invalid() => new();
 
     [StructLayout(LayoutKind.Sequential)]
     private struct FileInformation
@@ -70,8 +65,8 @@ internal sealed class TelegramHookIntegrity : IDisposable
     [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileInformation info);
 }
 
-internal sealed class TelegramHookIntegrityException : IOException
+public sealed class NativeBridgeIntegrityException : IOException
 {
-    public TelegramHookIntegrityException() : base("Telegram hook integrity validation failed.")
+    public NativeBridgeIntegrityException() : base("Telegram hook integrity validation failed.")
         => HResult = unchecked((int)0x8007000D);
 }

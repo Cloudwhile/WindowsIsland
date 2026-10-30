@@ -10,6 +10,9 @@ public static class DesktopRpc
         T Value<T>() => request.Payload.Deserialize<T>(IsolationRpc.Json) ?? throw new InvalidDataException();
         switch (request.Operation)
         {
+            case "bridgeOpen": return await service.OpenBridgeAsync(Value<DesktopBridge>(), token);
+            case "bridgeRead": return await service.ReadBridgeAsync(Value<int>(), token);
+            case "bridgeClose": return await service.CloseBridgeAsync(Value<int>(), token);
             case "clients": return await service.FindClientsAsync(token);
             case "tree":
                 var window = Value<DesktopWindowRequest>();

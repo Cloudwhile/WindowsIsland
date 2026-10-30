@@ -89,11 +89,11 @@ internal sealed class PluginDirectoryLoader(PluginPaths paths, SettingsStore sto
             DiagnosticArea.Application, _ => store.GetPluginBoolean(id, "Host.Enabled", false),
             (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return s; }, _ => false, metadata);
         if (PluginDesktopPolicy.IsAllowed(manifest))
-            definition = BuiltInPluginDefinitions.WeChat with
+            definition = (id == BuiltInPluginIds.Telegram ? BuiltInPluginDefinitions.Telegram : BuiltInPluginDefinitions.WeChat) with
             {
                 Metadata = metadata,
-                IsEnabled = s => s.WeChat && store.GetPluginBoolean(id, "Host.Enabled", false),
-                SetEnabled = (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return s with { WeChat = enabled }; }
+                IsEnabled = s => (id == BuiltInPluginIds.Telegram ? s.Telegram : s.WeChat) && store.GetPluginBoolean(id, "Host.Enabled", false),
+                SetEnabled = (s, enabled) => { store.SetPluginBoolean(id, "Host.Enabled", enabled); return id == BuiltInPluginIds.Telegram ? s with { Telegram = enabled } : s with { WeChat = enabled }; }
             };
         return new(definition, external.Create);
     }

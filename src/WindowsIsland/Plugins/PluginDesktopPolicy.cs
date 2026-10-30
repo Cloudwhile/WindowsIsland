@@ -10,9 +10,9 @@ internal static class PluginDesktopPolicy
         && manifest.Desktop is not null && manifest.Permissions.Contains(PluginPermissions.Automation)
         && manifest.Permissions.Contains(PluginPermissions.Process) && manifest.Permissions.Contains(PluginPermissions.Notifications);
 
-    public static bool MatchesPublisher(string id, string developerId, string? repository) => id == "wini_plugin_wechat"
+    public static bool MatchesPublisher(string id, string developerId, string? repository) => id is "wini_plugin_wechat" or "wini_plugin_telegram"
         && developerId == "winiofficial" && string.Equals(repository,
-            "https://github.com/WinIOfficial/wini_plugin_wechat", StringComparison.OrdinalIgnoreCase);
+            "https://github.com/WinIOfficial/" + id, StringComparison.OrdinalIgnoreCase);
 
     public static void Validate(PluginManifest manifest)
     {

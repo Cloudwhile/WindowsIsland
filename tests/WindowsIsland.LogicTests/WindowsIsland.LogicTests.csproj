@@ -65,7 +65,6 @@
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInMessageSource.cs" Link="Plugins/BuiltInMessageSource.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/PowerPlugin.cs" Link="Plugins/PowerPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/SystemNotificationPlugin.cs" Link="Plugins/SystemNotificationPlugin.cs" />
-    <Compile Include="../../src/WindowsIsland/Plugins/TelegramPlugin.cs" Link="Plugins/TelegramPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginDefinitions.cs" Link="Plugins/BuiltInPluginDefinitions.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginIds.cs" Link="Plugins/BuiltInPluginIds.cs" />
     <Compile Include="../../src/WindowsIsland/Services/Diagnostics.cs" Link="Diagnostics.cs" />
