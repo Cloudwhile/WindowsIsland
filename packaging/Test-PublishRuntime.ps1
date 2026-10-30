@@ -5,9 +5,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
-if (!(Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.TelegramHook.dll') -PathType Leaf)) {
-    throw 'Published payload is missing WindowsIsland.TelegramHook.dll.'
+if (Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.TelegramHook.dll')) {
+    throw 'The application payload must not include the separately installed Telegram hook.'
 }
+
 $worker = Join-Path $publish 'PluginWorker'
 foreach ($file in @('WindowsIsland.PluginWorker.exe', 'WindowsIsland.PluginWorker.dll', 'WindowsIsland.PluginWorker.deps.json',
     'WindowsIsland.PluginWorker.runtimeconfig.json', 'WindowsIsland.PluginIsolation.dll', 'WindowsIsland.Contracts.dll',

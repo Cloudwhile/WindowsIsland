@@ -15,6 +15,5 @@
     <Project Path="tests/WindowsIsland.HookFixture/WindowsIsland.HookFixture.csproj" />
     <Project Path="tests/WindowsIsland.InitializationTests/WindowsIsland.InitializationTests.csproj" />
     <Project Path="tests/WindowsIsland.LogicTests/WindowsIsland.LogicTests.csproj" />
-    <Project Path="tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj" />
   </Folder>
 </Solution>

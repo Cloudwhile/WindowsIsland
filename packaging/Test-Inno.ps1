@@ -99,7 +99,7 @@ try {
     & $compiler '/Q' "/DAppVersion=$version" "/DPublishDirectory=$payload" "/DPackagingDirectory=$packaging" "/DOutputDirectory=$work" (Join-Path $packaging 'WindowsIsland.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Isolated Inno build failed.' }
     Run-Installer $installer ($mode + @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="' + $installed + '"'),('/LOG="' + (Join-Path $work 'install.log') + '"')))
-    foreach ($file in @('WindowsIsland.exe','WindowsIsland.TelegramHook.dll','Unregister-Package.ps1','en-US/WindowsIsland.resources.dll')) {
+    foreach ($file in @('WindowsIsland.exe','Unregister-Package.ps1','en-US/WindowsIsland.resources.dll')) {
         if (!(Test-Path -LiteralPath (Join-Path $installed $file))) { throw "Missing installed file: $file" }
     }
     if (!$Machine) {

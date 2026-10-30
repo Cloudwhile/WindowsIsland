@@ -117,9 +117,6 @@ jobs:
       - name: Check Shell icon alpha
         run: dotnet run --project tests/WindowsIsland.IconTests/WindowsIsland.IconTests.csproj -c Release
 
-      - name: Run Telegram bridge checks
-        run: dotnet run --project tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj -c Release
-
       - name: Publish application
         env:
           APP_VERSION: ${{ steps.version.outputs.value }}
@@ -135,11 +132,11 @@ jobs:
           $publish = Join-Path $env:GITHUB_WORKSPACE 'artifacts/publish'
           $required = @(
             'WindowsIsland.exe', 'WindowsIsland.dll', 'WindowsIsland.deps.json',
-            'WindowsIsland.runtimeconfig.json', 'WindowsIsland.TelegramHook.dll',
+            'WindowsIsland.runtimeconfig.json',
             'WindowsIsland.pri', 'App.xbf', 'Microsoft.UI.Xaml.dll', 'coreclr.dll',
             'en-US/WindowsIsland.resources.dll',
             'hostfxr.dll', 'Assets/Island.ico', 'Icons/LOGO.png', 'Initialization/AppxManifest.xml',
-            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt', 'Unregister-Package.ps1',
+            'Initialization/RuntimeManifest.xml', 'Unregister-Package.ps1',
             'Assets/Shell/AppList.png', 'Assets/Shell/MediumTile.png', 'Assets/Shell/StoreLogo.png',
             'Assets/Shell/AppList.targetsize-24_altform-unplated.png',
             'Assets/Shell/AppList.targetsize-24_altform-lightunplated.png'

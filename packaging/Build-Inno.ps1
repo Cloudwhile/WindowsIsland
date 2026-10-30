@@ -12,9 +12,7 @@ $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
 $output = [IO.Path]::GetFullPath($OutputDirectory)
 if (!(Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.exe') -PathType Leaf)) { throw 'Publish output is missing.' }
 if (!(Test-Path -LiteralPath (Join-Path $publish 'LICENSE') -PathType Leaf)) { throw 'Publish output is missing LICENSE.' }
-if (!(Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.TelegramHook.dll') -PathType Leaf)) {
-    throw 'Publish output is missing WindowsIsland.TelegramHook.dll.'
-}
+
 if (!$InnoSetup) {
     $InnoSetup = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
     if (!$InnoSetup) {
