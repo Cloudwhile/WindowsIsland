@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using Windows.Graphics;
 using WindowsIsland.Components;
@@ -12,23 +13,31 @@ namespace WindowsIsland;
 internal sealed class SettingsWindow : Window
 {
     private readonly DispatcherQueueTimer _refresh;
+    private readonly CancellationTokenSource _dialogs = new();
+    private bool _closed;
 
     public SettingsWindow(SettingsStore settings, UpdateCheckService updates, Func<SettingsSnapshot> snapshot, Func<Task> initialize,
         Func<Task> requestAccess, Action preview, Action exit, bool openUpdates = false, bool verification = false,
-        Func<string, Task>? retrySource = null)
+        Func<string, Task>? retrySource = null, Func<string, bool, Task>? setSourceEnabled = null,
+        Func<string, Task>? removePlugin = null, Plugins.PluginLibrary? pluginLibrary = null, Func<Task>? rescanPlugins = null,
+        Func<string, Task<Plugins.PluginSettingsModel?>>? pluginSettings = null)
     {
         Title = Localization.Get("WindowSettingsTitle");
-        SystemBackdrop = new MicaBackdrop();
+        var mica = Microsoft.UI.Composition.SystemBackdrops.MicaController.IsSupported();
+        if (mica) SystemBackdrop = new MicaBackdrop();
         var page = new SettingsPage(settings, updates, snapshot, initialize, requestAccess, preview, Close, exit, openUpdates, verification,
-            PickDiagnosticFileAsync, retrySource);
-        var titleBar = new TitleBar
-        {
-            Title = "Windows Island",
-            IconSource = new ImageIconSource { ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Icons/LOGO.png")) }
-        };
-        var layout = new Grid { Language = Localization.Language };
+            PickDiagnosticFileAsync, retrySource, setSourceEnabled, removePlugin, pluginLibrary, PickPluginFileAsync, rescanPlugins, pluginSettings);
+        var titleBar = (TitleBar)XamlReader.Load("<TitleBar xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Foreground='{ThemeResource TextFillColorPrimaryBrush}' />");
+        titleBar.Title = "Windows Island";
+        titleBar.IconSource = new ImageIconSource { ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Icons/LOGO.png")) };
+        titleBar.Loaded += (_, _) => RefreshCaptionTheme(titleBar);
+        titleBar.ActualThemeChanged += (_, _) => DispatcherQueue.TryEnqueue(() => RefreshCaptionTheme(titleBar));
+        var layout = (Grid)XamlReader.Load("<Grid xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Background='{ThemeResource ApplicationPageBackgroundThemeBrush}' />");
+        layout.Language = Localization.Language;
+        if (mica) layout.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         LocalizedUI.Bind(layout, () =>
         {
+            if (_closed) return;
             Title = Localization.Get("WindowSettingsTitle");
             layout.Language = Localization.Language;
         });
@@ -44,25 +53,68 @@ internal sealed class SettingsWindow : Window
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var scale = NativeWindow.GetDpiForWindow(hwnd) / 96d;
         var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        ApplyMinimumSize();
+        AppWindow.Changed += OnWindowChanged;
         var width = Math.Min((int)(840 * scale), area.Width - 48);
         var height = Math.Min((int)(720 * scale), area.Height - 48);
         AppWindow.MoveAndResize(new RectInt32(area.X + (area.Width - width) / 2,
             area.Y + (area.Height - height) / 2, width, height));
         _refresh = DispatcherQueue.CreateTimer();
         _refresh.Interval = TimeSpan.FromSeconds(1);
-        _refresh.Tick += (_, _) => page.Refresh();
+        _refresh.Tick += (_, _) =>
+        {
+            if (!_closed && AppWindow.IsVisible && AppWindow.Presenter is not OverlappedPresenter { State: OverlappedPresenterState.Minimized })
+                page.Refresh();
+        };
         _refresh.Start();
-        Closed += (_, _) => { _refresh.Stop(); page.Dispose(); };
+        Closed += (_, _) => { _closed = true; AppWindow.Changed -= OnWindowChanged; _dialogs.Cancel(); _dialogs.Dispose(); _refresh.Stop(); page.Dispose(); };
+    }
+
+    private void OnWindowChanged(AppWindow sender, AppWindowChangedEventArgs args)
+    {
+        if (!_closed && (args.DidSizeChange || args.DidPositionChange)) ApplyMinimumSize();
+    }
+
+    private void ApplyMinimumSize()
+    {
+        if (_closed || AppWindow.Presenter is not OverlappedPresenter presenter) return;
+        var scale = NativeWindow.GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96d;
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        presenter.PreferredMinimumWidth = Math.Min((int)(520 * scale), area.Width);
+        presenter.PreferredMinimumHeight = Math.Min((int)(480 * scale), area.Height);
+    }
+
+    private void RefreshCaptionTheme(TitleBar titleBar)
+    {
+        if (_closed) return;
+        var caption = AppWindow.TitleBar;
+        if (new Windows.UI.ViewManagement.AccessibilitySettings().HighContrast)
+        {
+            caption.ButtonForegroundColor = caption.ButtonInactiveForegroundColor = null;
+            caption.ButtonHoverForegroundColor = caption.ButtonPressedForegroundColor = null;
+            caption.ButtonBackgroundColor = caption.ButtonInactiveBackgroundColor = null;
+            caption.ButtonHoverBackgroundColor = caption.ButtonPressedBackgroundColor = null;
+            return;
+        }
+        if (titleBar.Foreground is not SolidColorBrush brush) return;
+        var color = brush.Color;
+        caption.ButtonForegroundColor = caption.ButtonHoverForegroundColor = caption.ButtonPressedForegroundColor = color;
+        caption.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(0x99, color.R, color.G, color.B);
+        caption.ButtonBackgroundColor = caption.ButtonInactiveBackgroundColor = Microsoft.UI.Colors.Transparent;
+        caption.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(0x0F, color.R, color.G, color.B);
+        caption.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(0x18, color.R, color.G, color.B);
     }
 
     private async Task<string?> PickDiagnosticFileAsync()
     {
-        var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
-        {
-            SuggestedFileName = "WindowsIsland-diagnostics-" + DateTime.Now.ToString("yyyyMMdd-HHmmss"),
-            DefaultFileExtension = ".json"
-        };
-        picker.FileTypeChoices.Add(Localization.Get("DiagnosticsFileType"), new List<string> { ".json" });
-        return (await picker.PickSaveFileAsync())?.Path;
+        var fileType = Localization.Get("DiagnosticsFileType");
+        return await DiagnosticSaveDialog.PickAsync(WinRT.Interop.WindowNative.GetWindowHandle(this), fileType, DateTime.Now, _dialogs.Token);
+    }
+
+    private async Task<string?> PickPluginFileAsync(CancellationToken token)
+    {
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(token, _dialogs.Token);
+        return await NativeFileDialog.OpenPluginAsync(WinRT.Interop.WindowNative.GetWindowHandle(this),
+            Localization.Get("PluginPackageFileType"), lifetime.Token);
     }
 }

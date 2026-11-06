@@ -5,6 +5,20 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $publish = (Resolve-Path -LiteralPath $PublishDirectory).Path
+if (Test-Path -LiteralPath (Join-Path $publish 'WindowsIsland.TelegramHook.dll')) {
+    throw 'The application payload must not include the separately installed Telegram hook.'
+}
+
+$worker = Join-Path $publish 'PluginWorker'
+foreach ($file in @('WindowsIsland.PluginWorker.exe', 'WindowsIsland.PluginWorker.dll', 'WindowsIsland.PluginWorker.deps.json',
+    'WindowsIsland.PluginWorker.runtimeconfig.json', 'WindowsIsland.PluginIsolation.dll', 'WindowsIsland.Contracts.dll',
+    'coreclr.dll', 'hostfxr.dll', 'hostpolicy.dll', 'System.Private.CoreLib.dll')) {
+    if (!(Test-Path -LiteralPath (Join-Path $worker $file) -PathType Leaf)) { throw "Missing isolated plugin runtime: $file" }
+}
+foreach ($file in @('WindowsIsland.dll', 'WindowsIsland.TelegramHook.dll', 'Microsoft.UI.Xaml.dll', 'PresentationFramework.dll')) {
+    if (Test-Path -LiteralPath (Join-Path $worker $file)) { throw "Isolated plugin runtime includes a host dependency: $file" }
+}
+'PASS Isolated plugin runtime is self-contained and excludes host desktop dependencies.'
 $definition = [xml](Get-Content -LiteralPath $Project -Raw)
 $references = @($definition.SelectNodes('/Project/ItemGroup/FrameworkReference'))
 $expected = @{}
@@ -40,6 +54,27 @@ foreach ($name in $expected.Keys) {
         if ((Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
             throw "Published runtime file mismatch: $([IO.Path]::GetFileName($relative))"
         }
+    }
+    if ($name -eq 'Microsoft.NETCore.App') {
+        $workerRuntime = Get-Content -LiteralPath (Join-Path $worker 'WindowsIsland.PluginWorker.runtimeconfig.json') -Raw | ConvertFrom-Json
+        $workerFrameworks = @($workerRuntime.runtimeOptions.includedFrameworks)
+        if ($workerFrameworks.Count -ne 1 -or $workerFrameworks[0].name -ne $name -or $workerFrameworks[0].version -ne $expected[$name]) {
+            throw 'Isolated plugin runtime configuration does not match the host runtime baseline.'
+        }
+        foreach ($relative in @('runtimes/win-x64/native/coreclr.dll','runtimes/win-x64/native/hostfxr.dll',
+            'runtimes/win-x64/native/hostpolicy.dll','runtimes/win-x64/lib/net10.0/System.Private.CoreLib.dll')) {
+            $source = Join-Path $pack[0].PackageDirectory $relative
+            $target = Join-Path $worker ([IO.Path]::GetFileName($relative))
+            if ((Get-FileHash -LiteralPath $source).Hash -ne (Get-FileHash -LiteralPath $target).Hash) {
+                throw "Isolated plugin runtime file mismatch: $([IO.Path]::GetFileName($relative))"
+            }
+        }
+        foreach ($assembly in @('WindowsIsland.Contracts.dll', 'WindowsIsland.PluginIsolation.dll')) {
+            if ((Get-FileHash -LiteralPath (Join-Path $publish $assembly)).Hash -ne (Get-FileHash -LiteralPath (Join-Path $worker $assembly)).Hash) {
+                throw "Isolated plugin contract does not match the host: $assembly"
+            }
+        }
+        'PASS Isolated plugin runtime configuration, runtime files and shared contracts match the host.'
     }
     "PASS $name configuration, resolved pack and published files match $($expected[$name])."
 }

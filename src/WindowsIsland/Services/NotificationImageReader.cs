@@ -8,7 +8,7 @@ namespace WindowsIsland.Services;
 internal sealed class NotificationImageReader
 {
     private const int MaximumImageBytes = 4194304;
-    private readonly Dictionary<string, byte[]> _icons = new(StringComparer.Ordinal);
+    private readonly NotificationIconCache _icons = new();
 
     public async Task<byte[]?> ReadIconAsync(AppInfo? app, string? appId = null)
     {
@@ -16,11 +16,15 @@ internal sealed class NotificationImageReader
         try { key ??= app?.AppUserModelId; }
         catch (Exception) { }
         if (string.IsNullOrWhiteSpace(key)) return null;
-        if (_icons.TryGetValue(key, out var cached)) return cached;
+        return await _icons.GetAsync(key, () => LoadIconAsync(app, key));
+    }
+
+    private static async Task<byte[]?> LoadIconAsync(AppInfo? app, string key)
+    {
         byte[]? bytes = null;
         try
         {
-            using var stream = await app!.DisplayInfo.GetLogo(new Size(48, 48)).OpenReadAsync();
+            using var stream = await app!.DisplayInfo.GetLogo(new Size(128, 128)).OpenReadAsync();
             if (stream.Size is > 0 and <= MaximumImageBytes)
             {
                 using var reader = new DataReader(stream.GetInputStreamAt(0));
@@ -35,8 +39,6 @@ internal sealed class NotificationImageReader
         catch (Exception) { }
         bytes ??= ShellAppIcon.Read(key);
         if (bytes is not { Length: > 0 }) return null;
-        if (_icons.Count >= 64) _icons.Clear();
-        _icons[key] = bytes;
         return bytes;
     }
 
@@ -46,7 +48,7 @@ internal sealed class NotificationImageReader
         try
         {
             // The listener exposes text only. Toast history retains the original image references.
-            var image = await Task.Run(() => NotificationImageStore.Read(notification));
+            var image = await Task.Run(() => NotificationImageStore.ReadAsync(notification));
             if (image is null)
             {
                 var candidates = ToastNotificationManager.History.GetHistory(notification.AppId)

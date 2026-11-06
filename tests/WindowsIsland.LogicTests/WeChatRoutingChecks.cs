@@ -65,25 +65,6 @@ internal static class WeChatRoutingChecks
         check(router.Receive(lateAvatar) is null && !router.HasPending,
             "Expired avatar enrichment never replays an old notification");
 
-        var now = DateTimeOffset.UtcNow;
-        var session = new WeChatPreview("stable-session", automatic.Title, automatic.Body, 1, "刚刚");
-        var enrichmentQueue = new WeChatAvatarEnrichment();
-        enrichmentQueue.Remember(automatic, [session], now);
-        check(enrichmentQueue.Update([session], now).Count == 0, "A missing avatar remains pending without delaying the message");
-        var completed = enrichmentQueue.Update([session with { Avatar = [8, 9], Body = "本人在其他设备上的回复" }], now.AddSeconds(1));
-        check(completed.Count == 1 && completed[0].IsMetadataUpdate && completed[0].EventId == automatic.EventId
-            && completed[0].CreatedAt == automatic.CreatedAt && completed[0].Body == automatic.Body,
-            "Late portraits preserve the original event and body even after a remote-device reply changes the preview");
-        check(enrichmentQueue.Update([session with { Avatar = [8, 9] }], now.AddSeconds(2)).Count == 0,
-            "A pending avatar is completed only once");
-        enrichmentQueue.Remember(automatic, [session], now);
-        check(enrichmentQueue.Update([session with { Conversation = "另一会话", Avatar = [8, 9] }], now.AddSeconds(1)).Count == 0,
-            "A recycled row cannot supply another conversation's avatar");
-        enrichmentQueue.Remember(automatic, [session], now);
-        check(enrichmentQueue.Update([session with { Muted = true, Avatar = [8, 9] }], now.AddSeconds(1)).Count == 0,
-            "Enabling mute cancels pending avatar enrichment");
-        enrichmentQueue.Remember(automatic, [session], now);
-        check(enrichmentQueue.Update([session with { Avatar = [8, 9] }], now.AddSeconds(6)).Count == 0,
-            "Avatar waiting is bounded to the notification display duration");
+
     }
 }

@@ -22,6 +22,20 @@
   <data name="Sources" xml:space="preserve">
     <value>消息来源</value>
   </data>
+  <data name="PluginList" xml:space="preserve">
+    <value>插件列表</value>
+  </data>
+  <data name="PluginVersion" xml:space="preserve"><value>版本</value></data>
+  <data name="PluginType" xml:space="preserve"><value>类型</value></data>
+  <data name="PluginBuiltIn" xml:space="preserve"><value>内置</value></data>
+  <data name="PluginInstalled" xml:space="preserve"><value>已安装</value></data>
+  <data name="PluginAuthor" xml:space="preserve"><value>作者</value></data>
+  <data name="PluginIdentifier" xml:space="preserve"><value>插件标识</value></data>
+  <data name="PluginLocation" xml:space="preserve"><value>文件位置</value></data>
+  <data name="PluginFileSize" xml:space="preserve"><value>程序集大小</value></data>
+  <data name="PluginSizeBytes" xml:space="preserve"><value>{0} 字节</value></data>
+  <data name="PluginUnknown" xml:space="preserve"><value>未知</value></data>
+  <data name="ActionRemovePlugin" xml:space="preserve"><value>删除插件</value></data>
   <data name="Appearance" xml:space="preserve">
     <value>外观</value>
   </data>
@@ -66,6 +80,18 @@
   </data>
   <data name="Animations" xml:space="preserve">
     <value>弹窗动画</value>
+  </data>
+  <data name="Acrylic" xml:space="preserve">
+    <value>毛玻璃</value>
+  </data>
+  <data name="OpacityTransitions" xml:space="preserve">
+    <value>透明度过渡</value>
+  </data>
+  <data name="BackgroundTransparency" xml:space="preserve">
+    <value>背景透明度</value>
+  </data>
+  <data name="TransparencyPercent" xml:space="preserve">
+    <value>{0:0}%</value>
   </data>
   <data name="NotificationPosition" xml:space="preserve">
     <value>弹窗位置</value>
@@ -142,9 +168,6 @@
   <data name="AwaitingPermission" xml:space="preserve">
     <value>等待授权</value>
   </data>
-  <data name="Ready" xml:space="preserve">
-    <value>已就绪</value>
-  </data>
   <data name="Off" xml:space="preserve">
     <value>已关闭</value>
   </data>
@@ -158,7 +181,7 @@
     <value>未运行</value>
   </data>
   <data name="IncompleteSetup" xml:space="preserve">
-    <value>初始化未完成</value>
+    <value>系统通知尚未就绪</value>
   </data>
   <data name="SettingsSaved" xml:space="preserve">
     <value>设置已保存。</value>
@@ -167,7 +190,7 @@
     <value>请允许通知访问，或关闭系统通知后继续。</value>
   </data>
   <data name="InitializeThenGrantAccess" xml:space="preserve">
-    <value>请先完成应用初始化，再允许通知访问。</value>
+    <value>接收系统通知需要先完成初始化并允许通知访问。已连接的微信等来源仍可接收消息。</value>
   </data>
   <data name="ActionOpenWindowsNotificationSettings" xml:space="preserve">
     <value>打开 Windows 通知设置</value>
@@ -183,6 +206,9 @@
   </data>
   <data name="StartupPermissionCancelled" xml:space="preserve">
     <value>已取消管理员权限请求，开机自启设置未更改。</value>
+  </data>
+  <data name="InitializationPermissionCancelled" xml:space="preserve">
+    <value>已取消管理员权限请求，初始化尚未完成，请重试。</value>
   </data>
   <data name="Cancelled" xml:space="preserve">
     <value>已取消</value>
@@ -310,11 +336,17 @@
   <data name="UpdateDownloading" xml:space="preserve">
     <value>正在下载更新</value>
   </data>
+  <data name="UpdateResuming" xml:space="preserve">
+    <value>正在续传更新</value>
+  </data>
   <data name="UpdateDownloadComplete" xml:space="preserve">
     <value>下载完成</value>
   </data>
   <data name="UpdateProgressPercent" xml:space="preserve">
     <value>{0} {1:0}%</value>
+  </data>
+  <data name="UpdateProgressPercentSpeed" xml:space="preserve">
+    <value>{0} {1:0}% · {2}</value>
   </data>
   <data name="UpdateErrorInstallerMissing" xml:space="preserve">
     <value>此版本的安装包尚未就绪，请稍后重试。</value>
@@ -383,10 +415,10 @@
     <value>连接失败</value>
   </data>
   <data name="WeChatUnsupportedDetail" xml:space="preserve">
-    <value>当前微信版本暂不支持直连，已回退到系统通知</value>
+    <value>当前微信版本暂不支持直连，已回退到系统通知。请重试连接；仍失败时查看诊断记录。</value>
   </data>
   <data name="WeChatConnectFailedDetail" xml:space="preserve">
-    <value>无法读取微信窗口，已回退到系统通知</value>
+    <value>无法读取微信窗口，已回退到系统通知。请重试连接；仍失败时查看诊断记录。</value>
   </data>
   <data name="TelegramNotDetected" xml:space="preserve">
     <value>未检测到客户端</value>
@@ -410,13 +442,13 @@
     <value>电量 {0}%</value>
   </data>
   <data name="TrayConnecting" xml:space="preserve">
-    <value>正在连接通知</value>
+    <value>未连接</value>
   </data>
   <data name="TrayDisabled" xml:space="preserve">
     <value>系统通知已关闭</value>
   </data>
   <data name="TrayListening" xml:space="preserve">
-    <value>通知监听中</value>
+    <value>已连接</value>
   </data>
   <data name="TrayAllowAccess" xml:space="preserve">
     <value>允许通知访问</value>
@@ -514,9 +546,197 @@
   <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>微信重置了辅助访问开关</value></data>
   <data name="DiagnosticReasonError" xml:space="preserve"><value>{0}（{1}）</value></data>
   <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>未记录具体错误</value></data>
-  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>点击重试；仍失败时，复制报告并提交问题反馈。</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>请到消息来源页重试连接；仍失败时，复制报告并提交问题反馈。</value></data>
   <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>问题反复出现时，复制报告并提交问题反馈。</value></data>
   <data name="SystemDoNotDisturb" xml:space="preserve"><value>系统免打扰</value></data>
   <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>未能更改系统免打扰，请重试或打开 Windows 通知设置。</value></data>
   <data name="DoNotDisturbOpenSettings" xml:space="preserve"><value>请在 Windows 通知设置中调整。</value></data>
+  <data name="PluginInstall" xml:space="preserve"><value>安装插件</value></data>
+  <data name="PluginCancel" xml:space="preserve"><value>取消</value></data>
+  <data name="PluginInstalledSuccess" xml:space="preserve"><value>插件已安装</value></data>
+  <data name="PluginInstallCanceled" xml:space="preserve"><value>安装已取消</value></data>
+  <data name="PluginInstallFailed" xml:space="preserve"><value>插件包无效或安装失败，请检查文件后重试。</value></data>
+  <data name="PluginAlreadyInstalled" xml:space="preserve"><value>已安装此版本</value></data>
+  <data name="PluginOverwriteQuestion" xml:space="preserve"><value>是否使用所选插件包覆盖当前版本？</value></data>
+  <data name="PluginOverwrite" xml:space="preserve"><value>覆盖</value></data>
+  <data name="PluginDataPreserved" xml:space="preserve"><value>数据已保留，重新安装同 Id 插件可恢复</value></data>
+  <data name="PluginSource" xml:space="preserve"><value>安装来源</value></data>
+  <data name="PluginManualRestricted" xml:space="preserve"><value>手动安装</value></data>
+  <data name="PluginOfficial" xml:space="preserve"><value>默认插件源</value></data>
+  <data name="PluginDeveloper" xml:space="preserve"><value>开发者</value></data>
+  <data name="PluginRepository" xml:space="preserve"><value>公开仓库</value></data>
+  <data name="PluginPermissionsGranted" xml:space="preserve"><value>可用的能力声明</value></data>
+  <data name="PluginPermissionsDenied" xml:space="preserve"><value>不可用或未知的能力声明</value></data>
+  <data name="PluginPermissionNotice" xml:space="preserve"><value>请在启用前阅读开发者或默认插件源提供的条款和联网须知。</value></data>
+  <data name="ErrorRefreshPlugins" xml:space="preserve"><value>无法刷新插件，请重试。</value></data>
+  <data name="PluginErrorZip" xml:space="preserve"><value>只能安装 ZIP 插件包。</value></data>
+  <data name="PluginErrorManifest" xml:space="preserve"><value>ZIP 根目录必须且只能包含一个 manifest.json。</value></data>
+  <data name="PluginErrorId" xml:space="preserve"><value>插件标识无效或与内置插件冲突。</value></data>
+  <data name="PluginErrorContract" xml:space="preserve"><value>插件合约版本与消息岛不兼容。</value></data>
+  <data name="PluginErrorEntry" xml:space="preserve"><value>插件入口程序集或类型无效。</value></data>
+  <data name="PluginErrorDowngrade" xml:space="preserve"><value>不能安装比当前版本更旧的插件。</value></data>
+  <data name="PluginErrorVersion" xml:space="preserve"><value>插件版本必须符合 SemVer。</value></data>
+  <data name="PluginErrorPath" xml:space="preserve"><value>插件包包含不安全路径、符号链接或特殊文件。</value></data>
+  <data name="PluginErrorSourceConflict" xml:space="preserve"><value>插件已从其他来源安装，请先卸载。</value></data>
+  <data name="PluginErrorStart" xml:space="preserve"><value>插件启动失败，已恢复旧版本。</value></data>
+  <data name="PluginRefreshCatalog" xml:space="preserve"><value>刷新默认插件源</value></data>
+  <data name="PluginCatalogEmpty" xml:space="preserve"><value>默认插件源暂无插件</value></data>
+  <data name="PluginCatalogUnavailable" xml:space="preserve"><value>默认插件源暂时不可用，已保留缓存</value></data>
+  <data name="PluginCatalogReady" xml:space="preserve"><value>已同步默认插件源</value></data>
+  <data name="PluginUpdate" xml:space="preserve"><value>更新插件</value></data>
+  <data name="PluginOfficialAuthor" xml:space="preserve"><value>Windows Island 开发的插件</value></data>
+  <data name="PluginThirdParty" xml:space="preserve"><value>默认插件源收录的第三方插件，请逐项确认所需权限</value></data>
+  <data name="PluginDelisted" xml:space="preserve"><value>该插件已从默认插件源下架，建议卸载</value></data>
+  <data name="PluginUpdateAvailable" xml:space="preserve"><value>有新版本：{0}</value></data>
+  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>默认插件源暂时不可用，请稍后重试</value></data>
+  <data name="PluginErrorHash" xml:space="preserve"><value>插件 SHA256 校验失败，下载已清理</value></data>
+  <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>插件包与默认插件源索引不一致，安装已中止</value></data>
+  <data name="PluginErrorNotListed" xml:space="preserve"><value>该插件已不在当前默认插件源索引中，请刷新后重试</value></data>
+  <data name="ActionClose" xml:space="preserve"><value>关闭</value></data>
+  <data name="PluginInstallation" xml:space="preserve"><value>安装</value></data>
+  <data name="PluginDescription" xml:space="preserve"><value>说明</value></data>
+  <data name="PluginPermissionsRequested" xml:space="preserve"><value>所需权限</value></data>
+  <data name="PluginPermissionsNone" xml:space="preserve"><value>无</value></data>
+  <data name="WeChatUnsupportedNoFallbackDetail" xml:space="preserve"><value>当前微信版本暂不支持直连。请重试连接，或启用系统通知接收提醒。</value></data>
+  <data name="WeChatConnectFailedNoFallbackDetail" xml:space="preserve"><value>无法读取微信窗口。请重试连接，或启用系统通知接收提醒。</value></data>
+  <data name="SourceUnavailableDetail" xml:space="preserve"><value>来源暂不可用。请刷新状态或重试连接；仍失败时查看诊断记录。</value></data>
+  <data name="SourceDeniedDetail" xml:space="preserve"><value>访问未获授权。请检查应用或系统权限后重试。</value></data>
+  <data name="DiagnosticsEvents" xml:space="preserve"><value>最近记录</value></data>
+  <data name="DiagnosticsAreaPlugins" xml:space="preserve"><value>插件</value></data>
+  <data name="DiagnosticTitleOperationFailed" xml:space="preserve"><value>操作失败</value></data>
+  <data name="DiagnosticTitleReadMessages" xml:space="preserve"><value>读取消息失败</value></data>
+  <data name="DiagnosticTitleConnectNotifications" xml:space="preserve"><value>系统通知连接失败</value></data>
+  <data name="DiagnosticTitleRegistration" xml:space="preserve"><value>应用注册未完成</value></data>
+  <data name="DiagnosticTitleInstallPlugin" xml:space="preserve"><value>插件安装失败</value></data>
+  <data name="DiagnosticTitleOfficialPlugin" xml:space="preserve"><value>默认插件源操作未完成</value></data>
+  <data name="DiagnosticTitlePluginCatalog" xml:space="preserve"><value>读取默认插件源失败</value></data>
+  <data name="DiagnosticTitleLoadPlugin" xml:space="preserve"><value>插件加载失败</value></data>
+  <data name="DiagnosticTitleStartPlugin" xml:space="preserve"><value>插件启动失败</value></data>
+  <data name="DiagnosticTitleStopPlugin" xml:space="preserve"><value>插件停止失败</value></data>
+  <data name="DiagnosticTitlePluginStatus" xml:space="preserve"><value>获取插件状态失败</value></data>
+  <data name="DiagnosticTitleRetryPlugin" xml:space="preserve"><value>插件重试失败</value></data>
+  <data name="DiagnosticTitlePluginAccess" xml:space="preserve"><value>插件授权未完成</value></data>
+  <data name="DiagnosticTitlePluginNotification" xml:space="preserve"><value>插件消息处理失败</value></data>
+  <data name="DiagnosticTitlePinnedInteraction" xml:space="preserve"><value>固定内容操作失败</value></data>
+  <data name="DiagnosticTitlePinnedPanel" xml:space="preserve"><value>固定内容面板未加载</value></data>
+  <data name="DiagnosticTitlePinnedRemoval" xml:space="preserve"><value>固定内容撤下失败</value></data>
+  <data name="DiagnosticTitlePluginCleanup" xml:space="preserve"><value>插件文件清理失败</value></data>
+  <data name="DiagnosticTitleOpenRepository" xml:space="preserve"><value>仓库链接打开失败</value></data>
+  <data name="DiagnosticTitleSavePreferences" xml:space="preserve"><value>设置保存失败</value></data>
+  <data name="LanguageChinese" xml:space="preserve"><value>简体中文</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="PluginAlreadyLatest" xml:space="preserve"><value>已是最新版</value></data>
+  <data name="PluginInstalledElsewhere" xml:space="preserve"><value>已从其他来源安装</value></data>
+  <data name="PluginDeveloperMismatch" xml:space="preserve"><value>开发者不一致</value></data>
+  <data name="PluginContractIncompatible" xml:space="preserve"><value>合约版本不兼容</value></data>
+  <data name="PluginHostTooOld" xml:space="preserve"><value>宿主版本过低，请先更新消息岛</value></data>
+  <data name="UnregisterPackage" xml:space="preserve"><value>注销稀疏包注册</value></data>
+  <data name="ActionUnregisterPackage" xml:space="preserve"><value>注销并退出</value></data>
+  <data name="UnregisterPackageConfirm" xml:space="preserve"><value>消息岛将退出并注销当前目录的系统通知注册。完成后可删除文件夹。再次启动会重新注册。</value></data>
+  <data name="ErrorUnregisterPackage" xml:space="preserve"><value>注销未能启动，请重试。</value></data>
+  <data name="NeedsDeveloperMode" xml:space="preserve"><value>需要开启开发者模式</value></data>
+  <data name="PluginGitHubProxy" xml:space="preserve"><value>GitHub 代理</value></data>
+  <data name="PluginSaveProxy" xml:space="preserve"><value>保存 GitHub 代理</value></data>
+  <data name="PluginProxyDirect" xml:space="preserve"><value>留空时直连 GitHub</value></data>
+  <data name="PluginProxySaved" xml:space="preserve"><value>GitHub 代理已保存</value></data>
+  <data name="PluginProxyInvalid" xml:space="preserve"><value>请输入有效的 HTTPS 代理地址</value></data>
+  <data name="ActionBack" xml:space="preserve"><value>返回</value></data>
+  <data name="ActionOpenPlugin" xml:space="preserve"><value>打开插件详情</value></data>
+  <data name="PluginPackageFileType" xml:space="preserve"><value>插件包</value></data>
+  <data name="PluginCatalogFetchFailed" xml:space="preserve"><value>无法连接插件目录，请稍后刷新。</value></data>
+  <data name="PluginCatalogStatusFailed" xml:space="preserve"><value>插件目录暂不可用，请稍后刷新。</value></data>
+  <data name="PluginCatalogJsonFailed" xml:space="preserve"><value>插件目录响应格式无效。</value></data>
+  <data name="PluginCatalogTimedOut" xml:space="preserve"><value>插件目录请求超时，请稍后刷新。</value></data>
+  <data name="PluginCatalogSourceInvalid" xml:space="preserve"><value>插件目录来源信息无效。</value></data>
+  <data name="PluginCatalogIndexInvalid" xml:space="preserve"><value>插件目录索引无效。</value></data>
+  <data name="PluginCatalogEntryInvalid" xml:space="preserve"><value>插件目录条目信息无效。</value></data>
+  <data name="PluginCatalogResponseTooLarge" xml:space="preserve"><value>插件目录响应超过大小限制。</value></data>
+  <data name="PluginCatalogCacheFailed" xml:space="preserve"><value>无法读取或保存插件目录缓存。</value></data>
+  <data name="PluginManagement" xml:space="preserve"><value>插件管理</value></data>
+  <data name="PluginInstalledView" xml:space="preserve"><value>已安装</value></data>
+  <data name="PluginDiscoverView" xml:space="preserve"><value>发现插件</value></data>
+  <data name="PluginInstalledEmpty" xml:space="preserve"><value>暂无已安装插件</value></data>
+  <data name="PluginInstalledEmptyHint" xml:space="preserve"><value>使用安装按钮选择插件包，或前往发现插件。</value></data>
+  <data name="PluginAdvanced" xml:space="preserve"><value>高级设置</value></data>
+  <data name="PluginBasicInformation" xml:space="preserve"><value>基本信息</value></data>
+  <data name="PluginPermissionGroup" xml:space="preserve"><value>权限与能力</value></data>
+  <data name="PluginInstallationInformation" xml:space="preserve"><value>安装信息</value></data>
+  <data name="PluginSettingsGroup" xml:space="preserve"><value>插件设置</value></data>
+  <data name="PluginCatalogLoading" xml:space="preserve"><value>正在加载插件目录</value></data>
+  <data name="PluginRemoveQuestion" xml:space="preserve"><value>卸载此插件？插件数据与设置将保留。</value></data>
+  <data name="PluginRemovedSuccess" xml:space="preserve"><value>插件已卸载，数据与设置已保留。</value></data>
+  <data name="PluginCopyIdentifier" xml:space="preserve"><value>复制插件标识</value></data>
+  <data name="PluginCopyLocation" xml:space="preserve"><value>复制文件位置</value></data>
+  <data name="PluginOperationFailed" xml:space="preserve"><value>操作未完成，请重试。</value></data>
+  <data name="Overview" xml:space="preserve"><value>概览</value></data>
+  <data name="OverviewRuntime" xml:space="preserve"><value>运行状态</value></data>
+  <data name="OverviewRunningSources" xml:space="preserve"><value>运行中的来源</value></data>
+  <data name="OverviewEnabledSources" xml:space="preserve"><value>已启用 {0} 个来源</value></data>
+  <data name="OverviewQuickActions" xml:space="preserve"><value>快捷操作</value></data>
+  <data name="OverviewSetupNeeded" xml:space="preserve"><value>需要完成系统通知配置</value></data>
+  <data name="ActionGoToSetup" xml:space="preserve"><value>前往初始化</value></data>
+  <data name="SetupProgress" xml:space="preserve"><value>配置进度</value></data>
+  <data name="SetupOptionalHint" xml:space="preserve"><value>系统通知为可选来源。未配置时，其他已连接来源与通知预览仍可使用。</value></data>
+  <data name="SetupSystemOptional" xml:space="preserve"><value>系统通知已关闭，可以直接完成配置。</value></data>
+  <data name="SetupStepInitialize" xml:space="preserve"><value>1 · 应用初始化</value></data>
+  <data name="SetupStepAccess" xml:space="preserve"><value>2 · Windows 通知访问</value></data>
+  <data name="SetupStepVerify" xml:space="preserve"><value>3 · 检查通知状态</value></data>
+  <data name="SetupStepFinish" xml:space="preserve"><value>4 · 完成配置</value></data>
+  <data name="SetupVerify" xml:space="preserve"><value>检查通知状态</value></data>
+  <data name="SetupFinish" xml:space="preserve"><value>完成并返回概览</value></data>
+  <data name="SetupReturnOverview" xml:space="preserve"><value>配置已就绪</value></data>
+  <data name="SetupFinishPending" xml:space="preserve"><value>请先完成系统通知初始化与授权，或在消息来源中关闭系统通知。</value></data>
+  <data name="AppearanceBasics" xml:space="preserve"><value>语言与基础偏好</value></data>
+  <data name="AppearancePosition" xml:space="preserve"><value>位置与预览</value></data>
+  <data name="AppearanceMotion" xml:space="preserve"><value>动画与过渡</value></data>
+  <data name="AppearanceSurface" xml:space="preserve"><value>背景材质与透明度</value></data>
+  <data name="AppearanceSimulatedPreview" xml:space="preserve"><value>显示器示意</value></data>
+  <data name="AppearancePreviewHint" xml:space="preserve"><value>位置与外观示意，实际效果请预览通知。</value></data>
+  <data name="ActionPreviewActual" xml:space="preserve"><value>预览实际通知</value></data>
+  <data name="AppearancePositionCurrent" xml:space="preserve"><value>当前位置：{0}</value></data>
+  <data name="SourceEnabledLabel" xml:space="preserve"><value>{0} · 已启用</value></data>
+  <data name="SourceDisabledLabel" xml:space="preserve"><value>{0} · 已关闭</value></data>
+  <data name="UpdateApplicationSection" xml:space="preserve"><value>应用版本</value></data>
+  <data name="UpdateChannelSection" xml:space="preserve"><value>更新通道</value></data>
+  <data name="UpdateCheckSection" xml:space="preserve"><value>检查更新</value></data>
+  <data name="UpdateReleaseNotes" xml:space="preserve"><value>更新说明</value></data>
+  <data name="DiagnosticsOverview" xml:space="preserve"><value>诊断概览</value></data>
+  <data name="DiagnosticsActions" xml:space="preserve"><value>报告操作</value></data>
+  <data name="DiagnosticsLatestFailure" xml:space="preserve"><value>最近异常：{0}</value></data>
+  <data name="DiagnosticsNoFailures" xml:space="preserve"><value>最近没有异常记录</value></data>
+  <data name="DiagnosticsClearConfirmTitle" xml:space="preserve"><value>清除本机诊断记录？</value></data>
+  <data name="DiagnosticsClearConfirmMessage" xml:space="preserve"><value>这会清除本机保存的记录和当前报告预览。此前导出的文件会保留。</value></data>
+  <data name="DiagnosticsConfirmClear" xml:space="preserve"><value>清除记录</value></data>
+  <data name="DiagnosticsFeedbackOpened" xml:space="preserve"><value>问题反馈页面已打开。提交前请检查报告内容。</value></data>
+  <data name="DiagnosticsExportCanceled" xml:space="preserve"><value>已取消导出，现有文件未改动。</value></data>
+  <data name="DiagnosticsRecords" xml:space="preserve"><value>记录汇总</value></data>
+  <data name="OverviewSourceAttention" xml:space="preserve"><value>部分来源尚未连接</value></data>
+  <data name="OverviewSourceFailures" xml:space="preserve"><value>{0} 个来源连接失败，可前往消息来源重试。</value></data>
+  <data name="OverviewSourceDisconnected" xml:space="preserve"><value>{0} 个来源尚未连接，可检查客户端与授权。</value></data>
+  <data name="OverviewUpdateAvailable" xml:space="preserve"><value>可更新至 {0}</value></data>
+  <data name="NavigationRuntime" xml:space="preserve"><value>运行管理</value></data>
+  <data name="NavigationPreferences" xml:space="preserve"><value>偏好设置</value></data>
+  <data name="NavigationMaintenance" xml:space="preserve"><value>应用维护</value></data>
+  <data name="ActionToggleNavigation" xml:space="preserve"><value>展开或收起导航</value></data>
+  <data name="SettingsOperationCancelled" xml:space="preserve"><value>操作已取消，可以重试。</value></data>
+  <data name="PluginConsentEnableTitle" xml:space="preserve"><value>启用插件前确认</value></data>
+  <data name="PluginConsentEnable" xml:space="preserve"><value>同意并启用</value></data>
+  <data name="PluginConsentName" xml:space="preserve"><value>插件名称</value></data>
+  <data name="PluginConsentEnableNotice" xml:space="preserve"><value>请核对插件身份和版本，并阅读下方内容。取消后插件保持关闭。</value></data>
+  <data name="PluginConsentTerms" xml:space="preserve"><value>使用条款</value></data>
+  <data name="PluginConsentTermsRevision" xml:space="preserve"><value>条款修订</value></data>
+  <data name="PluginConsentAcceptTerms" xml:space="preserve"><value>我已阅读并同意以上条款</value></data>
+  <data name="PluginConsentNetwork" xml:space="preserve"><value>联网须知</value></data>
+  <data name="PluginConsentDestinations" xml:space="preserve"><value>网络目的地</value></data>
+  <data name="PluginConsentPurpose" xml:space="preserve"><value>用途</value></data>
+  <data name="PluginConsentDataCategories" xml:space="preserve"><value>数据类别</value></data>
+  <data name="PluginConsentAcceptNetwork" xml:space="preserve"><value>我同意插件按以上说明在后台联网。数据类别由开发者声明，无法保证自动阻止所有敏感内容。</value></data>
+  <data name="PluginConsentRequired" xml:space="preserve"><value>请先阅读条款并确认插件授权，再启用此插件。</value></data>
+  <data name="PluginConsentChanged" xml:space="preserve"><value>插件版本或授权内容已改变，请重新确认。</value></data>
+  <data name="PluginInstallationReviewTitle" xml:space="preserve"><value>安装插件前核对</value></data>
+  <data name="PluginInstallationReview" xml:space="preserve"><value>以下仅为插件声明的能力，不表示授予权限。安装后插件保持关闭，启用时另行确认条款和联网说明；不可用的能力不会因安装而开放。</value></data>
+  <data name="PluginDefaultSourceNotice" xml:space="preserve"><value>即使是默认插件源，我们也不能完全保证插件的稳定性和安全性，使用前请谨慎核查。</value></data>
+  <data name="NotificationMuteConditions" xml:space="preserve"><value>静音条件</value></data>
+  <data name="SystemNotificationsOffDetail" xml:space="preserve"><value>开启后接收 Windows 通知，其他来源仍按各自设置运行。</value></data>
+  <data name="OverviewSourceAvailability" xml:space="preserve"><value>已启用 {0} 个 · 可用 {1} 个</value></data>
 </root>

@@ -1,0 +1,454 @@
+{
+  "source": {
+    "developerId": "winiofficial",
+    "developerName": "WindowsIsland",
+    "repositoryUrl": "https://github.com/example/plugins",
+    "pluginsUrl": "https://wini-plugins.abszero.cc/api/sources/winiofficial/plugins"
+  },
+  "entry": {
+    "id": "wini_plugin_demo",
+    "name": "示例插件",
+    "version": "1.2.3",
+    "contractVersion": 1,
+    "permissions": [
+      "notifications",
+      "settings",
+      "network"
+    ],
+    "developerId": "winiofficial",
+    "repositoryUrl": "https://github.com/example/plugins",
+    "description": "示例",
+    "network": {
+      "origins": [
+        "https://example.com"
+      ],
+      "purpose": "上传插件状态",
+      "dataCategories": [
+        "插件状态"
+      ],
+      "notice": "允许上传插件自己的状态"
+    },
+    "downloadUrl": "https://github.com/example/plugins/releases/download/v1.2.3/wini_plugin_demo.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "minHostVersion": "0.1.0"
+  },
+  "manifest": {
+    "id": "wini_plugin_demo",
+    "name": "示例插件",
+    "version": "1.2.3",
+    "entryAssembly": "Demo.dll",
+    "entryType": "Demo.Plugin",
+    "contractVersion": 1,
+    "permissions": [
+      "notifications",
+      "settings",
+      "network"
+    ],
+    "developerId": "winiofficial",
+    "repositoryUrl": "https://github.com/example/plugins",
+    "description": "示例",
+    "minimumHostVersion": "0.1.0",
+    "network": {
+      "origins": [
+        "https://example.com"
+      ],
+      "purpose": "上传插件状态",
+      "dataCategories": [
+        "插件状态"
+      ],
+      "notice": "允许上传插件自己的状态"
+    }
+  },
+  "versions": [
+    {
+      "value": "0.0.0",
+      "valid": true
+    },
+    {
+      "value": "1.2.3",
+      "valid": true
+    },
+    {
+      "value": "1.0.0-alpha.1+build.009",
+      "valid": true
+    },
+    {
+      "value": "1.0.0+001",
+      "valid": true
+    },
+    {
+      "value": "9999999999999999999999999999999999999999999999999999999999999999999999.0.0",
+      "valid": true
+    },
+    {
+      "value": "1.0",
+      "valid": false
+    },
+    {
+      "value": "01.0.0",
+      "valid": false
+    },
+    {
+      "value": "1.0.0-01",
+      "valid": false
+    },
+    {
+      "value": "1.0.0-alpha.01",
+      "valid": false
+    },
+    {
+      "value": "1.0.0\n",
+      "valid": false
+    },
+    {
+      "value": "1.0.0-",
+      "valid": false
+    },
+    {
+      "value": "1.0.0-α",
+      "valid": false
+    },
+    {
+      "value": "１.0.0",
+      "valid": false
+    }
+  ],
+  "repositories": [
+    {
+      "value": "https://github.com/example/plugins",
+      "valid": true
+    },
+    {
+      "value": "https://github.com/WinIOfficial/wini_plugin_wechat",
+      "valid": true
+    },
+    {
+      "value": "https://github.com/example/plugins/",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins.git",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins?x",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins#",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/./plugins",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/../plugins",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/..",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/a/../plugins",
+      "valid": false
+    },
+    {
+      "value": "https://github.com:443/example/plugins",
+      "valid": false
+    },
+    {
+      "value": "HTTPS://github.com/example/plugins",
+      "valid": false
+    }
+  ],
+  "downloads": [
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1.2.3/wini_plugin_demo.zip",
+      "valid": true
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a.zip",
+      "valid": true
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/.zip",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a.ZIP",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/..a.zip",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a%20b.zip",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a%252f.zip",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a.zip?",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a.zip#",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a b.zip",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/a.zip\n",
+      "valid": false
+    },
+    {
+      "value": "https://github.com:443/example/plugins/releases/download/v1/a.zip",
+      "valid": false
+    },
+    {
+      "value": "https://@github.com/example/plugins/releases/download/v1/a.zip",
+      "valid": false
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/v1/示例.zip",
+      "valid": true
+    },
+    {
+      "value": "https://github.com/example/plugins/releases/download/./a.zip",
+      "valid": false
+    }
+  ],
+  "permissions": [
+    {
+      "value": [],
+      "valid": true
+    },
+    {
+      "value": [
+        "notifications",
+        "settings"
+      ],
+      "valid": true
+    },
+    {
+      "value": [
+        "wechat"
+      ],
+      "valid": true
+    },
+    {
+      "value": [
+        "process",
+        "filesystem",
+        "native",
+        "automation"
+      ],
+      "valid": true
+    },
+    {
+      "value": [
+        "network"
+      ],
+      "valid": true
+    },
+    {
+      "value": [
+        "storage"
+      ],
+      "valid": true
+    },
+    {
+      "value": [
+        "clipboard"
+      ],
+      "valid": true
+    },
+    {
+      "value": [
+        "custom"
+      ],
+      "valid": true
+    },
+    {
+      "value": [
+        "settings",
+        "settings"
+      ],
+      "valid": false
+    },
+    {
+      "value": [
+        "Network"
+      ],
+      "valid": false
+    },
+    {
+      "value": [
+        "invalid-permission"
+      ],
+      "valid": false
+    }
+  ],
+  "networks": [
+    {
+      "value": null,
+      "valid": true
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": true
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com:443"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": true
+    },
+    {
+      "value": {},
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "http://example.com"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com/path"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com?"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://@example.com"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com",
+          "https://EXAMPLE.COM/"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "状态",
+          "状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com"
+        ],
+        "purpose": " ",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com"
+        ],
+        "purpose": "上传插件状态",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": ""
+      },
+      "valid": false
+    },
+    {
+      "value": {
+        "origins": [
+          "https://example.com"
+        ],
+        "purpose": "x\u0000",
+        "dataCategories": [
+          "插件状态"
+        ],
+        "notice": "允许上传插件自己的状态"
+      },
+      "valid": false
+    }
+  ]
+}

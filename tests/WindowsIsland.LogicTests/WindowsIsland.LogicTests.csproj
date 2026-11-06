@@ -5,13 +5,69 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <NeutralLanguage>zh-CN</NeutralLanguage>
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/WindowsIsland.Contracts/WindowsIsland.Contracts.csproj" />
+    <ProjectReference Include="../../src/WindowsIsland.PluginIsolation/WindowsIsland.PluginIsolation.csproj" />
+    <ProjectReference Include="../../src/WindowsIsland.PluginWorker/WindowsIsland.PluginWorker.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../WindowsIsland.PluginFixture/WindowsIsland.PluginFixture.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="../WindowsIsland.PluginSecurityFixture/WindowsIsland.PluginSecurityFixture.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Markdig" Version="1.4.2" />
+    <EmbeddedResource Include="Fixtures/plugin-contract.json" />
+    <Compile Include="../../src/WindowsIsland/MainWindow.Exit.cs" Link="Host/MainWindow.Exit.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/FileDialogProtocol.cs" Link="FileDialogProtocol.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/IslandScheduler.cs" Link="IslandScheduler.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PinnedContentPolicy.cs" Link="Plugins/PinnedContentPolicy.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Pinned.cs" Link="Plugins/PluginManager.Pinned.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/MarkdownContent.cs" Link="MarkdownContent.cs" />
     <Compile Include="../../src/WindowsIsland/Services/RegisteredRestart.cs" Link="RegisteredRestart.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationResources.cs" Link="InitializationResources.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InitializationPreparation.cs" Link="InitializationPreparation.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InitializationRegistration.cs" Link="InitializationRegistration.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InitializationPolicy.cs" Link="InitializationPolicy.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InitializationElevation.cs" Link="InitializationElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/NotificationPlugin.cs" Link="Plugins/NotificationPlugin.cs" />
-    <Compile Include="../../src/WindowsIsland/Plugins/NotificationPluginHost.cs" Link="Plugins/NotificationPluginHost.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.cs" Link="Plugins/PluginManager.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Consent.cs" Link="Plugins/PluginManager.Consent.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Settings.cs" Link="Plugins/PluginManager.Settings.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Removal.cs" Link="Plugins/PluginManager.Removal.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Directories.cs" Link="Plugins/PluginManager.Directories.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginPaths.cs" Link="Plugins/PluginPaths.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginFiles.cs" Link="Plugins/PluginFiles.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginTrust.cs" Link="Plugins/PluginTrust.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginAssemblyValidator.cs" Link="Plugins/PluginAssemblyValidator.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginException.cs" Link="Plugins/PluginException.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginErrors.cs" Link="Plugins/PluginErrors.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginInstaller.cs" Link="Plugins/PluginInstaller.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginLibrary.cs" Link="Plugins/PluginLibrary.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogClient.cs" Link="Plugins/PluginCatalogClient.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSourceIndex.cs" Link="Plugins/PluginSourceIndex.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogPolicy.cs" Link="Plugins/PluginCatalogPolicy.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/CatalogVersion.cs" Link="Plugins/CatalogVersion.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/GitHubDownloadProxy.cs" Link="Plugins/GitHubDownloadProxy.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginCatalogService.cs" Link="Plugins/PluginCatalogService.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManager.Installation.cs" Link="Plugins/PluginManager.Installation.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginManifestReader.cs" Link="Plugins/PluginManifestReader.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginDirectoryLoader.cs" Link="Plugins/PluginDirectoryLoader.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/Isolation/*.cs" Link="Plugins/Isolation/%(Filename)%(Extension)" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginConsent*.cs" Link="Plugins/%(Filename)%(Extension)" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginHostFiles.cs" Link="Plugins/PluginHostFiles.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSettingsMigration.cs" Link="Plugins/PluginSettingsMigration.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSettingConstraints.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginSecretProtection.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginStaticSettings.cs" Link="Plugins/PluginStaticSettings.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginFileSafety.cs" Link="Plugins/PluginFileSafety.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginMetadata.cs" Link="Plugins/PluginMetadata.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginContext.cs" Link="Plugins/PluginContext.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginNotificationBridge.cs" Link="Plugins/PluginNotificationBridge.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/BuiltInMessageSource.cs" Link="Plugins/BuiltInMessageSource.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/PowerPlugin.cs" Link="Plugins/PowerPlugin.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/SystemNotificationPlugin.cs" Link="Plugins/SystemNotificationPlugin.cs" />
     <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginDefinitions.cs" Link="Plugins/BuiltInPluginDefinitions.cs" />
+    <Compile Include="../../src/WindowsIsland/Plugins/BuiltInPluginIds.cs" Link="Plugins/BuiltInPluginIds.cs" />
     <Compile Include="../../src/WindowsIsland/Services/Diagnostics.cs" Link="Diagnostics.cs" />
     <Compile Include="../../src/WindowsIsland/Services/DiagnosticStore.cs" Link="DiagnosticStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/DiagnosticReport.cs" Link="DiagnosticReport.cs" />
@@ -20,6 +76,7 @@
     <EmbeddedResource Include="../../src/WindowsIsland/Strings/*.resx" Link="Strings/%(Filename)%(Extension)" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationState.cs" Link="NotificationState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/ToastImageReference.cs" Link="ToastImageReference.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/NotificationIconCache.cs" Link="NotificationIconCache.cs" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationImageStore.cs" Link="NotificationImageStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/SingleInstance.cs" Link="SingleInstance.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessageRouter.cs" Link="MessageRouter.cs" />
@@ -32,16 +89,27 @@
     <Compile Include="../../src/WindowsIsland/Services/PowerState.cs" Link="PowerState.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessengerPopupRules.cs" Link="MessengerPopupRules.cs" />
     <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/PluginPreferences.cs" Link="PluginPreferences.cs" />
     <Compile Include="../../src/WindowsIsland/Services/NotificationPlacement.cs" Link="NotificationPlacement.cs" />
-    <Compile Include="../../src/WindowsIsland/Services/WeChatState.cs" Link="WeChatState.cs" />
-    <Compile Include="../../src/WindowsIsland/Services/WeChatConnectionHealth.cs" Link="WeChatConnectionHealth.cs" />
     <Compile Include="../../src/WindowsIsland/Services/StatusPresentation.cs" Link="StatusPresentation.cs" />
-    <Compile Include="../../src/WindowsIsland/Services/WeChatAvatarEnrichment.cs" Link="WeChatAvatarEnrichment.cs" />
     <Compile Include="../../src/WindowsIsland/Services/InitializationManifest.cs" Link="InitializationManifest.cs" />
     <Compile Include="../../src/WindowsIsland/Services/ReleaseVersion.cs" Link="ReleaseVersion.cs" />
     <Compile Include="../../src/WindowsIsland/Services/GitHubReleaseClient.cs" Link="GitHubReleaseClient.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateCheckService.cs" Link="UpdateCheckService.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdatePackage.cs" Link="UpdatePackage.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/InstallationMode.cs" Link="InstallationMode.cs" />
     <Compile Include="../../src/WindowsIsland/Services/UpdateInstaller.cs" Link="UpdateInstaller.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/UpdateWorkDirectory.cs" Link="UpdateWorkDirectory.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/WindowsIsland/Plugins/PluginDesktopPolicy.cs" Link="Validation/PluginDesktopPolicy.cs" />
+  </ItemGroup>
+  <Target Name="CopyPluginFixture" AfterTargets="Build">
+    <Copy SourceFiles="../../artifacts/bin/WindowsIsland.PluginFixture/$(Configuration)/net10.0/WindowsIsland.PluginFixture.dll" DestinationFolder="$(TargetDir)fixture" />
+    <Copy SourceFiles="../../artifacts/bin/WindowsIsland.PluginSecurityFixture/$(Configuration)/net10.0/WindowsIsland.PluginSecurityFixture.dll" DestinationFolder="$(TargetDir)fixture" />
+    <ItemGroup>
+      <_PluginWorkerFiles Include="../../artifacts/bin/WindowsIsland.PluginWorker/$(Configuration)/net10.0/win-x64/**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PluginWorkerFiles)" DestinationFiles="@(_PluginWorkerFiles->'$(TargetDir)PluginWorker/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

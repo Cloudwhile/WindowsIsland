@@ -1,5 +1,4 @@
-using System.IO.Compression;
-using System.Net;
+﻿using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -26,7 +25,7 @@ internal static class UpdateChecks
         check(Version("v1.2.3+build.5").CompareTo(Version("1.2.3+build.99")) == 0
             && Version("1.2.3-rc.123456789012345678901").CompareTo(Version("1.2.3-rc.99")) > 0,
             "Build metadata is ignored and long prerelease numbers retain numeric ordering");
-        check(new[] { "1.2", "01.2.3", "1.2.3-rc.01", "1.2.3-", "1.2.3 ", "v../../evil", "1.2.3+", "1.2.3-rc..1" }
+        check(new[] { "1.2", "01.2.3", "1.2.3-rc.01", "1.2.3-", "1.2.3 ", "v../../evil", "1.2.3+", "1.2.3-rc..1", "1.2.3\n", "v1.2.3\r\n" }
             .All(value => !ReleaseVersion.TryParse(value, out _)), "Malformed release tags cannot become update candidates");
         check(ReleaseVersion.FromInformationalVersion("0.1.0-rc.1+git123").Prerelease == "rc.1",
             "Current application versions retain prerelease information from assembly metadata");
@@ -61,8 +60,8 @@ internal static class UpdateChecks
             requests.Clear();
             var preview = await client.FindUpdateAsync(Version("1.2.0"), true, CancellationToken.None);
             check(preview?.Tag == "v1.5.0-rc.99" && requests.Count == 1 && preview.Notes == "修复与改进"
-                && preview.Installer?.Name.EndsWith(".msi", StringComparison.Ordinal) == true,
-                "Preview updates retain release notes and MSI metadata and choose the highest version regardless of manifest order");
+                && preview.Installer?.Name.EndsWith(".exe", StringComparison.Ordinal) == true,
+                "Preview updates retain release notes and installer metadata and choose the highest version regardless of manifest order");
             check(await client.FindUpdateAsync(Version("1.5.0-rc.99"), true, CancellationToken.None) is null,
                 "The current version and older releases are never offered as an update");
         }
@@ -116,33 +115,19 @@ internal static class UpdateChecks
         using (var document = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(Environment.CurrentDirectory, "updates", "releases.json"))))
         {
             var published = document.RootElement.GetProperty("releases").EnumerateArray().Select(GitHubReleaseClient.ParseRelease).ToArray();
-            check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length > 0
+            check(document.RootElement.GetProperty("schema_version").GetInt32() == 1 && published.Length <= 1
                 && published.All(release => release is { Installer: not null, InstallerChecksum: not null }),
-                "The checked-in manifest of actual published releases is readable by the client with both ZIP and MSI assets");
+                "The checked-in manifest is empty before publication or contains one complete published installer release");
         }
 
         var root = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "updates", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var zip = Archive();
-        using var metadata = JsonDocument.Parse(JsonSerializer.Serialize(Release("v9.9.9", zip.Length)));
+        using var metadata = JsonDocument.Parse(JsonSerializer.Serialize(Release("v9.9.9")));
         var release = GitHubReleaseClient.ParseRelease(metadata.RootElement)!;
-        var digest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(zip)).ToLowerInvariant() + "  " + release.Archive.Name + "\n");
-        release = release with { Checksum = release.Checksum with { Size = digest.Length } };
-        using (var client = DownloadClient(zip, digest))
-        {
-            string directory;
-            using (var prepared = await UpdatePackage.PrepareAsync(client, release, false, null, CancellationToken.None, root))
-            {
-                directory = prepared.Directory;
-                check(UpdatePackage.RequiredFiles.All(file => File.Exists(Path.Combine(prepared.StagingDirectory, file))),
-                    "Verified updates extract all required runtime and application resources to an isolated directory");
-            }
-            check(!Directory.Exists(directory), "Cancelling a prepared update removes only its temporary job directory");
-        }
-        var installer = Encoding.UTF8.GetBytes("verified MSI fixture");
+        var installer = Encoding.UTF8.GetBytes("verified installer fixture");
         var installerDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(installer)).ToLowerInvariant()
             + "  " + release.Installer!.Name + "\n");
-        var msiRelease = release with
+        var installerRelease = release with
         {
             Installer = release.Installer with { Size = installer.Length },
             InstallerChecksum = release.InstallerChecksum! with { Size = installerDigest.Length }
@@ -154,57 +139,169 @@ internal static class UpdateChecks
             token.ThrowIfCancellationRequested();
             var name = Path.GetFileName(request.RequestUri!.AbsolutePath);
             requested.Add(name);
-            var content = name == msiRelease.InstallerChecksum!.Name ? installerDigest
-                : name == msiRelease.Installer!.Name ? installer : throw new InvalidOperationException("Unexpected ZIP request in MSI update: " + name);
+            var content = name == installerRelease.InstallerChecksum!.Name ? installerDigest
+                : name == installerRelease.Installer!.Name ? installer : throw new InvalidOperationException("Unexpected asset request in installer update: " + name);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(content) });
         })))
-        using (var prepared = await UpdatePackage.PrepareAsync(client, msiRelease, true,
+        using (var prepared = await UpdatePackage.PrepareAsync(client, installerRelease,
             new InlineProgress(stages.Add), CancellationToken.None, root))
         {
-            check(requested.SequenceEqual(new[] { msiRelease.InstallerChecksum!.Name, msiRelease.Installer!.Name })
-                && prepared.InstallerPath is not null && File.ReadAllBytes(prepared.InstallerPath).SequenceEqual(installer),
-                "MSI updates download only their checksum and verified installer exactly once");
-            check(!Directory.Exists(prepared.StagingDirectory) && !File.Exists(Path.Combine(prepared.Directory, "update.zip"))
+            check(requested.SequenceEqual(new[] { installerRelease.InstallerChecksum!.Name, installerRelease.Installer!.Name })
+                && prepared.InstallerPath is not null
+                && Path.GetFileName(prepared.InstallerPath) == installerRelease.Installer.Name
+                && File.ReadAllBytes(prepared.InstallerPath).SequenceEqual(installer),
+                "Installer updates download only their checksum and verified installer exactly once");
+            check(!Directory.EnumerateDirectories(prepared.Directory).Any() && !File.Exists(Path.Combine(prepared.Directory, "update.zip"))
                 && stages.All(value => value.MessageKey != "UpdateExtracting")
                 && stages.Count(value => value.MessageKey == "UpdateDownloading" && value.Percent == 0) == 1,
-                "MSI preparation never extracts a ZIP or restarts download progress after extraction");
+                "Installer preparation never extracts a ZIP or restarts download progress after extraction");
         }
+
+        var resumeInstaller = Enumerable.Range(0, 320 * 1024).Select(index => (byte)(index * 31)).ToArray();
+        var resumeDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(resumeInstaller)).ToLowerInvariant()
+            + "  " + release.Installer.Name + "\n");
+        var resumeRelease = release with
+        {
+            Installer = release.Installer with { Size = resumeInstaller.Length },
+            InstallerChecksum = release.InstallerChecksum! with { Size = resumeDigest.Length }
+        };
+        var split = resumeInstaller.Length / 3;
+        var resumeRoot = root + "-resume";
+        using (var client = InterruptedDownloadClient(resumeInstaller, resumeDigest, split))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, resumeRelease, null,
+                CancellationToken.None, resumeRoot), check, "Interrupted downloads retain a resumable fragment outside the prepared job");
+        var fragment = Directory.EnumerateFiles(resumeRoot, "resume-*.part").Single();
+        check(new FileInfo(fragment).Length == split && !Directory.EnumerateDirectories(resumeRoot).Any(),
+            "An interrupted transfer preserves only the verified release fragment and removes its temporary job");
+        var staleFragment = Path.Combine(resumeRoot, "resume-" + new string('0', 64) + "-1.part");
+        await File.WriteAllBytesAsync(staleFragment, [0]);
+        File.SetLastWriteTimeUtc(staleFragment, DateTime.UtcNow.AddDays(-8));
+        var resumedStages = new List<UpdateProgress>();
+        var rangeSeen = false;
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(resumeDigest) });
+            var from = request.Headers.Range?.Ranges.Single().From;
+            rangeSeen = from == split;
+            var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                Content = new ByteArrayContent(resumeInstaller[split..])
+            };
+            response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(
+                split, resumeInstaller.Length - 1, resumeInstaller.Length);
+            return Task.FromResult(response);
+        })))
+        using (var prepared = await UpdatePackage.PrepareAsync(client, resumeRelease,
+            new InlineProgress(resumedStages.Add), CancellationToken.None, resumeRoot))
+        {
+            check(rangeSeen && File.ReadAllBytes(prepared.InstallerPath!).SequenceEqual(resumeInstaller)
+                && resumedStages.Any(value => value.MessageKey == "UpdateResuming" && value.Percent > 0)
+                && resumedStages.Any(value => value.BytesPerSecond > 0),
+                "A retry requests the missing byte range, verifies the complete installer and reports a concrete transfer rate");
+        }
+        check(!Directory.EnumerateFiles(resumeRoot, "resume-*.part").Any() && !File.Exists(staleFragment),
+            "A successfully verified resumed download removes its fragment and stale fragments expire after seven days");
+
+        var canceledRoot = root + "-canceled-resume";
+        using (var cancel = new CancellationTokenSource())
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(resumeDigest) });
+            var content = new StreamContent(new CancelingReadStream(resumeInstaller, split, cancel));
+            content.Headers.ContentLength = resumeInstaller.Length;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+        })))
+        {
+            try
+            {
+                await UpdatePackage.PrepareAsync(client, resumeRelease, null, cancel.Token, canceledRoot);
+                check(false, "Cancellation during a package transfer is observed");
+            }
+            catch (OperationCanceledException)
+            {
+                var canceledFragment = Directory.EnumerateFiles(canceledRoot, "resume-*.part").Single();
+                check(new FileInfo(canceledFragment).Length == split && !Directory.EnumerateDirectories(canceledRoot).Any(),
+                    "Cancellation during a package transfer retains the completed bytes for the next retry");
+            }
+        }
+
+        var ignoredInstaller = resumeInstaller.ToArray();
+        ignoredInstaller[0] ^= 0x5a;
+        var ignoredDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(ignoredInstaller)).ToLowerInvariant()
+            + "  " + release.Installer.Name + "\n");
+        var ignoredRelease = release with
+        {
+            Installer = release.Installer with { Size = ignoredInstaller.Length },
+            InstallerChecksum = release.InstallerChecksum! with { Size = ignoredDigest.Length }
+        };
+        var ignoredRoot = root + "-ignored-range";
+        using (var client = InterruptedDownloadClient(ignoredInstaller, ignoredDigest, split))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, ignoredRelease, null,
+                CancellationToken.None, ignoredRoot), check, "A second interrupted fixture creates an independent resume fragment");
+        var ignoredRangeSeen = false;
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ignoredDigest) });
+            ignoredRangeSeen = request.Headers.Range?.Ranges.Single().From == split;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ignoredInstaller) });
+        })))
+        using (var prepared = await UpdatePackage.PrepareAsync(client, ignoredRelease, null,
+            CancellationToken.None, ignoredRoot))
+            check(ignoredRangeSeen && File.ReadAllBytes(prepared.InstallerPath!).SequenceEqual(ignoredInstaller),
+                "A server that ignores Range causes a safe full restart instead of appending duplicate bytes");
+
+        var invalidRangeInstaller = resumeInstaller.ToArray();
+        invalidRangeInstaller[1] ^= 0xa5;
+        var invalidRangeDigest = Encoding.UTF8.GetBytes(Convert.ToHexString(SHA256.HashData(invalidRangeInstaller)).ToLowerInvariant()
+            + "  " + release.Installer.Name + "\n");
+        var invalidRangeRelease = release with
+        {
+            Installer = release.Installer with { Size = invalidRangeInstaller.Length },
+            InstallerChecksum = release.InstallerChecksum! with { Size = invalidRangeDigest.Length }
+        };
+        var invalidRangeRoot = root + "-invalid-range";
+        using (var client = InterruptedDownloadClient(invalidRangeInstaller, invalidRangeDigest, split))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, invalidRangeRelease, null,
+                CancellationToken.None, invalidRangeRoot), check, "An invalid-range fixture creates a resume fragment");
+        using (var client = new GitHubReleaseClient(new Handler((request, token) =>
+        {
+            token.ThrowIfCancellationRequested();
+            if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(invalidRangeDigest) });
+            var response = new HttpResponseMessage(HttpStatusCode.PartialContent)
+            {
+                Content = new ByteArrayContent(invalidRangeInstaller[split..])
+            };
+            response.Content.Headers.ContentRange = new System.Net.Http.Headers.ContentRangeHeaderValue(
+                split + 1, invalidRangeInstaller.Length - 1, invalidRangeInstaller.Length);
+            return Task.FromResult(response);
+        })))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, invalidRangeRelease, null,
+                CancellationToken.None, invalidRangeRoot), check, "A mismatched Content-Range is rejected before bytes are appended");
+        check(new FileInfo(Directory.EnumerateFiles(invalidRangeRoot, "resume-*.part").Single()).Length == split,
+            "Rejecting an invalid range response does not corrupt the retained fragment");
+
         using (var client = new GitHubReleaseClient(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             { Content = new ByteArrayContent(request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal) ? installerDigest : installer[..^1]) }))))
         {
-            await RejectAsync(() => UpdatePackage.PrepareAsync(client, msiRelease, true, null, CancellationToken.None, root), check,
-                "A truncated MSI is rejected without falling back to a ZIP or leaving a prepared job");
-            check(!Directory.EnumerateDirectories(root).Any(), "Failed MSI preparation removes only its own incomplete work directory");
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, installerRelease, null, CancellationToken.None, root), check,
+                "A truncated installer is rejected without falling back to a ZIP or leaving a prepared job");
+            check(!Directory.EnumerateDirectories(root).Any(), "Failed installer preparation removes only its own incomplete work directory");
         }
-        var wrong = Encoding.UTF8.GetBytes(new string('0', 64) + "  " + release.Archive.Name + "\n");
-        using (var client = DownloadClient(zip, wrong))
-        {
-            await RejectAsync(() => UpdatePackage.PrepareAsync(client, release with { Checksum = release.Checksum with { Size = wrong.Length } },
-                false, null, CancellationToken.None, root), check, "Checksum mismatches never reach extraction and remove partial downloads");
-            check(!Directory.EnumerateDirectories(root).Any(), "Failed downloads leave no prepared update behind");
-        }
-        using (var client = DownloadClient(zip[..^1], digest))
-            await RejectAsync(() => UpdatePackage.PrepareAsync(client, release, false, null, CancellationToken.None, root), check,
-                "Truncated downloads are rejected before replacing the application");
-        using (var client = DownloadClient(zip, digest))
-            await RejectAsync(() => UpdatePackage.PrepareAsync(client, release with { Installer = null, InstallerChecksum = null }, true,
-                null, CancellationToken.None, root), check, "MSI installations require a matching MSI instead of overwriting installer files");
-        using (var client = DownloadClient(zip, digest))
-        using (var cancel = new CancellationTokenSource())
-        {
-            cancel.Cancel();
-            try { await UpdatePackage.PrepareAsync(client, release, false, null, cancel.Token, root); check(false, "Download cancellation is observed"); }
-            catch (OperationCanceledException) { check(!Directory.EnumerateDirectories(root).Any(), "Cancelled downloads clean up without changing the installed version"); }
-        }
-        foreach (var path in new[] { "../outside.txt", "/outside.txt", "folder/../../outside.txt", "C:/outside.txt", "folder/../evil.txt", "folder/file:stream" })
-            RejectArchive(root, Archive((path, 0)), check, "ZIP path traversal and rooted paths are rejected: " + path);
-        RejectArchive(root, Archive(("links/shortcut", unchecked((int)0xA0000000))), check, "ZIP symbolic links are rejected");
-        RejectArchive(root, Archive(("windowsisland.exe", 0)), check, "Case-insensitive ZIP path collisions are rejected");
-        RejectArchive(root, Archive(includeRequired: false), check, "Incomplete ZIP packages cannot be staged");
-        RejectArchive(root, Archive(omitRequired: "Updater/Apply-Update.ps1"), check,
-            "Update packages must retain the helper required for subsequent updates");
-        try { UpdatePackage.ReadChecksum(new string('a', 64) + "  wrong.zip", release.Archive.Name); check(false, "Checksum filenames match"); }
-        catch (InvalidDataException) { check(true, "Checksum files must identify the selected release asset"); }
+        var wrong = Encoding.UTF8.GetBytes(new string('0', 64) + "  " + release.Installer!.Name + "\n");
+        using (var client = DownloadClient(installer, wrong))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, installerRelease with
+                { InstallerChecksum = installerRelease.InstallerChecksum! with { Size = wrong.Length } }, null,
+                CancellationToken.None, root), check, "A checksum mismatch rejects the installer");
+        using (var client = DownloadClient(installer, installerDigest))
+            await RejectAsync(() => UpdatePackage.PrepareAsync(client, release with { Installer = null }, null,
+                CancellationToken.None, root), check, "A missing installer never falls back to ZIP replacement");
     }
 
     private static ReleaseVersion Version(string value) => ReleaseVersion.TryParse(value, out var version) ? version! : throw new ArgumentException(value);
@@ -213,7 +310,7 @@ internal static class UpdateChecks
         bool complete = true, bool unsafeUrl = false) => new
     {
         tag_name = tag, name = "Windows Island " + tag, body = "修复与改进", draft, prerelease,
-        assets = (complete ? new[] { ".zip", ".zip.sha256", ".msi", ".msi.sha256" } : new[] { ".zip" }).Select(extension => new
+        assets = (complete ? new[] { ".exe", ".exe.sha256", ".zip", ".zip.sha256" } : new[] { ".zip" }).Select(extension => new
         {
             name = "WindowsIsland-" + tag[1..] + "-win-x64" + extension,
             browser_download_url = (unsafeUrl ? "https://example.com/" : GitHubReleaseClient.DownloadPrefix + tag + "/")
@@ -234,33 +331,16 @@ internal static class UpdateChecks
         });
     }));
 
-    private static byte[] Archive((string Name, int Attributes)? extra = null, bool includeRequired = true, string? omitRequired = null)
+    private static GitHubReleaseClient InterruptedDownloadClient(byte[] installer, byte[] checksum, int length) =>
+        new(new Handler((request, token) =>
     {
-        using var stream = new MemoryStream();
-        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, true))
-        {
-            if (includeRequired)
-                foreach (var file in UpdatePackage.RequiredFiles.Where(file => file != omitRequired))
-                    using (var writer = new StreamWriter(archive.CreateEntry(file).Open())) writer.Write("fixture");
-            if (extra is { } entry)
-            {
-                var item = archive.CreateEntry(entry.Name);
-                item.ExternalAttributes = entry.Attributes;
-                using var writer = new StreamWriter(item.Open());
-                writer.Write("fixture");
-            }
-        }
-        return stream.ToArray();
-    }
-
-    private static void RejectArchive(string root, byte[] archive, Action<bool, string> check, string name)
-    {
-        var path = Path.Combine(root, Guid.NewGuid().ToString("N") + ".zip");
-        File.WriteAllBytes(path, archive);
-        var destination = Path.Combine(root, Guid.NewGuid().ToString("N"));
-        try { UpdatePackage.Extract(path, destination, CancellationToken.None); check(false, name); }
-        catch (InvalidDataException) { check(!Directory.Exists(destination), name); }
-    }
+        token.ThrowIfCancellationRequested();
+        if (request.RequestUri!.AbsolutePath.EndsWith(".sha256", StringComparison.Ordinal))
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(checksum) });
+        var content = new ByteArrayContent(installer[..length]);
+        content.Headers.ContentLength = null;
+        return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
+    }));
 
     private static async Task RejectAsync(Func<Task<PreparedUpdate>> action, Action<bool, string> check, string name)
     {
@@ -271,6 +351,20 @@ internal static class UpdateChecks
     private sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
+    }
+
+    private sealed class CancelingReadStream(byte[] content, int cancelAt, CancellationTokenSource cancel) : MemoryStream(content)
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Position >= cancelAt)
+            {
+                cancel.Cancel();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var remaining = (int)Math.Min(cancelAt - Position, buffer.Length);
+            return base.ReadAsync(buffer[..remaining], cancellationToken);
+        }
     }
 
     private sealed class InlineProgress(Action<UpdateProgress> report) : IProgress<UpdateProgress>

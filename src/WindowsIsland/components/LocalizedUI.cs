@@ -52,10 +52,17 @@ internal static class LocalizedUI
         return text;
     }
 
-    public static void Label(FrameworkElement element, string key) => Bind(element, () =>
+    public static void SetAutomationName(FrameworkElement element, string key) =>
+        Bind(element, () => AutomationProperties.SetName(element, Localization.Get(key)));
+
+    public static void SetToolTip(FrameworkElement element, string key) =>
+        Bind(element, () => ToolTipService.SetToolTip(element, Localization.Get(key)));
+
+    public static void LabelAction(FrameworkElement element, string key)
     {
-        var label = Localization.Get(key);
-        AutomationProperties.SetName(element, label);
-        ToolTipService.SetToolTip(element, label);
-    });
+        SetAutomationName(element, key);
+        SetToolTip(element, key);
+    }
+
+    public static void Label(FrameworkElement element, string key) => SetAutomationName(element, key);
 }

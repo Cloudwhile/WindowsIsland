@@ -13,6 +13,11 @@ public partial class App : Application
     {
         try
         {
+            if (Environment.GetCommandLineArgs().Contains("--verify-local"))
+            {
+                if (Environment.GetCommandLineArgs().Contains("--verify-light")) RequestedTheme = ApplicationTheme.Light;
+                else if (Environment.GetCommandLineArgs().Contains("--verify-dark")) RequestedTheme = ApplicationTheme.Dark;
+            }
             ApplyLanguage(new SettingsStore(PreferencesPath(Environment.GetCommandLineArgs().Contains("--verify-local"))).Current.Language);
             InitializeComponent();
             UnhandledException += (_, error) =>
@@ -39,11 +44,12 @@ public partial class App : Application
         ApplyLanguage(settings.Current.Language);
         var showSettings = !settings.Current.SetupCompleted || arguments.Contains("--settings", StringComparison.Ordinal);
         var afterUpdate = arguments.Contains("--after-update", StringComparison.Ordinal);
+        var restoreRegistration = arguments.Contains("--restore-registration", StringComparison.Ordinal);
         var showUpdateResult = afterUpdate || arguments.Contains("--show-update-result", StringComparison.Ordinal);
         if (!verification && showUpdateResult && UpdateInstaller.ReadResult() is { Success: false } failedUpdate)
             Diagnostics.State(DiagnosticArea.Updates, failedUpdate.MessageKey is "UpdateRestored" or "UpdateBackupRetained"
                 ? failedUpdate.MessageKey : "UpdateInstallFailed");
-        if (!verification && afterUpdate && settings.Current.SystemNotifications)
+        if (!verification && afterUpdate && (settings.Current.SystemNotifications || restoreRegistration))
         {
             try
             {
@@ -56,7 +62,7 @@ public partial class App : Application
             }
             catch (Exception error) { Diagnostics.Capture(DiagnosticArea.Application, error, "RegisterAfterUpdate"); Trace.WriteLine(error); showSettings = true; }
         }
-        if (!verification && settings.Current.SystemNotifications && !AppInitialization.HasIdentity)
+        if (!verification && (settings.Current.SystemNotifications || restoreRegistration) && !AppInitialization.HasIdentity)
         {
             try
             {
@@ -84,14 +90,18 @@ public partial class App : Application
     {
         if (_restarting) return;
         _restarting = true;
-        try { await RegisteredRestart.PrepareAsync(appId, showSettings, showUpdateResult,
-            Environment.GetCommandLineArgs().Contains("--verify-local")); }
+        try
+        {
+            await RegisteredRestart.PrepareAsync(appId, showSettings, showUpdateResult,
+                Environment.GetCommandLineArgs().Contains("--verify-local"));
+            await CloseApplicationAsync();
+        }
         catch
         {
+            // Prepare already commits the helper; reset so a later exit/restart attempt can retry cleanup.
             _restarting = false;
             throw;
         }
-        CloseApplication();
     }
 
     private static string? PreferencesPath(bool verification) => verification
@@ -112,9 +122,9 @@ public partial class App : Application
         Localization.Configure(language);
     }
 
-    private void CloseApplication()
+    private async Task CloseApplicationAsync()
     {
         if (_window is null) Exit();
-        else _window.ExitApplication();
+        else await _window.ExitApplicationAsync();
     }
 }

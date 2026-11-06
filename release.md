@@ -1,41 +1,35 @@
 # Windows Island v0.1.0
 
-> [!IMPORTANT]
->
-> 消息岛首个正式版本。将 Windows 桌面消息汇集到轻巧的通知岛，让提醒随时可见，也能安静退场。
+消息岛将 Windows 桌面通知汇集到屏幕边缘，在你选择的位置显示应用图标、会话头像和消息内容，保持当前应用的输入焦点。
 
-## Highlights
+## 功能
 
-- 在通知岛中查看应用图标、会话头像、发送者与消息内容，显示时保持当前窗口的输入焦点。
-- Windows 通知、微信、Telegram 与电源提醒作为内置消息来源，可独立启停。
-- 八种显示方位、平滑动画、游戏与全屏静音，让提醒方式由你选择。
+- 内置系统通知和电源来源；Telegram 与微信通过独立官方插件接入，收录状态以 **插件管理 → 发现插件** 列表为准，请从该列表安装并阅读条款后启用。各来源拥有独立开关、连接状态及重试入口。
+- 普通消息显示约五秒，新消息重新计时；跨来源的相同消息合并展示，重新连接不重放历史消息。
+- 支持插件固定内容、展开详情及按钮、开关、滑块交互；普通消息优先显示。
+- 提供八个位置、动画、毛玻璃、背景透明度和透明度过渡，适配 Windows 明暗主题。
+- 游戏与全屏静音可独立设置，系统免打扰单独控制。
+- 支持手动导入插件 ZIP、插件设置、启停、更新与删除；提供独立插件合约和开发文档。
+- 支持简体中文、English 和跟随系统，设置自动保存。
+- 应用内更新提供版本说明、下载进度、传输速率及中断续传，更新后保留偏好。
+- 本机诊断支持预览、复制、导出和清除，不自动上传报告。
 
-## Features
+## 开始使用
 
-- **通知交互**：左键打开消息来源，右键关闭当前提醒；长消息自动换行，相同消息合并显示。
-- **微信与 Telegram**：接收已登录桌面客户端的新消息；微信遵循会话免打扰设置，头像可用时随消息显示。
-- **电源提醒**：查看电源连接、充电、断开与充满状态。
-- **外观与语言**：跟随系统浅色或深色主题，选择弹窗方位和动画，支持简体中文、English 与跟随系统语言。
-- **通知偏好**：游戏静音和全屏静音可分别设置；可切换 Windows 免打扰并继续接收消息。
-- **桌面常驻**：通过托盘打开设置或退出，按需开启登录自启。
-- **应用更新**：在设置中查看可用版本和下载信息，选择是否接收预发布版本。
-- **诊断与反馈**：手动生成、预览、复制、导出或清除本机诊断报告，由用户自行选择是否分享。
+1. 下载安装器，选择目录并按提示授权；也可完整解压便携包后运行 `WindowsIsland.exe`。
+2. 按需在 **初始化** 页完成系统通知初始化与通知访问授权。已连接的微信等独立来源和通知预览可直接使用。
+3. 在 **消息来源** 页开启需要的来源，在 **外观** 页调整位置与显示效果。
+4. 关闭设置后，消息岛继续在系统托盘运行；安装版可在初始化页开启开机自启。
 
-## Getting Started
+安装器在覆盖安装时关闭同目录的消息岛实例。卸载保留用户数据；便携版删除前，请在初始化页注销通知包登记并等待应用退出。
 
-1. 下载 MSI 安装包并安装，或完整解压 ZIP 后运行 `WindowsIsland.exe`。
-2. 在设置的“初始化”页完成应用初始化和通知授权。
-3. 选择消息来源，通过通知预览调整方位和动画。
-4. 点击完成图标，消息岛便会在后台接收提醒；点击托盘图标可随时返回设置。
+**接收预发布更新** 默认关闭，可在更新页自行开启。
 
-## Downloads
+## 下载
 
-适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。
+适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。发布包已包含运行时。
 
-- [MSI 安装包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.msi)
-- [ZIP 压缩包](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip)
-- 对应的 SHA-256 校验文件见下方附件。
-
-## Source
-
-[查看 v0.1.0 的源代码](https://github.com/Cloudwhile/WindowsIsland/tree/v0.1.0)。
+- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.exe) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.exe.sha256)
+- [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip.sha256)
+- [插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Contracts.0.1.0.nupkg) · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Plugin.Cli.0.1.0.nupkg) · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Plugin.Samples.0.1.0.zip)
+- [使用文档](https://wini-docs.abszero.cc/) · [插件开发](https://wini-docs.abszero.cc/plugins)

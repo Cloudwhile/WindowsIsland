@@ -1,5 +1,34 @@
 using WindowsIsland.Services;
 
+if (args.FirstOrDefault() == "--plugin-contract")
+{
+    await WindowsIsland.LogicTests.PluginPlatformContractChecks.RunAsync(args.ElementAtOrDefault(1));
+    await WindowsIsland.LogicTests.PluginCatalogContractChecks.RunAsync();
+    return;
+}
+
+if (args is ["--plugin-audit"])
+{
+    await WindowsIsland.LogicTests.PluginStaticSettingsChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginInstallationChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginConsentChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginNetworkBrokerChecks.RunAsync();
+    await WindowsIsland.LogicTests.PluginNotificationChecks.RunAsync();
+    return;
+}
+
+if (args is ["--telegram-plugin", var telegramZip])
+{
+    await WindowsIsland.LogicTests.TelegramHostChecks.RunPackageAsync(Path.GetFullPath(telegramZip));
+    return;
+}
+
+if (args is ["--wechat-plugin", var pluginZip])
+{
+    await WindowsIsland.LogicTests.DesktopHostChecks.RunPackageAsync(Path.GetFullPath(pluginZip));
+    return;
+}
+
 if (args.FirstOrDefault() == "--read-system-dnd" && OperatingSystem.IsWindows())
 {
     Console.WriteLine(new DoNotDisturbPreferences(new WindowsQuietHoursStore()).Read());
@@ -13,27 +42,6 @@ if (args.FirstOrDefault() == "--restart-parent-fixture")
     return;
 }
 
-if (args.FirstOrDefault() == "--update-fixture")
-{
-    var directory = args[1];
-    var installer = Path.Combine(directory, "update.msi");
-    using var update = new PreparedUpdate(directory, Path.Combine(directory, "payload"), File.Exists(installer) ? installer : null,
-        File.Exists(Path.Combine(directory, "expected-version.txt")) ? File.ReadAllText(Path.Combine(directory, "expected-version.txt"))
-            : ReleaseVersion.Current.Display, Path.GetDirectoryName(directory)!);
-    try { await UpdateInstaller.StartAsync(update, CancellationToken.None, @"Local\WindowsIsland.UpdateTests." + Path.GetFileName(directory)); }
-    catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
-    return;
-}
-if (args.FirstOrDefault() == "/i" && File.Exists(Path.Combine(AppContext.BaseDirectory, "msi-fixture-exit.txt")))
-{
-    var code = int.Parse(await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "msi-fixture-exit.txt")));
-    var marker = Path.Combine(AppContext.BaseDirectory, "msi.args");
-    await File.WriteAllTextAsync(marker + ".tmp", string.Join(' ', args));
-    File.Move(marker + ".tmp", marker, overwrite: true);
-    if (code is 0 or 3010) await File.WriteAllTextAsync(Path.Combine(AppContext.BaseDirectory, "a-library.dll"), "new MSI library");
-    Environment.ExitCode = code;
-    return;
-}
 if (args.Contains("--settings"))
 {
     var restartArguments = Path.Combine(AppContext.BaseDirectory, "restart.args");
@@ -69,25 +77,25 @@ tracker.Update([]);
 Check(tracker.Update([newest, next]).SequenceEqual(new[] { next, newest }), "Bursts sorted chronologically");
 
 var time = new ManualTime();
-var presentation = new NotificationPresentation(time);
-Check(!presentation.Active && !presentation.Expired, "Startup has no active notification");
-presentation.Show();
+var presentation = new IslandScheduler(time);
+Check(presentation.Message is null && !presentation.MessageIsExpired, "Startup has no active notification");
+presentation.MessageArrived(next);
 time.Advance(4.9);
-Check(!presentation.Expired, "Popup stays visible before deadline");
+Check(!presentation.MessageIsExpired, "Popup stays visible before deadline");
 time.Advance(0.1);
-Check(presentation.Expired, "Popup closes after five seconds");
-presentation.Show();
-Check(presentation.Active && !presentation.Expired, "New notification resets deadline");
+Check(presentation.MessageIsExpired, "Popup closes after five seconds");
+presentation.MessageArrived(next);
+Check(presentation.Message is not null && !presentation.MessageIsExpired, "New notification resets deadline");
 time.Advance(5);
-Check(presentation.Expired, "Replacement notification gets a fresh five seconds");
-presentation.Clear();
-Check(!presentation.Active && !presentation.Expired, "Clearing a notification cancels deadline");
-presentation.Show();
+Check(presentation.MessageIsExpired, "Replacement notification gets a fresh five seconds");
+presentation.MessageDismissed();
+Check(presentation.Message is null && !presentation.MessageIsExpired, "Clearing a notification cancels deadline");
+presentation.MessageArrived(next);
 time.Advance(5);
-Check(presentation.Expired, "Each new notification returns to idle after its deadline");
-presentation.Clear();
+Check(presentation.MessageIsExpired, "Each new notification returns to idle after its deadline");
+presentation.MessageDismissed();
 time.Advance(100);
-Check(!presentation.Expired, "Cleared notification stays idle");
+Check(!presentation.MessageIsExpired, "Cleared notification stays idle");
 
 var instanceName = $"WindowsIsland.Tests.{Guid.NewGuid():N}";
 using (var primary = SingleInstance.TryAcquire(instanceName))
@@ -231,22 +239,39 @@ Check(!MessengerPopupRules.IsMessagePopup("tooltips_class32", 0x80000000, 0x88, 
 Check(!MessengerPopupRules.IsMessagePopup("#32768", 0x80000000, 0x88, 320, 160, false), "Client menus are not treated as messages");
 Check(!MessengerPopupRules.IsMessagePopup("QtNotification", 0x80000000, 0x88, 1100, 750, false), "Main client windows are excluded");
 LocalizationChecks.Run(Check);
+MarkdownChecks.Run(Check);
+await IslandSchedulerChecks.RunAsync(Check);
+await PinnedPanelChecks.RunAsync(Check);
+await HostExitChecks.RunAsync(Check);
 GameModeChecks.Run(Check);
 DoNotDisturbChecks.Run(Check);
 WindowsPreferencesChecks.Run(Check);
 SettingsChecks.Run(Check);
-WeChatChecks.Run(Check);
 WeChatRoutingChecks.Run(Check);
+PluginConversationSnapshotChecks.Run(Check);
 StatusChecks.Run(Check);
 ToastImageChecks.Run(Check);
 NotificationImageStoreChecks.Run(Check);
+await NotificationIconCacheChecks.RunAsync(Check);
 await DiagnosticChecks.RunAsync(Check);
 await DiagnosticReportCacheChecks.RunAsync(Check);
+await WindowsIsland.LogicTests.PluginDirectoryChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginNotificationChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginIsolationProtocolChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginNetworkBrokerChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginProxyLifecycleChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginEvolutionChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginInstallationChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginStaticSettingsChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginSourceChecks.RunAsync();
+await WindowsIsland.LogicTests.PluginCatalogContractChecks.RunAsync();
 await PluginChecks.RunAsync(Check);
+await WindowsIsland.LogicTests.PluginManagerChecks.RunAsync(Check);
 await RegisteredRestartChecks.RunAsync(Check);
+await InitializationRegistrationChecks.RunAsync(Check);
 await UpdateChecks.RunAsync(Check);
-await UpdateCheckServiceChecks.RunAsync(Check);
 await UpdateScriptChecks.RunAsync(Check);
+await UpdateCheckServiceChecks.RunAsync(Check);
 Console.WriteLine($"{checks} checks passed.");
 
 sealed class ManualTime : TimeProvider

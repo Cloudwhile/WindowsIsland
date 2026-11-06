@@ -57,7 +57,7 @@ internal static class StartupElevation
             using (var hive = Registry.Users.OpenSubKey(owner.User!.Value, writable: true)
                 ?? throw new IOException("The requesting user's preferences are unavailable."))
             {
-                new StartupRegistration(new RegistryWindowsPreferenceStore(hive), Environment.ProcessPath!).Set(arguments[1] == "enable");
+                new StartupRegistration(new RegistryWindowsPreferenceStore(hive, disableVirtualization: true), Environment.ProcessPath!).Set(arguments[1] == "enable");
             }
             result = 0;
         }

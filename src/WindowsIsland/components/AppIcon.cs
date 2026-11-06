@@ -18,6 +18,10 @@ internal sealed class AppIcon : Grid
     private bool _circular;
     private int _version;
     private byte[]? _bytes;
+    private int _decodeWidth;
+    private string _appName = "";
+    private string? _symbol;
+    private XamlRoot? _observedRoot;
 
     public AppIcon(double size = IconSize, string automationId = "NotificationAppIcon")
     {
@@ -32,6 +36,31 @@ internal sealed class AppIcon : Grid
         Children.Add(_image);
         AutomationProperties.SetAccessibilityView(_fallback, AccessibilityView.Raw);
         SetAutomationId(automationId);
+        Loaded += OnLoaded;
+        Unloaded += (_, _) => ObserveRoot(null);
+        SizeChanged += (_, _) => RefreshDecode();
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs args)
+    {
+        ObserveRoot(XamlRoot);
+        RefreshDecode();
+    }
+
+    private void ObserveRoot(XamlRoot? root)
+    {
+        if (ReferenceEquals(root, _observedRoot)) return;
+        if (_observedRoot is not null) _observedRoot.Changed -= RootChanged;
+        _observedRoot = root;
+        if (_observedRoot is not null) _observedRoot.Changed += RootChanged;
+    }
+
+    private void RootChanged(XamlRoot sender, XamlRootChangedEventArgs args) => RefreshDecode();
+    private int PhysicalWidth => Math.Max(1, (int)Math.Ceiling(Width * (XamlRoot?.RasterizationScale ?? 1)));
+    private void RefreshDecode()
+    {
+        if (_bytes is { Length: > 0 } && _decodeWidth != PhysicalWidth)
+            _ = ShowAsync(_appName, _bytes, _symbol);
     }
 
     public void SetAutomationId(string value) => AutomationProperties.SetAutomationId(this, value);
@@ -49,7 +78,12 @@ internal sealed class AppIcon : Grid
     public async Task ShowAsync(string appName, byte[]? bytes, string? symbol = null)
     {
         AutomationProperties.SetName(this, appName);
-        if (bytes is { Length: > 0 } && ReferenceEquals(bytes, _bytes) && _image.Visibility == Visibility.Visible) return;
+        _appName = appName;
+        _symbol = symbol;
+        var decodeWidth = PhysicalWidth;
+        if (bytes is { Length: > 0 } && ReferenceEquals(bytes, _bytes) && _decodeWidth == decodeWidth
+            && _image.Visibility == Visibility.Visible) return;
+        _decodeWidth = decodeWidth;
         _bytes = bytes;
         var version = ++_version;
         _image.Background = null;
@@ -67,7 +101,7 @@ internal sealed class AppIcon : Grid
                 await writer.StoreAsync();
             }
             stream.Seek(0);
-            var bitmap = new BitmapImage { DecodePixelType = DecodePixelType.Logical, DecodePixelWidth = (int)Math.Ceiling(Width) };
+            var bitmap = new BitmapImage { DecodePixelType = DecodePixelType.Physical, DecodePixelWidth = decodeWidth };
             await bitmap.SetSourceAsync(stream);
             if (version != _version) return;
             _image.Background = new ImageBrush

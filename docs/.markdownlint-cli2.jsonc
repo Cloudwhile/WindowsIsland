@@ -1,0 +1,9 @@
+{
+  "globs": ["**/*.md"],
+  "ignores": ["node_modules/**", ".vitepress/cache/**", ".vitepress/dist/**"],
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD033": false
+  }
+}

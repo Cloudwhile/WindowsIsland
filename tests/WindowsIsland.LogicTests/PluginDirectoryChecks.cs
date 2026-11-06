@@ -1,0 +1,91 @@
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using WindowsIsland.Contracts;
+using WindowsIsland.Plugins;
+using WindowsIsland.Services;
+
+namespace WindowsIsland.LogicTests;
+
+internal static class PluginDirectoryChecks
+{
+    public static readonly PluginManifest Manifest = new("wini_plugin_fixture", "外部电源来源", "1.0.0",
+        "WindowsIsland.PluginFixture.dll", "WindowsIsland.PluginFixture.PowerSource", 1, ["notifications"], DeveloperId: "example");
+
+    public static void Check(bool value, string message)
+    {
+        if (!value) throw new InvalidOperationException(message);
+        Console.WriteLine("PASS " + message);
+    }
+
+    public static string Fixture => Path.Combine(AppContext.BaseDirectory, "fixture", Manifest.EntryAssembly);
+    public static void WritePlugin(string directory, PluginManifest manifest)
+    {
+        Directory.CreateDirectory(directory);
+        File.Copy(Fixture, Path.Combine(directory, Manifest.EntryAssembly), true);
+        File.WriteAllText(Path.Combine(directory, "manifest.json"), JsonSerializer.Serialize(manifest, PluginManifestReader.Json));
+    }
+
+    public static async Task RunAsync()
+    {
+        var root = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "plugin-directories", Guid.NewGuid().ToString("N"));
+        var paths = new PluginPaths(root);
+        var store = new SettingsStore(Path.Combine(root, "settings.json"));
+        Diagnostics.Initialize(Path.Combine(root, "diagnostics"), true);
+        var code = paths.Code(PluginSourceKind.Manual, Manifest.Id);
+        WritePlugin(code, Manifest);
+        var broken = paths.Code(PluginSourceKind.Manual, "wini_plugin_broken");
+        Directory.CreateDirectory(broken);
+        File.WriteAllText(Path.Combine(broken, "manifest.json"), "{broken");
+        WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_plugin_version"), Manifest with { Id = "wini_plugin_version", ContractVersion = 2 });
+        WritePlugin(paths.Code(PluginSourceKind.Manual, "wini_plugin_entry"), Manifest with { Id = "wini_plugin_entry", EntryType = "Missing.Type" });
+        var loader = new PluginDirectoryLoader(paths, store);
+        Check(loader.Scan().Count == 1, "Directory discovery isolates corrupt manifests and incompatible contracts");
+        using var manager = new PluginManager([], store);
+        manager.ConfigureDirectories(paths);
+        var arrived = 0;
+        manager.Received += _ => arrived++;
+        await manager.StartAsync();
+        Check(manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).StatusKey == "Off" && arrived == 0
+            && manager.Snapshot().All(s => s.Definition.Id != "wini_plugin_entry"),
+            "External discovery remains disabled and never executes the plugin before consent; invalid entries fail alone");
+        Check(await manager.GetSettingsAsync(Manifest.Id) is null,
+            "Reading a disabled external plugin's details cannot execute its constructor or schema getter");
+        var failures = Diagnostics.Store!.Snapshot();
+        Check(new[] { "wini_plugin_broken", "wini_plugin_version", "wini_plugin_entry" }.All(id => failures.Any(f => f.PluginId == id)),
+            "Corrupt manifests, incompatible contracts and missing entries each produce isolated diagnostic records");
+        var external = manager.Snapshot().Single(s => s.Definition.Id == Manifest.Id).Definition.Metadata!.External!;
+        var data = paths.Data(Manifest.Id);
+        Directory.CreateDirectory(data);
+        File.WriteAllText(Path.Combine(data, "saved.txt"), "保留数据");
+        await manager.RemoveAsync(Manifest.Id);
+        Check(!Directory.Exists(code) && File.Exists(Path.Combine(data, "saved.txt")), "External removal deletes code and preserves plugin data");
+        await external.VerifyUnloadAsync();
+        Check(arrived == 0 && await manager.GetSettingsAsync(Manifest.Id) is null,
+            "Removing a never-enabled external plugin executes no callbacks and leaves no settings execution route");
+        Check(loader.Scan().All(r => r.Definition.Id != Manifest.Id), "Deleted directory is absent on the next scan");
+        foreach (var path in new[] { "../escape.dll", "/absolute.dll", "C:/absolute.dll", "inner/../escape.dll", "inner\\escape.dll" })
+        {
+            var rejected = false;
+            try { PluginPaths.Relative(root, path); } catch (Exception error) when (error is PluginException or InvalidDataException) { rejected = true; }
+            Check(rejected, "Unsafe plugin path is rejected: " + path);
+        }
+        var minimal = JsonSerializer.Deserialize<PluginManifest>("""
+            {"id":"wini_plugin_minimal","name":"最小清单","version":"1.0.0","entryAssembly":"a.dll","entryType":"A","contractVersion":1,"permissions":[]}
+            """, PluginManifestReader.Json)!;
+        Check(minimal.DeveloperId == "" && minimal.SourceKind == PluginSourceKind.Manual && minimal.DeveloperName is null,
+            "Optional developer and source metadata use their declared defaults");
+        foreach (var id in new[] { "wini_fixture_plugin", "wini_plugin_system", "wini_plugin_countdown" })
+        {
+            var rejected = false;
+            try { PluginManifestReader.Validate(Manifest with { Id = id }); }
+            catch (PluginException) { rejected = true; }
+            Check(rejected, "External manifests reject old-format and reserved identifiers: " + id);
+        }
+        Check(PluginManifestReader.DeveloperIdValid("example_studio2")
+            && !PluginManifestReader.DeveloperIdValid("Example") && PluginManifestReader.DeveloperIdValid("example__studio"),
+            "Developer identifiers retain their name rules after the plugin prefix changes");
+        await manager.ShutdownAsync();
+        await PluginConsentChecks.RunAsync();
+        Diagnostics.Shutdown();
+    }
+}

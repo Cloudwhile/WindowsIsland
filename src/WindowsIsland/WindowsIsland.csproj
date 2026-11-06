@@ -19,28 +19,48 @@
     <NeutralLanguage>zh-CN</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
-    <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.12" />
-    <KnownAppHostPack Update="Microsoft.NETCore.App" AppHostPackVersion="10.0.12" />
-    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="10.0.12" />
+    <ProjectReference Include="..\WindowsIsland.Contracts\WindowsIsland.Contracts.csproj" />
+    <ProjectReference Include="..\WindowsIsland.PluginIsolation\WindowsIsland.PluginIsolation.csproj" />
+    <ProjectReference Include="..\WindowsIsland.PluginWorker\WindowsIsland.PluginWorker.csproj" ReferenceOutputAssembly="false" GlobalPropertiesToRemove="OutDir;PublishDir" />
+  </ItemGroup>
+  <Target Name="CopyPluginWorker" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
+    <PropertyGroup>
+      <_WorkerPlatformPath Condition="'$(Platform)' != '' and '$(Platform)' != 'AnyCPU' and '$(Platform)' != 'Any CPU'">$(Platform)\</_WorkerPlatformPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <_PluginWorkerFiles Include="$(MSBuildProjectDirectory)\..\..\artifacts\bin\WindowsIsland.PluginWorker\$(_WorkerPlatformPath)$(Configuration)\net10.0\win-x64\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PluginWorkerFiles)" DestinationFiles="@(_PluginWorkerFiles->'$(TargetDir)PluginWorker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <ItemGroup>
+      <ResolvedFileToPublish Include="@(_PluginWorkerFiles)">
+        <RelativePath>PluginWorker\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
+  <Target Name="PublishPluginWorker" AfterTargets="Publish" DependsOnTargets="CopyPluginWorker">
+    <Copy SourceFiles="@(_PluginWorkerFiles)" DestinationFiles="@(_PluginWorkerFiles->'$(PublishDir)PluginWorker\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+  <ItemGroup>
+    <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="10.0.14" />
+    <KnownAppHostPack Update="Microsoft.NETCore.App" AppHostPackVersion="10.0.14" />
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="10.0.14" />
     <KnownFrameworkReference Update="Microsoft.WindowsDesktop.App;Microsoft.WindowsDesktop.App.WPF;Microsoft.WindowsDesktop.App.WindowsForms"
-      LatestRuntimeFrameworkVersion="10.0.12" />
+      LatestRuntimeFrameworkVersion="10.0.14" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.260416003" />
+    <PackageReference Include="Markdig" Version="1.4.2" />
+    <Content Include="Licenses\Markdig.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Icons\LOGO.ico" Link="Assets\Island.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Icons\LOGO.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Icons\Shell\*.png" Link="Assets\Shell\%(Filename)%(Extension)"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\packaging\AppxManifest.xml" Link="Initialization\AppxManifest.xml"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\packaging\Apply-Update.ps1" Link="Updater\Apply-Update.ps1"
-      CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\native\vendor\minhook\LICENSE.txt" Link="Licenses\MinHook.txt"
-      CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="..\..\artifacts\native\Release\WindowsIsland.TelegramHook.dll" Link="WindowsIsland.TelegramHook.dll"
+    <Content Include="..\..\packaging\Unregister-Package.ps1" Link="Unregister-Package.ps1"
       CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
-  <Target Name="BuildTelegramHook" BeforeTargets="PrepareForBuild">
-    <Exec Command="cmake -S &quot;$(MSBuildProjectDirectory)\..\..\native&quot; -B &quot;$(MSBuildProjectDirectory)\..\..\artifacts\native&quot; -A x64" />
-    <Exec Command="cmake --build &quot;$(MSBuildProjectDirectory)\..\..\artifacts\native&quot; --config Release --parallel" />
+  <Target Name="RemoveExtractedTelegramPayload" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
+    <Delete Files="$(TargetDir)WindowsIsland.TelegramHook.dll;$(TargetDir)Licenses\MinHook.txt;$(PublishDir)WindowsIsland.TelegramHook.dll;$(PublishDir)Licenses\MinHook.txt" />
   </Target>
   <Target Name="PrepareInitializationRuntime" AfterTargets="Build" BeforeTargets="ComputeFilesToPublish">
     <Copy SourceFiles="$(IntermediateOutputPath)MsixContent\AppxManifest.xml"

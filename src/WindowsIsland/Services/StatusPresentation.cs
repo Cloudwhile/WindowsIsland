@@ -1,3 +1,5 @@
+using WindowsIsland.Plugins;
+
 namespace WindowsIsland.Services;
 
 internal enum StatusTone { Neutral, Success, Critical }
@@ -16,11 +18,16 @@ internal static class SourceStatus
     public static bool IsRunning(string key) => Tone(key) == StatusTone.Success;
 
     // Secondary guidance shown below a source; null when the status needs no explanation.
-    public static string? DetailKey(string id, string key) => (id, key) switch
+    public static string? DetailKey(string id, string key, bool systemAvailable = true) => (id, key) switch
     {
-        ("wechat", "WeChatUnsupported") => "WeChatUnsupportedDetail",
-        ("wechat", "WeChatConnectFailed") => "WeChatConnectFailedDetail",
-        ("telegram", "TelegramNotDetected") => "TelegramNotDetectedDetail",
+        (BuiltInPluginIds.System, "Off") => "SystemNotificationsOffDetail",
+        (BuiltInPluginIds.WeChat, "WeChatUnsupported") when !systemAvailable => "WeChatUnsupportedNoFallbackDetail",
+        (BuiltInPluginIds.WeChat, "WeChatConnectFailed") when !systemAvailable => "WeChatConnectFailedNoFallbackDetail",
+        (BuiltInPluginIds.WeChat, "WeChatUnsupported") => "WeChatUnsupportedDetail",
+        (BuiltInPluginIds.WeChat, "WeChatConnectFailed") => "WeChatConnectFailedDetail",
+        (BuiltInPluginIds.Telegram, "TelegramNotDetected") => "TelegramNotDetectedDetail",
+        (_, "Unavailable") => "SourceUnavailableDetail",
+        (_, "Denied") => "SourceDeniedDetail",
         _ => null
     };
 }
@@ -43,7 +50,46 @@ internal static class DiagnosticPresentation
         ["ReadPreferences"] = "DiagnosticTitleReadPreferences",
         ["ReadBanners"] = "DiagnosticTitleReadWindowsSettings",
         ["ReadDoNotDisturb"] = "DiagnosticTitleReadWindowsSettings",
-        ["ReadStartup"] = "DiagnosticTitleReadWindowsSettings"
+        ["ReadStartup"] = "DiagnosticTitleReadWindowsSettings",
+        ["ReadLoop"] = "DiagnosticTitleReadMessages",
+        ["ReadLoopAsync"] = "DiagnosticTitleReadMessages",
+        ["ReadNotification"] = "DiagnosticTitleReadMessages",
+        ["ScanWindows"] = "DiagnosticTitleReadMessages",
+        ["Inspect"] = "DiagnosticTitleReadMessages",
+        ["Subscribe"] = "DiagnosticTitleConnectNotifications",
+        ["RequestAccessAsync"] = "DiagnosticTitleConnectNotifications",
+        ["StartAsync"] = "DiagnosticTitleConnectNotifications",
+        ["RegisterAfterUpdate"] = "DiagnosticTitleRegistration",
+        ["RegisteredActivation"] = "DiagnosticTitleRegistration",
+        ["InstallPlugin"] = "DiagnosticTitleInstallPlugin",
+        ["OfficialPluginOperation"] = "DiagnosticTitleOfficialPlugin",
+        ["ReadPluginSources"] = "DiagnosticTitlePluginCatalog",
+        ["RefreshPluginSources"] = "DiagnosticTitlePluginCatalog",
+        ["ScanPlugins"] = "DiagnosticTitleLoadPlugin",
+        ["Discover"] = "DiagnosticTitleLoadPlugin",
+        ["SettingsSchema"] = "DiagnosticTitlePluginStatus",
+        ["SettingsSave"] = "DiagnosticTitleSavePreferences",
+        ["Stopping"] = "DiagnosticTitleStopPlugin",
+        ["Uninstall"] = "DiagnosticTitlePluginCleanup",
+        ["UninstallInitialize"] = "DiagnosticTitlePluginCleanup",
+        ["Initialize"] = "DiagnosticTitleStartPlugin",
+        ["Start"] = "DiagnosticTitleStartPlugin",
+        ["Stop"] = "DiagnosticTitleStopPlugin",
+        ["Dispose"] = "DiagnosticTitleStopPlugin",
+        ["Poll"] = "DiagnosticTitlePluginStatus",
+        ["Status"] = "DiagnosticTitlePluginStatus",
+        ["Retry"] = "DiagnosticTitleRetryPlugin",
+        ["RequestAccess"] = "DiagnosticTitlePluginAccess",
+        ["Filter"] = "DiagnosticTitlePluginNotification",
+        ["Callback"] = "DiagnosticTitlePluginNotification",
+        ["Dispatch"] = "DiagnosticTitlePluginNotification",
+        ["PinnedInteraction"] = "DiagnosticTitlePinnedInteraction",
+        ["RejectPinnedXaml"] = "DiagnosticTitlePinnedPanel",
+        ["RemovePinned"] = "DiagnosticTitlePinnedRemoval",
+        ["RemovePluginBackup"] = "DiagnosticTitlePluginCleanup",
+        ["OpenPluginRepository"] = "DiagnosticTitleOpenRepository",
+        ["SaveSourcePreference"] = "DiagnosticTitleSavePreferences",
+        ["Complete"] = "DiagnosticTitleSavePreferences"
     };
 
     public static DiagnosticOutcome Outcome(DiagnosticEntry entry) => entry.Errors.Length == 0 && !entry.Fatal
@@ -51,9 +97,24 @@ internal static class DiagnosticPresentation
 
     public static string Title(DiagnosticEntry entry)
     {
+        if (entry.Operation.StartsWith("Catalog.", StringComparison.Ordinal)) return Localization.Get("DiagnosticTitlePluginCatalog");
+        if (entry.Operation is "AccessibilityEnabled" or "AccessibilityRestored" && Outcome(entry) == DiagnosticOutcome.Failure)
+            return Localization.Get("DiagnosticTitleAccessibilityFailed");
         if (entry.Operation.StartsWith("Accessibility.", StringComparison.Ordinal)) return Localization.Get("DiagnosticTitleAccessibilityFailed");
         if (Titles.TryGetValue(entry.Operation, out var key)) return Localization.Get(key);
-        return Localization.Format("DiagnosticTitleFallback", Localization.Get("DiagnosticsArea" + entry.Area), entry.Operation);
+        return Localization.Format("DiagnosticTitleFallback", Area(entry), Localization.Get("DiagnosticTitleOperationFailed"));
+    }
+
+    public static string Area(DiagnosticEntry entry)
+    {
+        var area = entry.Area switch
+        {
+            DiagnosticArea.SystemPlugin or DiagnosticArea.PowerPlugin => DiagnosticArea.Notifications,
+            DiagnosticArea.WeChatPlugin => DiagnosticArea.WeChat,
+            DiagnosticArea.TelegramPlugin => DiagnosticArea.Telegram,
+            _ => entry.Area
+        };
+        return Localization.Get(entry.PluginId is not null && area == DiagnosticArea.Application ? "DiagnosticsAreaPlugins" : "DiagnosticsArea" + area);
     }
 
     public static string Summary(DiagnosticEntry entry) => Localization.Format(
@@ -65,8 +126,10 @@ internal static class DiagnosticPresentation
     public static string? Reason(DiagnosticEntry entry)
     {
         if (Outcome(entry) == DiagnosticOutcome.Success) return null;
+        if (entry.Errors.FirstOrDefault() is { } catalog && WindowsIsland.Plugins.PluginErrors.DiagnosticKey(catalog.HResult) is { } key)
+            return Localization.Get(key);
         if (entry.Operation.StartsWith("Accessibility.", StringComparison.Ordinal))
-            return Localization.Get(WeChatConnectionHealth.IsUnsupported(entry.Operation["Accessibility.".Length..])
+            return Localization.Get(IsUnsupportedAccessibility(entry.Operation["Accessibility.".Length..])
                 ? "DiagnosticReasonUnsupported" : "DiagnosticReasonProcessAccess");
         if (entry.Operation is "AccessibilityUnavailable") return Localization.Get("DiagnosticReasonNoAutomation");
         if (entry.Operation is "AccessibilityLost") return Localization.Get("DiagnosticReasonAccessibilityLost");
@@ -76,8 +139,11 @@ internal static class DiagnosticPresentation
     }
 
     public static bool CanRetrySource(DiagnosticEntry entry) => Outcome(entry) == DiagnosticOutcome.Failure
-        && entry.Area == DiagnosticArea.WeChat && entry.Operation.StartsWith("Accessibility", StringComparison.Ordinal);
+        && entry.Area is DiagnosticArea.WeChat or DiagnosticArea.WeChatPlugin && entry.Operation.StartsWith("Accessibility", StringComparison.Ordinal);
 
     public static string? Suggestion(DiagnosticEntry entry) => Outcome(entry) == DiagnosticOutcome.Success ? null
         : Localization.Get(CanRetrySource(entry) ? "DiagnosticSuggestionRetry" : "DiagnosticSuggestionReport");
+    private static bool IsUnsupportedAccessibility(string failure) => failure is "ModuleNotFound" or "UnsupportedImage" or "ImageSizeMismatch"
+        or "MemoryLayout" or "HeaderMismatch" or "AccessorMismatch" or "ConsumerMismatch" or "InvalidFlag";
+
 }

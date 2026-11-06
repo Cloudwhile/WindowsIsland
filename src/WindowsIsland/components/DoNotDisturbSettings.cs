@@ -29,7 +29,8 @@ internal sealed class DoNotDisturbSettings : Grid, IDisposable
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         actions.Children.Add(_toggle);
         actions.Children.Add(OpenSettings);
-        _row = new SettingsRow(Symbol.Mute, "SystemDoNotDisturb", actions, "SystemDoNotDisturbStatus");
+        _row = new SettingsRow(new FontIcon { Glyph = char.ConvertFromUtf32(0xE708), FontSize = 20 },
+            "SystemDoNotDisturb", actions, "SystemDoNotDisturbStatus");
         Children.Add(_row);
         _toggle.Toggled += OnToggled;
         LocalizedUI.Bind(this, RefreshLabels);

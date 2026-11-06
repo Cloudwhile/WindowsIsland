@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Microsoft.Win32;
 using WindowsIsland.Services;
 
@@ -38,6 +40,14 @@ internal static class WindowsPreferencesChecks
         check(StartupElevation.TryHandle(["--configure-startup", "unknown"], out var invalidResult) && invalidResult != 0,
             "Malformed privileged commands are handled without starting the normal application");
         check(!StartupElevation.TryHandle(["--settings"], out _), "Normal launch arguments retain the regular application startup");
+        var initialization = InitializationElevation.Request(executable, 42, 1234, new Version(1, 0, 0, 12));
+        check(initialization.UseShellExecute && initialization.Verb == "runas" && initialization.WindowStyle == ProcessWindowStyle.Hidden
+            && initialization.ArgumentList.SequenceEqual(["--prepare-initialization", "42", "1234", "1.0.0.12"]),
+            "Protected initialization requests UAC only for a hidden helper and fixed registration inputs");
+        check(InitializationElevation.TryHandle(["--prepare-initialization", "unknown"], out invalidResult) && invalidResult != 0,
+            "Malformed initialization helper commands do not start the normal application");
+        check(!InitializationElevation.TryHandle(["--settings"], out _), "Normal settings launch bypasses the initialization helper");
+        if (OperatingSystem.IsWindows()) CheckProtectedInitializationPreparation(check);
 
 
         CheckFilePersistence(executable, check);
@@ -62,13 +72,50 @@ internal static class WindowsPreferencesChecks
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void CheckProtectedInitializationPreparation(Action<bool, string> check)
+    {
+        if (!OperatingSystem.IsWindows() || WindowsIdentity.GetCurrent().User is not { } user) return;
+        var directory = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "initialization-preparation", Guid.NewGuid().ToString("N"));
+        var installation = new DirectoryInfo(directory);
+        var initialization = Path.Combine(directory, "Initialization");
+        Directory.CreateDirectory(initialization);
+        File.WriteAllText(Path.Combine(directory, "WindowsIsland.pri"), "verification resources");
+        File.WriteAllText(Path.Combine(initialization, "AppxManifest.xml"),
+            "<Package xmlns=\"http://schemas.microsoft.com/appx/manifest/foundation/windows10\"><Identity Name=\"WindowsIsland.InitializationVerification\" Version=\"1.0.0.0\" /><Capabilities /></Package>");
+        File.WriteAllText(Path.Combine(initialization, "RuntimeManifest.xml"),
+            "<Package xmlns=\"http://schemas.microsoft.com/appx/manifest/foundation/windows10\"><Extensions /></Package>");
+        var original = new DirectorySecurity();
+        original.SetSecurityDescriptorBinaryForm(installation.GetAccessControl(AccessControlSections.Access).GetSecurityDescriptorBinaryForm(),
+            AccessControlSections.Access);
+        var protectedAccess = installation.GetAccessControl(AccessControlSections.Access);
+        protectedAccess.AddAccessRule(new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Deny));
+        var preparedByHelper = false;
+        try
+        {
+            installation.SetAccessControl(protectedAccess);
+            InitializationPreparation.PrepareAsync(directory, null, version =>
+            {
+                preparedByHelper = true;
+                installation.SetAccessControl(original);
+                InitializationPreparation.Prepare(directory, version);
+                return Task.CompletedTask;
+            }).GetAwaiter().GetResult();
+            check(preparedByHelper && File.Exists(Path.Combine(directory, "AppxManifest.xml"))
+                && Directory.Exists(Path.Combine(directory, "microsoft.system.package.metadata"))
+                && InitializationResources.Matches(Path.Combine(directory, "WindowsIsland.pri"), Path.Combine(directory, "resources.pri")),
+                "Protected initialization prepares resources and the package metadata directory before original-user registration");
+        }
+        finally { installation.SetAccessControl(original); }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static void CheckRegistry(string executable, Action<bool, string> check)
     {
         var path = @"Software\Cloudwhile\WindowsIsland\Verification\" + Guid.NewGuid().ToString("N");
         try
         {
             using var root = Registry.CurrentUser.CreateSubKey(path);
-            var store = new RegistryWindowsPreferenceStore(root);
+            var store = new RegistryWindowsPreferenceStore(root, disableVirtualization: true);
             var startup = new StartupRegistration(store, executable);
             startup.Set(true);
             check(startup.Read() == StartupState.Enabled, "The native registry adapter persists startup in an isolated test hive");

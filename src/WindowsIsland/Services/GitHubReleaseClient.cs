@@ -7,7 +7,7 @@ namespace WindowsIsland.Services;
 
 internal sealed record ReleaseAsset(string Name, Uri Download, long Size);
 internal sealed record GitHubRelease(ReleaseVersion Version, string Tag, string Name, string Notes,
-    Uri Page, bool IsPrerelease, ReleaseAsset Archive, ReleaseAsset Checksum,
+    Uri Page, bool IsPrerelease,
     ReleaseAsset? Installer, ReleaseAsset? InstallerChecksum);
 
 internal sealed class GitHubReleaseClient : IDisposable
@@ -64,17 +64,17 @@ internal sealed class GitHubReleaseClient : IDisposable
         var tag = String(element, "tag_name");
         if (!tag.StartsWith('v') || !ReleaseVersion.TryParse(tag, out var version)) return null;
         if (!element.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array) return null;
-        var name = $"WindowsIsland-{tag[1..]}-win-x64";
         var files = assets.EnumerateArray().Select(asset => ParseAsset(asset, tag)).OfType<ReleaseAsset>().ToArray();
         if (files.GroupBy(asset => asset.Name, StringComparer.Ordinal).Any(group => group.Count() > 1)) return null;
-        var archive = files.FirstOrDefault(asset => asset.Name == name + ".zip");
-        var checksum = files.FirstOrDefault(asset => asset.Name == name + ".zip.sha256");
-        if (archive is null || checksum is null) return null;
+        var installers = files.Where(asset => UpdateInstaller.IsInstallerFileName(asset.Name)).ToArray();
+        if (installers.Length != 1) return null;
+        var installer = installers[0];
+        var installerChecksum = files.FirstOrDefault(asset => asset.Name == installer.Name + ".sha256");
+        if (installer is null || installerChecksum is null) return null;
         var page = new Uri($"https://github.com/{Repository}/releases/tag/{Uri.EscapeDataString(tag)}");
         var title = String(element, "name");
         return new(version!, tag, title.Length == 0 ? tag : title, String(element, "body"), page, prerelease || version!.IsPrerelease,
-            archive, checksum, files.FirstOrDefault(asset => asset.Name == name + ".msi"),
-            files.FirstOrDefault(asset => asset.Name == name + ".msi.sha256"));
+            installer, installerChecksum);
     }
 
     private static ReleaseAsset? ParseAsset(JsonElement element, string tag)
@@ -99,13 +99,23 @@ internal sealed class GitHubReleaseClient : IDisposable
     private static string String(JsonElement element, string property) =>
         element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : "";
 
-    internal async Task<HttpResponseMessage> DownloadAsync(Uri uri, CancellationToken cancellationToken)
+    internal async Task<HttpResponseMessage> DownloadAsync(Uri uri, CancellationToken cancellationToken, long? rangeStart = null)
     {
         if (!uri.AbsoluteUri.StartsWith(DownloadPrefix, StringComparison.Ordinal))
             throw Localization.DataError("UpdateErrorAssetAddress");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        if (rangeStart is { } offset)
+        {
+            if (offset <= 0) throw new ArgumentOutOfRangeException(nameof(rangeStart));
+            request.Headers.Range = new RangeHeaderValue(offset, null);
+        }
         var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-        try { EnsureSuccess(response); return response; }
+        try
+        {
+            if (rangeStart.HasValue && response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable) return response;
+            EnsureSuccess(response);
+            return response;
+        }
         catch { response.Dispose(); throw; }
     }
 

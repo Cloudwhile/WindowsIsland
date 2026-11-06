@@ -1,0 +1,22 @@
+{
+  "id": "wini_plugin_networkstatus",
+  "name": "NetworkStatus",
+  "version": "1.0.0",
+  "entryAssembly": "NetworkStatus.dll",
+  "entryType": "NetworkStatus.Plugin",
+  "contractVersion": 1,
+  "permissions": [
+    "notifications",
+    "network"
+  ],
+  "author": "Plugin author",
+  "network": {
+    "origins": [
+      "https://example.com"
+    ],
+    "purpose": "读取示例状态",
+    "dataCategories": [
+      "请求路径"
+    ]
+  }
+}

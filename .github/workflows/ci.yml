@@ -33,6 +33,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check standard-user test context
+        run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1 -Probe
+
+      - name: Prepare isolated installer policies
+        run: |
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted') {
+            throw 'Installer policies may only be prepared on disposable GitHub-hosted runners.'
+          }
+          $key = 'HKLM:/SOFTWARE/Microsoft/Windows/CurrentVersion/AppModelUnlock'
+          New-Item -Path $key -Force | Out-Null
+          New-ItemProperty -Path $key -Name AllowAllTrustedApps -Value 1 -PropertyType DWord -Force | Out-Null
+          New-ItemProperty -Path $key -Name AllowDevelopmentWithoutDevLicense -Value 1 -PropertyType DWord -Force | Out-Null
+
       - name: Set up .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
@@ -58,18 +71,55 @@ jobs:
           APP_VERSION: ${{ steps.version.outputs.value }}
         run: dotnet build src/WindowsIsland/WindowsIsland.csproj -c Release -p:Platform=x64 "-p:Version=$env:APP_VERSION" --no-restore
 
+      - name: Check desktop bridge teardown
+        timeout-minutes: 5
+        run: dotnet run --project tests/WindowsIsland.DesktopBridgeTests/WindowsIsland.DesktopBridgeTests.csproj -c Release
+
       - name: Run notification logic checks
         run: dotnet run --project tests/WindowsIsland.LogicTests/WindowsIsland.LogicTests.csproj -c Release
+
+      - name: Compile plugin documentation examples
+        run: ./packaging/Test-PluginDocs.ps1
+      - name: Validate standalone plugin CLI
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: ./packaging/Test-PluginCli.ps1 -Version $env:APP_VERSION -OutputRoot (Join-Path $env:RUNNER_TEMP ('wini-sdk-' + [Guid]::NewGuid().ToString('N')))
+
+      - name: Check external plugin isolation
+        timeout-minutes: 5
+        run: >-
+          dotnet run --project tests/WindowsIsland.PluginSecurityTests/WindowsIsland.PluginSecurityTests.csproj -c Release --
+          --worker artifacts/bin/WindowsIsland.PluginWorker/x64/Release/net10.0/win-x64
+          --fixture artifacts/bin/WindowsIsland.PluginSecurityFixture/Release/net10.0/WindowsIsland.PluginSecurityFixture.dll
+
+      - name: Build and verify standalone plugin SDK
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: ./packaging/Test-PluginSdk.ps1 -Version $env:APP_VERSION -OutputRoot (Join-Path $env:RUNNER_TEMP 'wini-sdk')
+
+      - name: Upload standalone plugin SDK
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: WindowsIsland-plugin-sdk
+          path: ${{ runner.temp }}/wini-sdk/feed/*
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Check update manifest generation
         run: ./packaging/Test-UpdateManifest.ps1
 
-      - name: Run Telegram bridge checks
-        run: dotnet run --project tests/WindowsIsland.TelegramHookTests/WindowsIsland.TelegramHookTests.csproj -c Release
+      - name: Check release asset validation
+        run: ./packaging/Test-ReleaseAssetsRegression.ps1
 
-      - name: Run WeChat UIAutomation checks
-        timeout-minutes: 5
-        run: dotnet run --project tests/WindowsIsland.WeChatTests/WindowsIsland.WeChatTests.csproj -c Release
+      - name: Check installer policy snapshots
+        run: ./packaging/Test-InstallerPolicy.ps1
+
+      - name: Check Inno conversion recovery
+        run: ./packaging/Test-InnoConversion.ps1
+
+      - name: Check Shell icon alpha
+        run: dotnet run --project tests/WindowsIsland.IconTests/WindowsIsland.IconTests.csproj -c Release
 
       - name: Publish application
         env:
@@ -86,11 +136,11 @@ jobs:
           $publish = Join-Path $env:GITHUB_WORKSPACE 'artifacts/publish'
           $required = @(
             'WindowsIsland.exe', 'WindowsIsland.dll', 'WindowsIsland.deps.json',
-            'WindowsIsland.runtimeconfig.json', 'WindowsIsland.TelegramHook.dll',
+            'WindowsIsland.runtimeconfig.json',
             'WindowsIsland.pri', 'App.xbf', 'Microsoft.UI.Xaml.dll', 'coreclr.dll',
             'en-US/WindowsIsland.resources.dll',
             'hostfxr.dll', 'Assets/Island.ico', 'Icons/LOGO.png', 'Initialization/AppxManifest.xml',
-            'Initialization/RuntimeManifest.xml', 'Licenses/MinHook.txt', 'Updater/Apply-Update.ps1',
+            'Initialization/RuntimeManifest.xml', 'Unregister-Package.ps1',
             'Assets/Shell/AppList.png', 'Assets/Shell/MediumTile.png', 'Assets/Shell/StoreLogo.png',
             'Assets/Shell/AppList.targetsize-24_altform-unplated.png',
             'Assets/Shell/AppList.targetsize-24_altform-lightunplated.png'
@@ -105,29 +155,46 @@ jobs:
           Copy-Item -LiteralPath README.zh-CN.md -Destination (Join-Path $publish 'README.zh-CN.md')
           $distribution = Join-Path $env:GITHUB_WORKSPACE 'artifacts/distribution'
           New-Item -ItemType Directory -Path $distribution -Force | Out-Null
-          $name = "WindowsIsland-$env:APP_VERSION-win-x64.zip"
-          $archive = Join-Path $distribution $name
-          [IO.Compression.ZipFile]::CreateFromDirectory($publish, $archive)
-          $digest = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-          [IO.File]::WriteAllText("$archive.sha256", "$digest  $name`n", [Text.UTF8Encoding]::new($false))
+      - name: Set up Inno Setup
+        id: inno
+        shell: pwsh
+        run: |
+          $isccPath = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
+          if (!$isccPath) {
+            $candidate = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+              $isccPath = $candidate
+            }
+          }
+          if (!$isccPath) {
+            choco install innosetup --no-progress --yes
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            $isccPath = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
+          }
+          if (!$isccPath) { throw 'Inno Setup compiler ISCC.exe was not found.' }
+          Write-Output "Using Inno Setup compiler: $isccPath"
+          "path=$isccPath" >> $env:GITHUB_OUTPUT
 
-      - name: Set up MSI packaging
-        run: dotnet tool install wix --version 5.0.2 --tool-path artifacts/tools/wix --allow-roll-forward
-
-      - name: Build MSI installer
+      - name: Build Inno Setup installer
         env:
           APP_VERSION: ${{ steps.version.outputs.value }}
-        run: ./packaging/Build-Msi.ps1 -Version $env:APP_VERSION
+        run: ./packaging/Build-Inno.ps1 -Version $env:APP_VERSION
 
-      - name: Check MSI installation and removal
+      - name: Check Inno post-copy failure recovery
         timeout-minutes: 5
         env:
-          APP_VERSION: ${{ steps.version.outputs.value }}
-        run: ./packaging/Test-Msi.ps1 -InstallerPath "artifacts/distribution/WindowsIsland-$env:APP_VERSION-win-x64.msi"
+          INNO_SETUP: ${{ steps.inno.outputs.path }}
+        run: ./packaging/Test-InnoPostCopyRecovery.ps1 -InnoSetup $env:INNO_SETUP -RequireRecovery
 
-      - name: Check isolated MSI upgrades and rollback
-        timeout-minutes: 10
-        run: ./packaging/Test-MsiUpgrade.ps1
+      - name: Collect and verify release assets
+        env:
+          APP_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          Get-ChildItem -LiteralPath (Join-Path $env:RUNNER_TEMP 'wini-sdk/feed') -File | Copy-Item -Destination artifacts/distribution
+          ./packaging/Test-ReleaseAssets.ps1 -Directory artifacts/distribution -Version $env:APP_VERSION
+
+      - name: Check isolated Inno installation and removal
+        run: ./packaging/Invoke-StandardUserCheck.ps1 -Script Test-Inno.ps1
 
       - name: Upload Windows package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -143,6 +210,11 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: WindowsIsland-diagnostics
-          path: artifacts/verification/
+          include-hidden-files: true
+          path: |
+            artifacts/verification/**/*.log
+            artifacts/verification/**/*.json
+            ${{ runner.temp }}/wini-sdk*/**/*.log
+            ${{ runner.temp }}/wini-sdk*/**/*.json
           if-no-files-found: ignore
           retention-days: 7

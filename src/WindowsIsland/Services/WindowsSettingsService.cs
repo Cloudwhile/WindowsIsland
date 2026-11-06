@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 
 namespace WindowsIsland.Services;
 
@@ -14,13 +14,14 @@ internal sealed class WindowsSettingsService
         _verification = verification;
         _store = verification
             ? new FileWindowsPreferenceStore(Path.Combine(AppContext.BaseDirectory, "verification-system-settings.json"))
-            : new RegistryWindowsPreferenceStore(Registry.CurrentUser);
+            : new RegistryWindowsPreferenceStore(Registry.CurrentUser, disableVirtualization: true);
         Startup = new(_store, Environment.ProcessPath!);
         DoNotDisturb = new(verification ? new FileQuietHoursStore(_store) : new WindowsQuietHoursStore());
     }
 
     public async Task<bool> SetStartupAsync(bool enabled)
     {
+        if (!_verification && InstallationMode.IsPortable()) return false;
         if (_verification)
         {
             await Task.Run(() =>

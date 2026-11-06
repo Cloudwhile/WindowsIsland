@@ -65,6 +65,16 @@ internal static class RegisteredRestart
             $arguments = @($job.Arguments.Split(' ',[StringSplitOptions]::RemoveEmptyEntries))
             if (@($arguments | Where-Object { $_ -notin @('--settings','--show-update-result','--verify-local') }).Count -gt 0 -or
                 @($arguments | Select-Object -Unique).Count -ne $arguments.Count) { throw 'Unsupported arguments.' }
+            [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'ready'),'')
+            $stage = 'Commit'
+            $deadline = [DateTime]::UtcNow.AddSeconds(35)
+            while (!(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'commit'))) {
+                if ($parentProcess.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'Restart was not committed.' }
+                Start-Sleep -Milliseconds 100
+            }
+            $stage = 'WaitForExit'
+            if (!$parentProcess.WaitForExit(30000)) { throw 'Original application did not exit.' }
+            $stage = 'Activate'
             Add-Type -TypeDefinition @'
         using System;
         using System.Runtime.InteropServices;
@@ -81,16 +91,6 @@ internal static class RegisteredRestart
             }
         }
         '@
-            [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'ready'),'')
-            $stage = 'Commit'
-            $deadline = [DateTime]::UtcNow.AddSeconds(35)
-            while (!(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'commit'))) {
-                if ($parentProcess.HasExited -or [DateTime]::UtcNow -gt $deadline) { throw 'Restart was not committed.' }
-                Start-Sleep -Milliseconds 100
-            }
-            $stage = 'WaitForExit'
-            if (!$parentProcess.WaitForExit(30000)) { throw 'Original application did not exit.' }
-            $stage = 'Activate'
             [RegisteredActivation]::Launch($job.AppId,$job.Arguments)
         } catch {
             # Only fixed stage and exception type; no paths, arguments or message text.

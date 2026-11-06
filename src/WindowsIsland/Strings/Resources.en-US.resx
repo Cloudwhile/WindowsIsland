@@ -22,6 +22,20 @@
   <data name="Sources" xml:space="preserve">
     <value>Sources</value>
   </data>
+  <data name="PluginList" xml:space="preserve">
+    <value>Plugins</value>
+  </data>
+  <data name="PluginVersion" xml:space="preserve"><value>Version</value></data>
+  <data name="PluginType" xml:space="preserve"><value>Type</value></data>
+  <data name="PluginBuiltIn" xml:space="preserve"><value>Built-in</value></data>
+  <data name="PluginInstalled" xml:space="preserve"><value>Installed</value></data>
+  <data name="PluginAuthor" xml:space="preserve"><value>Author</value></data>
+  <data name="PluginIdentifier" xml:space="preserve"><value>Plugin ID</value></data>
+  <data name="PluginLocation" xml:space="preserve"><value>File location</value></data>
+  <data name="PluginFileSize" xml:space="preserve"><value>Assembly size</value></data>
+  <data name="PluginSizeBytes" xml:space="preserve"><value>{0} bytes</value></data>
+  <data name="PluginUnknown" xml:space="preserve"><value>Unknown</value></data>
+  <data name="ActionRemovePlugin" xml:space="preserve"><value>Delete plugin</value></data>
   <data name="Appearance" xml:space="preserve">
     <value>Appearance</value>
   </data>
@@ -66,6 +80,18 @@
   </data>
   <data name="Animations" xml:space="preserve">
     <value>Animations</value>
+  </data>
+  <data name="Acrylic" xml:space="preserve">
+    <value>Acrylic</value>
+  </data>
+  <data name="OpacityTransitions" xml:space="preserve">
+    <value>Opacity transitions</value>
+  </data>
+  <data name="BackgroundTransparency" xml:space="preserve">
+    <value>Background transparency</value>
+  </data>
+  <data name="TransparencyPercent" xml:space="preserve">
+    <value>{0:0}%</value>
   </data>
   <data name="NotificationPosition" xml:space="preserve">
     <value>Position</value>
@@ -142,9 +168,6 @@
   <data name="AwaitingPermission" xml:space="preserve">
     <value>Awaiting permission</value>
   </data>
-  <data name="Ready" xml:space="preserve">
-    <value>Ready</value>
-  </data>
   <data name="Off" xml:space="preserve">
     <value>Off</value>
   </data>
@@ -158,7 +181,7 @@
     <value>Not running</value>
   </data>
   <data name="IncompleteSetup" xml:space="preserve">
-    <value>Setup incomplete</value>
+    <value>System notifications are not ready</value>
   </data>
   <data name="SettingsSaved" xml:space="preserve">
     <value>Settings saved.</value>
@@ -167,7 +190,7 @@
     <value>Allow notification access, or turn off system notifications to continue.</value>
   </data>
   <data name="InitializeThenGrantAccess" xml:space="preserve">
-    <value>Initialize the app, then allow notification access.</value>
+    <value>Initialize the app and allow notification access to receive system notifications. Connected sources such as WeChat can still receive messages.</value>
   </data>
   <data name="ActionOpenWindowsNotificationSettings" xml:space="preserve">
     <value>Open Windows notification settings</value>
@@ -183,6 +206,9 @@
   </data>
   <data name="StartupPermissionCancelled" xml:space="preserve">
     <value>Administrator permission was cancelled. Startup settings were not changed.</value>
+  </data>
+  <data name="InitializationPermissionCancelled" xml:space="preserve">
+    <value>Administrator permission was cancelled. Initialization is incomplete; please try again.</value>
   </data>
   <data name="Cancelled" xml:space="preserve">
     <value>Cancelled</value>
@@ -310,11 +336,17 @@
   <data name="UpdateDownloading" xml:space="preserve">
     <value>Downloading the update</value>
   </data>
+  <data name="UpdateResuming" xml:space="preserve">
+    <value>Resuming the update</value>
+  </data>
   <data name="UpdateDownloadComplete" xml:space="preserve">
     <value>Download complete</value>
   </data>
   <data name="UpdateProgressPercent" xml:space="preserve">
     <value>{0} {1:0}%</value>
+  </data>
+  <data name="UpdateProgressPercentSpeed" xml:space="preserve">
+    <value>{0} {1:0}% · {2}</value>
   </data>
   <data name="UpdateErrorInstallerMissing" xml:space="preserve">
     <value>The installer for this version is not ready. Try again later.</value>
@@ -383,10 +415,10 @@
     <value>Connection failed</value>
   </data>
   <data name="WeChatUnsupportedDetail" xml:space="preserve">
-    <value>This WeChat version can't be connected directly yet. Using system notifications instead.</value>
+    <value>This WeChat version does not support direct access. System notifications remain available. Retry the connection; check diagnostics if the problem persists.</value>
   </data>
   <data name="WeChatConnectFailedDetail" xml:space="preserve">
-    <value>WeChat windows can't be read. Using system notifications instead.</value>
+    <value>The WeChat window could not be read. System notifications remain available. Retry the connection; check diagnostics if the problem persists.</value>
   </data>
   <data name="TelegramNotDetected" xml:space="preserve">
     <value>Client not detected</value>
@@ -410,13 +442,13 @@
     <value>Battery {0}%</value>
   </data>
   <data name="TrayConnecting" xml:space="preserve">
-    <value>Connecting to notifications</value>
+    <value>Not connected</value>
   </data>
   <data name="TrayDisabled" xml:space="preserve">
     <value>System notifications off</value>
   </data>
   <data name="TrayListening" xml:space="preserve">
-    <value>Listening for notifications</value>
+    <value>Connected</value>
   </data>
   <data name="TrayAllowAccess" xml:space="preserve">
     <value>Allow notification access</value>
@@ -488,7 +520,7 @@
   <data name="SizeKilobytes" xml:space="preserve"><value>{0} KB</value></data>
   <data name="DiagnosticsCopy" xml:space="preserve"><value>Copy diagnostic report</value></data>
   <data name="DiagnosticsCopied" xml:space="preserve"><value>Report copied. Paste it into the issue form after reviewing it.</value></data>
-  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>Retrying the connection. The result appears on the Sources page.</value></data>
+  <data name="DiagnosticsRetryStarted" xml:space="preserve"><value>Connection retried. Check Message sources for the result.</value></data>
   <data name="DiagnosticsRecordCount" xml:space="preserve"><value>{0} records · {1} failed</value></data>
   <data name="DiagnosticFailedCount" xml:space="preserve"><value>Failed · {0} times</value></data>
   <data name="DiagnosticSucceededCount" xml:space="preserve"><value>Succeeded · {0} times</value></data>
@@ -514,9 +546,197 @@
   <data name="DiagnosticReasonAccessibilityLost" xml:space="preserve"><value>WeChat reset its accessibility switch</value></data>
   <data name="DiagnosticReasonError" xml:space="preserve"><value>{0} ({1})</value></data>
   <data name="DiagnosticReasonUnknown" xml:space="preserve"><value>No specific error was recorded</value></data>
-  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>Retry. If it still fails, copy the report and submit an issue.</value></data>
+  <data name="DiagnosticSuggestionRetry" xml:space="preserve"><value>Retry the connection in Message sources. If it still fails, copy the report and submit feedback.</value></data>
   <data name="DiagnosticSuggestionReport" xml:space="preserve"><value>If this keeps happening, copy the report and submit an issue.</value></data>
   <data name="SystemDoNotDisturb" xml:space="preserve"><value>Windows do not disturb</value></data>
   <data name="ErrorDoNotDisturbSettings" xml:space="preserve"><value>Could not change do not disturb. Try again or open Windows notification settings.</value></data>
   <data name="DoNotDisturbOpenSettings" xml:space="preserve"><value>Change this in Windows notification settings.</value></data>
+  <data name="PluginInstall" xml:space="preserve"><value>Install plugin</value></data>
+  <data name="PluginCancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="PluginInstalledSuccess" xml:space="preserve"><value>Plugin installed</value></data>
+  <data name="PluginInstallCanceled" xml:space="preserve"><value>Installation canceled</value></data>
+  <data name="PluginInstallFailed" xml:space="preserve"><value>The plugin package is invalid or could not be installed. Check the file and retry.</value></data>
+  <data name="PluginAlreadyInstalled" xml:space="preserve"><value>Version already installed</value></data>
+  <data name="PluginOverwriteQuestion" xml:space="preserve"><value>Replace the installed version with this package?</value></data>
+  <data name="PluginOverwrite" xml:space="preserve"><value>Replace</value></data>
+  <data name="PluginDataPreserved" xml:space="preserve"><value>Data retained. Reinstall the same plugin to restore it.</value></data>
+  <data name="PluginSource" xml:space="preserve"><value>Installation source</value></data>
+  <data name="PluginManualRestricted" xml:space="preserve"><value>Manually installed</value></data>
+  <data name="PluginOfficial" xml:space="preserve"><value>Default plugin source</value></data>
+  <data name="PluginDeveloper" xml:space="preserve"><value>Developer</value></data>
+  <data name="PluginRepository" xml:space="preserve"><value>Public repository</value></data>
+  <data name="PluginPermissionsGranted" xml:space="preserve"><value>Available capability declarations</value></data>
+  <data name="PluginPermissionsDenied" xml:space="preserve"><value>Unavailable or unknown capability declarations</value></data>
+  <data name="PluginPermissionNotice" xml:space="preserve"><value>Before enabling, review the terms and network notice supplied by the developer or default plugin source.</value></data>
+  <data name="ErrorRefreshPlugins" xml:space="preserve"><value>Unable to refresh plugins. Please try again.</value></data>
+  <data name="PluginErrorZip" xml:space="preserve"><value>Only ZIP plugin packages are supported.</value></data>
+  <data name="PluginErrorManifest" xml:space="preserve"><value>The ZIP must contain exactly one manifest.json at its root.</value></data>
+  <data name="PluginErrorId" xml:space="preserve"><value>The plugin ID is invalid or reserved for a built-in plugin.</value></data>
+  <data name="PluginErrorContract" xml:space="preserve"><value>The plugin contract version is incompatible.</value></data>
+  <data name="PluginErrorEntry" xml:space="preserve"><value>The plugin entry assembly or type is invalid.</value></data>
+  <data name="PluginErrorDowngrade" xml:space="preserve"><value>Plugin downgrades are not allowed.</value></data>
+  <data name="PluginErrorVersion" xml:space="preserve"><value>The plugin version must be valid SemVer.</value></data>
+  <data name="PluginErrorPath" xml:space="preserve"><value>The plugin package contains unsafe paths, links or special files.</value></data>
+  <data name="PluginErrorSourceConflict" xml:space="preserve"><value>The plugin is installed from another source. Uninstall it first.</value></data>
+  <data name="PluginErrorStart" xml:space="preserve"><value>The plugin failed to start. The previous version was restored.</value></data>
+  <data name="PluginRefreshCatalog" xml:space="preserve"><value>Refresh catalog</value></data>
+  <data name="PluginCatalogEmpty" xml:space="preserve"><value>The catalog has no plugins</value></data>
+  <data name="PluginCatalogUnavailable" xml:space="preserve"><value>Catalog unavailable. Cached information is retained</value></data>
+  <data name="PluginCatalogReady" xml:space="preserve"><value>Catalog synchronized</value></data>
+  <data name="PluginUpdate" xml:space="preserve"><value>Update plugin</value></data>
+  <data name="PluginOfficialAuthor" xml:space="preserve"><value>Developed by Windows Island</value></data>
+  <data name="PluginThirdParty" xml:space="preserve"><value>Third-party plugin listed in the catalog. Confirm each requested permission</value></data>
+  <data name="PluginDelisted" xml:space="preserve"><value>This plugin has been removed from the catalog. Uninstalling is recommended</value></data>
+  <data name="PluginUpdateAvailable" xml:space="preserve"><value>Update available: {0}</value></data>
+  <data name="PluginErrorSourceAddress" xml:space="preserve"><value>Catalog unavailable. Please try again later</value></data>
+  <data name="PluginErrorHash" xml:space="preserve"><value>Plugin SHA256 verification failed. The download was removed</value></data>
+  <data name="PluginErrorIndexMismatch" xml:space="preserve"><value>The package does not match the catalog. Installation stopped</value></data>
+  <data name="PluginErrorNotListed" xml:space="preserve"><value>The plugin is no longer in the current catalog. Refresh and retry</value></data>
+  <data name="ActionClose" xml:space="preserve"><value>Close</value></data>
+  <data name="PluginInstallation" xml:space="preserve"><value>Installation</value></data>
+  <data name="PluginDescription" xml:space="preserve"><value>Description</value></data>
+  <data name="PluginPermissionsRequested" xml:space="preserve"><value>Requested permissions</value></data>
+  <data name="PluginPermissionsNone" xml:space="preserve"><value>None</value></data>
+  <data name="WeChatUnsupportedNoFallbackDetail" xml:space="preserve"><value>This WeChat version does not support direct access. Retry the connection, or enable system notifications to receive alerts.</value></data>
+  <data name="WeChatConnectFailedNoFallbackDetail" xml:space="preserve"><value>The WeChat window could not be read. Retry the connection, or enable system notifications to receive alerts.</value></data>
+  <data name="SourceUnavailableDetail" xml:space="preserve"><value>This source is unavailable. Refresh its status or retry the connection; check diagnostics if the problem persists.</value></data>
+  <data name="SourceDeniedDetail" xml:space="preserve"><value>Access has not been granted. Check app or system permissions, then retry.</value></data>
+  <data name="DiagnosticsEvents" xml:space="preserve"><value>Recent events</value></data>
+  <data name="DiagnosticsAreaPlugins" xml:space="preserve"><value>Plugins</value></data>
+  <data name="DiagnosticTitleOperationFailed" xml:space="preserve"><value>Operation failed</value></data>
+  <data name="DiagnosticTitleReadMessages" xml:space="preserve"><value>Could not read messages</value></data>
+  <data name="DiagnosticTitleConnectNotifications" xml:space="preserve"><value>System notification connection failed</value></data>
+  <data name="DiagnosticTitleRegistration" xml:space="preserve"><value>App registration did not complete</value></data>
+  <data name="DiagnosticTitleInstallPlugin" xml:space="preserve"><value>Plugin installation failed</value></data>
+  <data name="DiagnosticTitleOfficialPlugin" xml:space="preserve"><value>Catalog operation did not complete</value></data>
+  <data name="DiagnosticTitlePluginCatalog" xml:space="preserve"><value>Could not read the plugin catalog</value></data>
+  <data name="DiagnosticTitleLoadPlugin" xml:space="preserve"><value>Plugin loading failed</value></data>
+  <data name="DiagnosticTitleStartPlugin" xml:space="preserve"><value>Plugin startup failed</value></data>
+  <data name="DiagnosticTitleStopPlugin" xml:space="preserve"><value>Plugin shutdown failed</value></data>
+  <data name="DiagnosticTitlePluginStatus" xml:space="preserve"><value>Could not get plugin status</value></data>
+  <data name="DiagnosticTitleRetryPlugin" xml:space="preserve"><value>Plugin retry failed</value></data>
+  <data name="DiagnosticTitlePluginAccess" xml:space="preserve"><value>Plugin access was not granted</value></data>
+  <data name="DiagnosticTitlePluginNotification" xml:space="preserve"><value>Plugin message handling failed</value></data>
+  <data name="DiagnosticTitlePinnedInteraction" xml:space="preserve"><value>Pinned content action failed</value></data>
+  <data name="DiagnosticTitlePinnedPanel" xml:space="preserve"><value>Pinned content panel was not loaded</value></data>
+  <data name="DiagnosticTitlePinnedRemoval" xml:space="preserve"><value>Could not remove pinned content</value></data>
+  <data name="DiagnosticTitlePluginCleanup" xml:space="preserve"><value>Plugin file cleanup failed</value></data>
+  <data name="DiagnosticTitleOpenRepository" xml:space="preserve"><value>Could not open the repository link</value></data>
+  <data name="DiagnosticTitleSavePreferences" xml:space="preserve"><value>Could not save settings</value></data>
+  <data name="LanguageChinese" xml:space="preserve"><value>简体中文</value></data>
+  <data name="LanguageEnglish" xml:space="preserve"><value>English</value></data>
+  <data name="PluginAlreadyLatest" xml:space="preserve"><value>Already up to date</value></data>
+  <data name="PluginInstalledElsewhere" xml:space="preserve"><value>Installed from another source</value></data>
+  <data name="PluginDeveloperMismatch" xml:space="preserve"><value>Different developer</value></data>
+  <data name="PluginContractIncompatible" xml:space="preserve"><value>Incompatible contract version</value></data>
+  <data name="PluginHostTooOld" xml:space="preserve"><value>A newer host is required. Update Windows Island first.</value></data>
+  <data name="UnregisterPackage" xml:space="preserve"><value>Unregister notification package</value></data>
+  <data name="ActionUnregisterPackage" xml:space="preserve"><value>Unregister and exit</value></data>
+  <data name="UnregisterPackageConfirm" xml:space="preserve"><value>Windows Island will exit and unregister notifications for this folder. You can then delete the folder. Starting the app again registers it again.</value></data>
+  <data name="ErrorUnregisterPackage" xml:space="preserve"><value>Could not start unregistration. Please try again.</value></data>
+  <data name="NeedsDeveloperMode" xml:space="preserve"><value>Developer mode is required</value></data>
+  <data name="PluginGitHubProxy" xml:space="preserve"><value>GitHub proxy</value></data>
+  <data name="PluginSaveProxy" xml:space="preserve"><value>Save GitHub proxy</value></data>
+  <data name="PluginProxyDirect" xml:space="preserve"><value>Leave empty to connect directly to GitHub</value></data>
+  <data name="PluginProxySaved" xml:space="preserve"><value>GitHub proxy saved</value></data>
+  <data name="PluginProxyInvalid" xml:space="preserve"><value>Enter a valid HTTPS proxy address</value></data>
+  <data name="ActionBack" xml:space="preserve"><value>Back</value></data>
+  <data name="ActionOpenPlugin" xml:space="preserve"><value>Open plugin details</value></data>
+  <data name="PluginPackageFileType" xml:space="preserve"><value>Plugin package</value></data>
+  <data name="PluginCatalogFetchFailed" xml:space="preserve"><value>Cannot reach the plugin catalog. Refresh later.</value></data>
+  <data name="PluginCatalogStatusFailed" xml:space="preserve"><value>The plugin catalog is unavailable. Refresh later.</value></data>
+  <data name="PluginCatalogJsonFailed" xml:space="preserve"><value>The plugin catalog response has an invalid format.</value></data>
+  <data name="PluginCatalogTimedOut" xml:space="preserve"><value>The plugin catalog request timed out. Refresh later.</value></data>
+  <data name="PluginCatalogSourceInvalid" xml:space="preserve"><value>The plugin catalog source information is invalid.</value></data>
+  <data name="PluginCatalogIndexInvalid" xml:space="preserve"><value>The plugin catalog index is invalid.</value></data>
+  <data name="PluginCatalogEntryInvalid" xml:space="preserve"><value>The plugin catalog entry information is invalid.</value></data>
+  <data name="PluginCatalogResponseTooLarge" xml:space="preserve"><value>The plugin catalog response exceeds the size limit.</value></data>
+  <data name="PluginCatalogCacheFailed" xml:space="preserve"><value>Cannot read or save the plugin catalog cache.</value></data>
+  <data name="PluginManagement" xml:space="preserve"><value>Plugins</value></data>
+  <data name="PluginInstalledView" xml:space="preserve"><value>Installed</value></data>
+  <data name="PluginDiscoverView" xml:space="preserve"><value>Discover</value></data>
+  <data name="PluginInstalledEmpty" xml:space="preserve"><value>No installed plugins</value></data>
+  <data name="PluginInstalledEmptyHint" xml:space="preserve"><value>Choose a plugin package with the install button, or browse Discover.</value></data>
+  <data name="PluginAdvanced" xml:space="preserve"><value>Advanced</value></data>
+  <data name="PluginBasicInformation" xml:space="preserve"><value>Basic information</value></data>
+  <data name="PluginPermissionGroup" xml:space="preserve"><value>Permissions and capabilities</value></data>
+  <data name="PluginInstallationInformation" xml:space="preserve"><value>Installation information</value></data>
+  <data name="PluginSettingsGroup" xml:space="preserve"><value>Plugin settings</value></data>
+  <data name="PluginCatalogLoading" xml:space="preserve"><value>Loading plugin catalog</value></data>
+  <data name="PluginRemoveQuestion" xml:space="preserve"><value>Uninstall this plugin? Its data and settings will be retained.</value></data>
+  <data name="PluginRemovedSuccess" xml:space="preserve"><value>Plugin uninstalled. Its data and settings were retained.</value></data>
+  <data name="PluginCopyIdentifier" xml:space="preserve"><value>Copy plugin identifier</value></data>
+  <data name="PluginCopyLocation" xml:space="preserve"><value>Copy file location</value></data>
+  <data name="PluginOperationFailed" xml:space="preserve"><value>The operation could not be completed. Try again.</value></data>
+  <data name="Overview" xml:space="preserve"><value>Overview</value></data>
+  <data name="OverviewRuntime" xml:space="preserve"><value>Runtime status</value></data>
+  <data name="OverviewRunningSources" xml:space="preserve"><value>Running sources</value></data>
+  <data name="OverviewEnabledSources" xml:space="preserve"><value>{0} sources enabled</value></data>
+  <data name="OverviewQuickActions" xml:space="preserve"><value>Quick actions</value></data>
+  <data name="OverviewSetupNeeded" xml:space="preserve"><value>System notifications need setup</value></data>
+  <data name="ActionGoToSetup" xml:space="preserve"><value>Open setup</value></data>
+  <data name="SetupProgress" xml:space="preserve"><value>Setup progress</value></data>
+  <data name="SetupOptionalHint" xml:space="preserve"><value>System notifications are optional. Other connected sources and notification previews remain available.</value></data>
+  <data name="SetupSystemOptional" xml:space="preserve"><value>System notifications are off. You can finish setup.</value></data>
+  <data name="SetupStepInitialize" xml:space="preserve"><value>1 · Initialize application</value></data>
+  <data name="SetupStepAccess" xml:space="preserve"><value>2 · Windows notification access</value></data>
+  <data name="SetupStepVerify" xml:space="preserve"><value>3 · Verify notification status</value></data>
+  <data name="SetupStepFinish" xml:space="preserve"><value>4 · Finish setup</value></data>
+  <data name="SetupVerify" xml:space="preserve"><value>Verify notification status</value></data>
+  <data name="SetupFinish" xml:space="preserve"><value>Finish and return to overview</value></data>
+  <data name="SetupReturnOverview" xml:space="preserve"><value>Setup is ready</value></data>
+  <data name="SetupFinishPending" xml:space="preserve"><value>Initialize and grant access, or turn off system notifications in Sources.</value></data>
+  <data name="AppearanceBasics" xml:space="preserve"><value>Language and preferences</value></data>
+  <data name="AppearancePosition" xml:space="preserve"><value>Position and preview</value></data>
+  <data name="AppearanceMotion" xml:space="preserve"><value>Motion and transitions</value></data>
+  <data name="AppearanceSurface" xml:space="preserve"><value>Background material and transparency</value></data>
+  <data name="AppearanceSimulatedPreview" xml:space="preserve"><value>Display simulation</value></data>
+  <data name="AppearancePreviewHint" xml:space="preserve"><value>Position and appearance simulation. Preview a notification for the actual result.</value></data>
+  <data name="ActionPreviewActual" xml:space="preserve"><value>Preview actual notification</value></data>
+  <data name="AppearancePositionCurrent" xml:space="preserve"><value>Current position: {0}</value></data>
+  <data name="SourceEnabledLabel" xml:space="preserve"><value>{0} · Enabled</value></data>
+  <data name="SourceDisabledLabel" xml:space="preserve"><value>{0} · Disabled</value></data>
+  <data name="UpdateApplicationSection" xml:space="preserve"><value>Application version</value></data>
+  <data name="UpdateChannelSection" xml:space="preserve"><value>Update channel</value></data>
+  <data name="UpdateCheckSection" xml:space="preserve"><value>Check for updates</value></data>
+  <data name="UpdateReleaseNotes" xml:space="preserve"><value>Release notes</value></data>
+  <data name="DiagnosticsOverview" xml:space="preserve"><value>Diagnostic overview</value></data>
+  <data name="DiagnosticsActions" xml:space="preserve"><value>Report actions</value></data>
+  <data name="DiagnosticsLatestFailure" xml:space="preserve"><value>Latest failure: {0}</value></data>
+  <data name="DiagnosticsNoFailures" xml:space="preserve"><value>No recent failures</value></data>
+  <data name="DiagnosticsClearConfirmTitle" xml:space="preserve"><value>Clear local diagnostic records?</value></data>
+  <data name="DiagnosticsClearConfirmMessage" xml:space="preserve"><value>This clears locally saved records and the current report preview. Previously exported files are kept.</value></data>
+  <data name="DiagnosticsConfirmClear" xml:space="preserve"><value>Clear records</value></data>
+  <data name="DiagnosticsFeedbackOpened" xml:space="preserve"><value>The feedback page is open. Review the report before submitting.</value></data>
+  <data name="DiagnosticsExportCanceled" xml:space="preserve"><value>Export canceled. Existing files were kept.</value></data>
+  <data name="DiagnosticsRecords" xml:space="preserve"><value>Record summary</value></data>
+  <data name="OverviewSourceAttention" xml:space="preserve"><value>Some sources are not connected</value></data>
+  <data name="OverviewSourceFailures" xml:space="preserve"><value>{0} sources failed to connect. Open Sources to retry.</value></data>
+  <data name="OverviewSourceDisconnected" xml:space="preserve"><value>{0} sources are not connected. Check the client and permissions.</value></data>
+  <data name="OverviewUpdateAvailable" xml:space="preserve"><value>Update available: {0}</value></data>
+  <data name="NavigationRuntime" xml:space="preserve"><value>Runtime</value></data>
+  <data name="NavigationPreferences" xml:space="preserve"><value>Preferences</value></data>
+  <data name="NavigationMaintenance" xml:space="preserve"><value>Maintenance</value></data>
+  <data name="ActionToggleNavigation" xml:space="preserve"><value>Expand or collapse navigation</value></data>
+  <data name="SettingsOperationCancelled" xml:space="preserve"><value>Operation canceled. You can try again.</value></data>
+  <data name="PluginConsentEnableTitle" xml:space="preserve"><value>Review before enabling this plugin</value></data>
+  <data name="PluginConsentEnable" xml:space="preserve"><value>Agree and enable</value></data>
+  <data name="PluginConsentName" xml:space="preserve"><value>Plugin name</value></data>
+  <data name="PluginConsentEnableNotice" xml:space="preserve"><value>Check the plugin identity and version, then read the information below. Canceling keeps the plugin disabled.</value></data>
+  <data name="PluginConsentTerms" xml:space="preserve"><value>Terms of use</value></data>
+  <data name="PluginConsentTermsRevision" xml:space="preserve"><value>Terms revision</value></data>
+  <data name="PluginConsentAcceptTerms" xml:space="preserve"><value>I have read and agree to the terms above</value></data>
+  <data name="PluginConsentNetwork" xml:space="preserve"><value>Network notice</value></data>
+  <data name="PluginConsentDestinations" xml:space="preserve"><value>Network destinations</value></data>
+  <data name="PluginConsentPurpose" xml:space="preserve"><value>Purpose</value></data>
+  <data name="PluginConsentDataCategories" xml:space="preserve"><value>Data categories</value></data>
+  <data name="PluginConsentAcceptNetwork" xml:space="preserve"><value>I agree to background network access as described above. Data categories are declared by the developer; automatic blocking of all sensitive content is not guaranteed.</value></data>
+  <data name="PluginConsentRequired" xml:space="preserve"><value>Read the terms and review the requested access before enabling this plugin.</value></data>
+  <data name="PluginConsentChanged" xml:space="preserve"><value>The plugin version or consent information changed. Review it again.</value></data>
+  <data name="PluginInstallationReviewTitle" xml:space="preserve"><value>Review before installing this plugin</value></data>
+  <data name="PluginInstallationReview" xml:space="preserve"><value>These are capability declarations, not permission grants. The plugin stays disabled after installation. Terms and network access are reviewed when enabling it; installation does not make unavailable capabilities accessible.</value></data>
+  <data name="PluginDefaultSourceNotice" xml:space="preserve"><value>Even for the default plugin source, we cannot fully guarantee plugin stability or security. Carefully review plugins before using them.</value></data>
+  <data name="NotificationMuteConditions" xml:space="preserve"><value>Mute conditions</value></data>
+  <data name="SystemNotificationsOffDetail" xml:space="preserve"><value>Turn on to receive Windows notifications. Other sources keep their own settings.</value></data>
+  <data name="OverviewSourceAvailability" xml:space="preserve"><value>{0} enabled · {1} available</value></data>
 </root>

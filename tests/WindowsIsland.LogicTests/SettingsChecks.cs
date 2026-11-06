@@ -18,6 +18,8 @@ internal static class SettingsChecks
         check(upgraded.Language == "zh-CN", "Existing preferences keep the Chinese interface after upgrading");
         check(upgraded.MuteDuringGames, "Existing preferences enable automatic game mute without changing message sources");
         check(upgraded.MuteDuringFullScreen, "Existing preferences enable the independent full-screen switch");
+        check(upgraded.Acrylic && upgraded.OpacityTransitions && upgraded.BackgroundOpacity == 0.9,
+            "Existing preferences use acrylic and opacity transitions with the default background opacity");
         var saved = store.Current with { SetupCompleted = true, SystemNotifications = false, Telegram = false,
             Animations = false, Position = NotificationPosition.RightCenter, IncludePrereleaseUpdates = true, Language = "en-US", MuteDuringGames = false };
         var changes = 0;
@@ -84,6 +86,7 @@ internal static class SettingsChecks
         check(invalidPosition.Position == NotificationPosition.TopCenter && invalidPosition.SetupCompleted && !invalidPosition.WeChat,
             "An unknown position falls back to top center without resetting other preferences");
         PositionChecks.Run(check);
+        CheckAppearancePreferences(check, store, path, saved);
         foreach (var field in new[] { "SetupCompleted", "SystemNotifications", "WeChat", "Telegram", "Power", "Animations", "Position" })
         foreach (var invalid in new[] { "null", "\"invalid\"", "[]", "{}", "1.5" })
         {
@@ -112,7 +115,8 @@ internal static class SettingsChecks
         var pendingWeChat = weChat with { EventId = "preferences/wechat" };
         var pendingTelegram = telegram with { EventId = "preferences/telegram" };
         routing.Receive(pendingWeChat);
-        routing.ApplySettings(new AppSettings(Animations: false, IncludePrereleaseUpdates: true));
+        routing.ApplySettings(new AppSettings(Animations: false, IncludePrereleaseUpdates: true,
+            Acrylic: false, OpacityTransitions: false, BackgroundOpacity: 0.4));
         check(routing.HasPending, "Appearance and update choices preserve pending notifications");
         routing.Receive(pendingTelegram);
         routing.ApplySettings(new AppSettings(WeChat: false));
@@ -143,5 +147,45 @@ internal static class SettingsChecks
         check(manifest.Descendants().Any(element => (string?)element.Attribute("Name") == "userNotificationListener")
             && (string?)template.Root!.Element(ns + "Identity")?.Attribute("Version") == "1.0.0.0",
             "Initialization preserves notification capability without mutating the supplied template");
+    }
+
+    private static void CheckAppearancePreferences(Action<bool, string> check, SettingsStore store, string path, AppSettings saved)
+    {
+        foreach (var acrylic in new[] { false, true })
+        foreach (var transitions in new[] { false, true })
+        foreach (var opacity in new[] { 0.2, 0.47, 0.9, 1.0 })
+        {
+            var appearance = saved with { Acrylic = acrylic, OpacityTransitions = transitions, BackgroundOpacity = opacity };
+            store.Save(appearance);
+            check(new SettingsStore(path).Current == appearance,
+                $"Appearance preferences persist independently: acrylic={acrylic}, transitions={transitions}, opacity={opacity}");
+        }
+        foreach (var field in new[] { nameof(AppSettings.Acrylic), nameof(AppSettings.OpacityTransitions) })
+        foreach (var invalid in new[] { "null", "\"false\"", "[]", "{}", "1", "0.5" })
+        {
+            var other = field == nameof(AppSettings.Acrylic) ? nameof(AppSettings.OpacityTransitions) : nameof(AppSettings.Acrylic);
+            File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Language\":\"en-US\",\"BackgroundOpacity\":0.4,\""
+                + other + "\":false,\"" + field + "\":" + invalid + "}");
+            var restored = new SettingsStore(path).Current;
+            check((field == nameof(AppSettings.Acrylic) ? restored.Acrylic && !restored.OpacityTransitions : !restored.Acrylic && restored.OpacityTransitions)
+                && restored.BackgroundOpacity == 0.4 && restored.SetupCompleted && !restored.WeChat && restored.Language == "en-US",
+                "Invalid appearance switches preserve all other preferences: " + field + "=" + invalid);
+        }
+        foreach (var invalid in new[] { "null", "\"0.4\"", "true", "[]", "{}", "-1", "0.19", "1.01", "1e400", "\"NaN\"", "\"Infinity\"" })
+        {
+            File.WriteAllText(path, "{\"SetupCompleted\":true,\"WeChat\":false,\"Language\":\"en-US\",\"Acrylic\":false,\"OpacityTransitions\":false,\"BackgroundOpacity\":"
+                + invalid + "}");
+            var restored = new SettingsStore(path).Current;
+            check(restored.BackgroundOpacity == 0.9 && !restored.Acrylic && !restored.OpacityTransitions
+                && restored.SetupCompleted && !restored.WeChat && restored.Language == "en-US",
+                "Invalid background opacity restores only its default: " + invalid);
+        }
+        foreach (var invalid in new[] { double.NaN, double.NegativeInfinity, double.PositiveInfinity, 0.19, 1.01 })
+        {
+            var expected = saved with { Acrylic = false, OpacityTransitions = false, BackgroundOpacity = 0.9 };
+            store.Save(expected with { BackgroundOpacity = invalid });
+            check(store.Current == expected && new SettingsStore(path).Current == expected,
+                "Saving invalid opacity normalizes the value without losing other preferences: " + invalid);
+        }
     }
 }

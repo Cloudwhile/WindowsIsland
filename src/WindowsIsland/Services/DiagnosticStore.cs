@@ -1,6 +1,8 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
+using WindowsIsland.Contracts;
 
 namespace WindowsIsland.Services;
 
@@ -30,7 +32,15 @@ internal sealed class DiagnosticStore : IDisposable
         Load();
     }
 
-    public string? Record(DiagnosticArea area, string operation, Exception? error = null, bool fatal = false, string? clientVersion = null)
+    public string? Record(DiagnosticArea area, string operation, Exception? error = null, bool fatal = false, string? clientVersion = null) =>
+        RecordCore(area, operation, error, fatal, clientVersion);
+
+    public string? RecordPlugin(string pluginId, DiagnosticArea area, string operation, Exception? error = null,
+        bool fatal = false, PluginDiagnosticInfo? information = null) =>
+        RecordCore(area, operation, error, fatal, null, DiagnosticReports.Identifier(pluginId, 80), information);
+
+    private string? RecordCore(DiagnosticArea area, string operation, Exception? error, bool fatal, string? clientVersion,
+        string? pluginId = null, PluginDiagnosticInfo? information = null)
     {
         try
         {
@@ -38,7 +48,7 @@ internal sealed class DiagnosticStore : IDisposable
             {
                 if (!_enabled || _disposed || error is OperationCanceledException) return null;
                 var now = _clock();
-                var entry = DiagnosticReports.Capture(area, operation, error, fatal, now, clientVersion);
+                var entry = DiagnosticReports.Capture(area, operation, error, fatal, now, clientVersion, pluginId, information);
                 Prune(now);
                 var existing = _entries.FindIndex(item => item.Fingerprint == entry.Fingerprint);
                 if (existing >= 0)
@@ -140,7 +150,15 @@ internal sealed class DiagnosticStore : IDisposable
             if (!File.Exists(_path)) return;
             using var file = File.OpenRead(_path);
             if (file.Length > MaximumBytes) return;
-            var entries = JsonSerializer.Deserialize<DiagnosticEntry[]>(file, Json) ?? [];
+            var document = JsonNode.Parse(file);
+            var entries = new List<DiagnosticEntry>();
+            if (document is JsonArray records)
+                foreach (var item in records)
+                {
+                    // 已停用或未知分区只丢弃自身，不影响仍可读取的记录。
+                    try { if (item?.Deserialize<DiagnosticEntry>(Json) is { } entry) entries.Add(entry); }
+                    catch (JsonException) { }
+                }
             // Do not forward arbitrary edited log content through the report export.
             _entries.AddRange(entries.Where(Valid).TakeLast(MaximumEntries));
             Prune(_clock());
@@ -162,6 +180,7 @@ internal sealed class DiagnosticStore : IDisposable
     private static bool Valid(DiagnosticEntry? entry) => entry is not null
         && Hex(entry.Id, 12) && Hex(entry.Fingerprint, 16) && Enum.IsDefined(entry.Area)
         && Safe(entry.AppVersion, 160) && Safe(entry.Operation, 80)
+        && (entry.PluginId is null || Safe(entry.PluginId, 80))
         && (entry.ClientVersion is null || DiagnosticReports.ClientVersion(entry.ClientVersion) == entry.ClientVersion) && entry.Count is > 0 and <= 1_000_000 && entry.FirstSeen <= entry.LastSeen
         && entry.Errors is { Length: <= 4 } && entry.Errors.All(error => error is not null
             && Safe(error.Type, 160) && error.Frames is { Length: <= 12 } && error.Frames.All(frame => frame is not null

@@ -47,6 +47,7 @@ internal sealed class TrayIcon : IDisposable
             DestroyIcon(_icon);
             throw new Win32Exception();
         }
+        AppActivation.AllowMaintenanceExit(window);
         _taskbarCreated = RegisterWindowMessage("TaskbarCreated");
         _data = new NotifyIconData
         {
@@ -116,6 +117,7 @@ internal sealed class TrayIcon : IDisposable
         {
             if (message == _taskbarCreated) { _added = false; EnsureAdded(); }
             if (message == AppActivation.SettingsMessage) { _openSettings(); return 0; }
+            if (message == AppActivation.ExitMessage) { _exit(); return 0; }
             if (message == CallbackMessage)
             {
                 var action = (uint)(lParam.ToInt64() & 0xFFFF);

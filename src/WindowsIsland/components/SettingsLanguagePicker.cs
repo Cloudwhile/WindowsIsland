@@ -17,13 +17,18 @@ internal sealed class SettingsLanguagePicker : Grid
     {
         HorizontalAlignment = HorizontalAlignment.Right;
         Children.Add(_picker);
-        foreach (var (code, label) in new[] { (LanguagePreferences.System, ""), ("zh-CN", "简体中文"), ("en-US", "English") })
+        foreach (var code in new[] { LanguagePreferences.System, "zh-CN", "en-US" })
         {
-            var item = new ComboBoxItem { Tag = code, Content = label };
+            var item = new ComboBoxItem { Tag = code };
             _items.Add(code, item);
             _picker.Items.Add(item);
         }
-        LocalizedUI.Bind(this, () => _items[LanguagePreferences.System].Content = Localization.Get("LanguageSystem"));
+        LocalizedUI.Bind(this, () =>
+        {
+            _items[LanguagePreferences.System].Content = Localization.Get("LanguageSystem");
+            _items["zh-CN"].Content = Localization.Get("LanguageChinese");
+            _items["en-US"].Content = Localization.Get("LanguageEnglish");
+        });
         LocalizedUI.Label(_picker, "Language");
         AutomationProperties.SetAutomationId(_picker, "LanguagePicker");
         _picker.SelectionChanged += (_, _) =>

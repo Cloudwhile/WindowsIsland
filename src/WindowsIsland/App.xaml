@@ -3,6 +3,12 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Application.Resources>
     <ResourceDictionary>
+      <AcrylicBrush x:Key="IslandAcrylicBrush"
+                    TintColor="{ThemeResource SystemChromeAltHighColor}"
+                    TintOpacity="0.68"
+                    FallbackColor="{ThemeResource SystemChromeMediumColor}" />
+      <SolidColorBrush x:Key="IslandSolidBrush" Color="{ThemeResource SystemChromeMediumColor}" />
+      <SolidColorBrush x:Key="IslandHighContrastBrush" Color="{ThemeResource SystemColorWindowColor}" />
       <ResourceDictionary.MergedDictionaries>
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
       </ResourceDictionary.MergedDictionaries>

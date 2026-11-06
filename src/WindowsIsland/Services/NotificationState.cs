@@ -4,10 +4,16 @@ internal enum NotificationAccess { NeedsRegistration, Waiting, Allowed, Denied, 
 
 internal enum NotificationSource { SystemNotification, ClientHook, Power, ClientAutomation }
 
+// 仅由宿主建立，插件 DTO 不能声明或继承其他运行实例的身份。
+internal sealed record PluginNotificationOwner(string Id, object Instance, long Revision);
+
 internal sealed record IslandNotification(uint Id, DateTimeOffset CreatedAt, string AppName, string Title, string Body,
     byte[]? AppIcon = null, NotificationSource Source = NotificationSource.SystemNotification,
     string? AppId = null, string? EventId = null, string? Symbol = null, byte[]? SenderAvatar = null, int? OriginProcessId = null,
-    bool IsMetadataUpdate = false);
+    bool IsMetadataUpdate = false, bool AllowActivation = true)
+{
+    public PluginNotificationOwner? PluginOwner { get; init; }
+}
 
 internal sealed class NotificationTracker
 {
@@ -25,21 +31,4 @@ internal sealed class NotificationTracker
     }
 
     public void Reset() { _known.Clear(); _initialized = false; }
-}
-
-internal sealed class NotificationPresentation(TimeProvider? time = null)
-{
-    private readonly TimeProvider _time = time ?? TimeProvider.System;
-    private long _shownAt;
-    public bool Active { get; private set; }
-    public static TimeSpan DisplayDuration => TimeSpan.FromSeconds(5);
-
-    public void Show()
-    {
-        Active = true;
-        _shownAt = _time.GetTimestamp();
-    }
-
-    public bool Expired => Active && _time.GetElapsedTime(_shownAt) >= DisplayDuration;
-    public void Clear() => Active = false;
 }
