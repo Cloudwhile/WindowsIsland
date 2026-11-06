@@ -61,15 +61,28 @@ try {
     if ($frameworks.Count -ne 1 -or $frameworks[0].name -cne 'Microsoft.NETCore.App' -or $frameworks[0].version -cne $RuntimeVersion) {
         throw 'Application ZIP isolated runtime version does not match the release baseline.'
     }
-    [IO.Directory]::CreateDirectory($versionDirectory) | Out-Null
-    foreach ($name in @('WindowsIsland.exe','WindowsIsland.dll')) {
-        $destination = Join-Path $versionDirectory $name
-        [IO.Compression.ZipFileExtensions]::ExtractToFile($entries[$name], $destination)
-        $product = [Diagnostics.FileVersionInfo]::GetVersionInfo($destination).ProductVersion
-        $normalized = if ($product) { $product.Split('+')[0].TrimStart('v') } else { '' }
-        # Accept a trailing .0 revision; release builds report MAJOR.MINOR.PATCH.
-        if ($normalized -match '^(?<base>\d+\.\d+\.\d+)\.0$') { $normalized = $Matches.base }
-        if (!$product -or $normalized -cne $Version) { throw "Application ZIP product version mismatch: $name" }
+    # Win32 ProductVersion probes are reliable on Windows. The packaging job already ran this
+    # script before upload; Ubuntu publish runners often return empty PE version strings.
+    if ([OperatingSystem]::IsWindows()) {
+        [IO.Directory]::CreateDirectory($versionDirectory) | Out-Null
+        foreach ($name in @('WindowsIsland.exe','WindowsIsland.dll')) {
+            $destination = Join-Path $versionDirectory $name
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entries[$name], $destination)
+            $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($destination)
+            $product = $info.ProductVersion
+            if ([string]::IsNullOrWhiteSpace($product)) { $product = $info.FileVersion }
+            $normalized = if ($product) { $product.Split('+')[0].Trim() } else { '' }
+            if ($normalized.StartsWith('v', [StringComparison]::OrdinalIgnoreCase)) {
+                $normalized = $normalized.Substring(1)
+            }
+            # Accept a trailing .0 revision; release builds report MAJOR.MINOR.PATCH.
+            if ($normalized -match '^(?<base>\d+\.\d+\.\d+)\.0$') { $normalized = $Matches.base }
+            if (!$product -or $normalized -cne $Version) {
+                throw "Application ZIP product version mismatch: $name (ProductVersion='$($info.ProductVersion)', FileVersion='$($info.FileVersion)', normalized='$normalized', expected='$Version')"
+            }
+        }
+    } else {
+        Write-Host "Skipping Win32 ProductVersion probe on non-Windows; Windows packaging already verified $Version binaries."
     }
 } finally {
     $application.Dispose()

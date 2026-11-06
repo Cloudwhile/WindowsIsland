@@ -1,4 +1,4 @@
-# Windows Island v0.1.0
+# Windows Island v0.1.0-rc.6
 
 消息岛将 Windows 桌面通知汇集到屏幕边缘，在你选择的位置显示应用图标、会话头像和消息内容，保持当前应用的输入焦点。
 
@@ -29,7 +29,7 @@
 
 适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。发布包已包含运行时。
 
-- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.exe) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.exe.sha256)
-- [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland-0.1.0-win-x64.zip.sha256)
-- [插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Contracts.0.1.0.nupkg) · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Plugin.Cli.0.1.0.nupkg) · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0/WindowsIsland.Plugin.Samples.0.1.0.zip)
+- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0-rc.6/WindowsIsland-0.1.0-rc.6-win-x64.exe) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0-rc.6/WindowsIsland-0.1.0-rc.6-win-x64.exe.sha256)
+- [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0-rc.6/WindowsIsland-0.1.0-rc.6-win-x64.zip) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0-rc.6/WindowsIsland-0.1.0-rc.6-win-x64.zip.sha256)
+- [插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0-rc.6/WindowsIsland.Contracts.0.1.0-rc.6.nupkg) · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0-rc.6/WindowsIsland.Plugin.Cli.0.1.0-rc.6.nupkg) · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.0-rc.6/WindowsIsland.Plugin.Samples.0.1.0-rc.6.zip)
 - [使用文档](https://wini-docs.abszero.cc/) · [插件开发](https://wini-docs.abszero.cc/plugins)
