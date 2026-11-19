@@ -29,6 +29,7 @@ internal sealed class SettingsPluginLibrary : StackPanel, IDisposable
     {
         _library = library;
         _pick = pick;
+        Spacing = SettingsTokens.RowPadding;
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = SettingsTokens.ControlSpacing };
         actions.Children.Add(_progress);
         actions.Children.Add(_install);

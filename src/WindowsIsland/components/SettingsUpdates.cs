@@ -59,7 +59,12 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
         }) { ShowSeparator = false };
         Children.Add(new SettingsSection("UpdateCheckSection", checkRow,
             SettingsContent.Wrap(_status)));
-        var actions = new StackPanel { Spacing = SettingsTokens.ControlSpacing };
+        _size.VerticalAlignment = VerticalAlignment.Center;
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = SettingsTokens.RowPadding,
+            HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
+        };
         actions.Children.Add(_size);
         actions.Children.Add(new SettingsMaintenanceActions(_releasePage, _install, _cancel));
         _availableRow = new SettingsRow(Symbol.Download, "", actions, "UpdateAvailableStatus", localizeTitle: false)
@@ -101,7 +106,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             _preserveResult = true;
             ShowCheck(result.Success ? "UpdateComplete" : result.MessageKey is "UpdateRestored" or "UpdateBackupRetained" ? result.MessageKey : "UpdateFailed",
                 result.Success ? InfoBarSeverity.Success : InfoBarSeverity.Error,
-                result.Success ? [result.Version] : []);
+                result.Success ? [result.Version.TrimStart('v')] : []);
         }
         _ = RefreshCheckAsync();
     }
@@ -139,7 +144,7 @@ internal sealed class SettingsUpdates : StackPanel, IDisposable
             else if (state.ErrorKey is { } error) ShowCheck(error, InfoBarSeverity.Error);
             else if (state.Canceled) ShowCheck("UpdateCheckCanceled", InfoBarSeverity.Informational);
             else if (state.Candidate is { } found)
-                ShowCheck(found.IsPrerelease ? "UpdateFoundPrerelease" : "UpdateFound", InfoBarSeverity.Informational, found.Tag);
+                ShowCheck(found.IsPrerelease ? "UpdateFoundPrerelease" : "UpdateFound", InfoBarSeverity.Informational, found.Version.Display);
             else if (state.Checked) ShowCheck("UpdateNone", InfoBarSeverity.Success);
             else ShowCheck("UpdateNotChecked", InfoBarSeverity.Informational);
         }

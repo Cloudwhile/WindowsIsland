@@ -1,11 +1,13 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Windows.UI;
 using Windows.UI.ViewManagement;
 using WindowsIsland.Services;
 
@@ -44,20 +46,25 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         _store = store;
         _picker = picker;
         _preview = preview;
+        _positionLabel.FontWeight = FontWeights.SemiBold;
         _positionLabel.TextWrapping = TextWrapping.Wrap;
         _positionLabel.TextTrimming = TextTrimming.None;
+        var headingText = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        headingText.Children.Add(LocalizedUI.Text("AppearanceSimulatedPreview", SettingsTokens.DescriptionTextSize, secondary: true));
+        headingText.Children.Add(_positionLabel);
         var heading = new Grid { ColumnSpacing = SettingsTokens.ControlSpacing };
         heading.ColumnDefinitions.Add(new ColumnDefinition());
         heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        heading.Children.Add(LocalizedUI.Text("AppearanceSimulatedPreview", SettingsTokens.DescriptionTextSize, secondary: true));
+        heading.Children.Add(headingText);
+        _actualPreview.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(_actualPreview, 1);
         heading.Children.Add(_actualPreview);
         Children.Add(heading);
 
         var display = (Border)XamlReader.Load("""
             <Border xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                Background="{ThemeResource LayerFillColorAltBrush}"
-                BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                Background="{ThemeResource CardBackgroundFillColorSecondaryBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1" CornerRadius="8" Padding="6" />
             """);
         display.Child = _screen;
@@ -73,14 +80,10 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         _layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0) });
         _layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        _layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        Grid.SetColumnSpan(_positionLabel, 2);
-        _layout.Children.Add(_positionLabel);
-        Grid.SetRow(monitor, 1);
         _layout.Children.Add(monitor);
         _positionControls = new StackPanel { Children = { _picker } };
         _picker.HorizontalAlignment = HorizontalAlignment.Left;
-        Grid.SetRow(_positionControls, 2);
+        Grid.SetRow(_positionControls, 1);
         _layout.Children.Add(_positionControls);
         Children.Add(_layout);
         Children.Add(LocalizedUI.Text("AppearancePreviewHint", SettingsTokens.DescriptionTextSize, secondary: true));
@@ -128,6 +131,7 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         _store.Changed += OnSettingsChanged;
         _screen.SizeChanged += OnScreenSizeChanged;
         _layout.SizeChanged += OnLayoutSizeChanged;
+        ActualThemeChanged += OnActualThemeChanged;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         LocalizedUI.Bind(this, () => Refresh(_actualPreview.IsEnabled));
@@ -172,6 +176,7 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         var effects = _systemAppearance.Effects;
         var animations = !highContrast && settings.Animations && SettingsMotion.Allow(this);
         var opacity = effects ? AppSettings.NormalizeBackgroundOpacity(settings.BackgroundOpacity) : 1;
+        ApplyScreenBackdrop(highContrast);
         _sampleBackground.Background = highContrast ? _highContrast : settings.Acrylic && effects ? _acrylic : _solid;
         var width = Math.Max(1, Math.Min(SampleWidth, _screen.ActualWidth - ScreenInset * 2));
         _sample.Width = width;
@@ -227,7 +232,32 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         _layout.ColumnSpacing = wide ? SettingsTokens.SectionSpacing : 0;
         _layout.ColumnDefinitions[1].Width = wide ? new GridLength(160) : new GridLength(0);
         Grid.SetColumn(_positionControls, wide ? 1 : 0);
-        Grid.SetRow(_positionControls, wide ? 1 : 2);
+        Grid.SetRow(_positionControls, wide ? 0 : 1);
+    }
+
+    private void OnActualThemeChanged(FrameworkElement sender, object args) =>
+        ApplyScreenBackdrop(_systemAppearance.HighContrast);
+
+    private void ApplyScreenBackdrop(bool highContrast)
+    {
+        if (highContrast)
+        {
+            _screen.Background = new SolidColorBrush(Color.FromArgb(0, 0, 0, 0));
+            return;
+        }
+        var light = ActualTheme == ElementTheme.Light;
+        var gradient = new LinearGradientBrush { StartPoint = new(0, 0), EndPoint = new(1, 1) };
+        gradient.GradientStops.Add(new GradientStop
+        {
+            Offset = 0,
+            Color = light ? Color.FromArgb(255, 218, 230, 245) : Color.FromArgb(255, 28, 39, 56)
+        });
+        gradient.GradientStops.Add(new GradientStop
+        {
+            Offset = 1,
+            Color = light ? Color.FromArgb(255, 198, 215, 237) : Color.FromArgb(255, 17, 24, 36)
+        });
+        _screen.Background = gradient;
     }
 
     private void OnScreenSizeChanged(object sender, SizeChangedEventArgs args)
@@ -327,6 +357,7 @@ internal sealed class NotificationAppearancePreview : SettingsContent, IDisposab
         _actualPreview.Click -= OnPreview;
         _screen.SizeChanged -= OnScreenSizeChanged;
         _layout.SizeChanged -= OnLayoutSizeChanged;
+        ActualThemeChanged -= OnActualThemeChanged;
         Loaded -= OnLoaded;
         Unloaded -= OnUnloaded;
     }

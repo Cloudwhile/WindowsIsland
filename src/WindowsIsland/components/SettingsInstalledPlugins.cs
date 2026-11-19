@@ -31,7 +31,7 @@ internal sealed class SettingsInstalledPlugins : StackPanel, IDisposable
         _openDiagnostics = openDiagnostics;
         _settings = settings;
         Children.Add(SettingsContent.Wrap(_notice));
-        Children.Add(_empty);
+        Children.Add(SettingsContent.Wrap(_empty));
         Children.Add(_list);
         LocalizedUI.Bind(this, () =>
         {

@@ -1,3 +1,4 @@
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -13,11 +14,16 @@ internal sealed class IslandContent : Grid
     public const double CompactWidth = 156, CompactHeight = 42, PinnedInset = 24;
     private readonly NotificationPanel _message;
     public PinnedPanel Panel { get; } = new() { Visibility = Visibility.Collapsed };
-    private readonly Grid _compact = new() { ColumnSpacing = 10 };
-    private readonly TextBlock _icon = IslandTheme.Text("", 18);
-    private readonly TextBlock _value = IslandTheme.Text("", 18);
-    private readonly TextBlock _left = IslandTheme.Text("", 12);
-    private readonly TextBlock _right = IslandTheme.Text("●", 8);
+    private readonly Grid _compact = new()
+    {
+        ColumnSpacing = 8,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+    private readonly TextBlock _icon = IslandTheme.Text("", 16);
+    private readonly TextBlock _value = IslandTheme.Text("", 16);
+    private readonly TextBlock _left = IslandTheme.Text("", 12, secondary: true);
+    private readonly TextBlock _right = IslandTheme.Text("●", 7, secondary: true);
 
     public IslandContent(NotificationPanel message)
     {
@@ -26,9 +32,12 @@ internal sealed class IslandContent : Grid
         ColumnDefinitions.Add(new ColumnDefinition());
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _compact.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        _compact.ColumnDefinitions.Add(new ColumnDefinition());
+        _compact.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         _icon.FontFamily = _left.FontFamily = new FontFamily("Segoe Fluent Icons");
         _value.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+        _value.FontWeight = FontWeights.SemiBold;
+        _left.Opacity = 0.85;
+        _right.Opacity = 0.72;
         Grid.SetColumn(_value, 1);
         _compact.Children.Add(_icon);
         _compact.Children.Add(_value);
@@ -69,6 +78,8 @@ internal sealed class IslandContent : Grid
     public void SetContentWidth(double width, IslandState state, bool pinned)
     {
         Width = Math.Max(1, width);
+        _compact.MaxWidth = Math.Max(1, width);
+        _value.MaxWidth = Math.Max(1, width - 26);
         _message.Width = Math.Max(1, width - (state == IslandState.Expanded && pinned ? PinnedInset * 2 : 0));
     }
 }

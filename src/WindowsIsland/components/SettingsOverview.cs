@@ -23,7 +23,9 @@ internal sealed class SettingsOverview : StackPanel
         _notice.ActionButton = _setup;
         AutomationProperties.SetAutomationId(_notice, "OverviewSystemStatus");
         Children.Add(_notice);
-        Children.Add(SettingsSection.Heading("OverviewRuntime"));
+        var runtimeHeading = SettingsSection.Heading("OverviewRuntime");
+        runtimeHeading.Margin = new Thickness(4, 4, 0, 0);
+        Children.Add(runtimeHeading);
         _metrics.ColumnDefinitions.Add(new ColumnDefinition());
         _metrics.ColumnDefinitions.Add(new ColumnDefinition());
         _metrics.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -33,7 +35,7 @@ internal sealed class SettingsOverview : StackPanel
         Grid.SetColumn(_version, 1);
         _version.Value = ReleaseVersion.Current.Tag;
         Children.Add(_metrics);
-        var sourceAction = new IconActionButton(Symbol.Message, "Sources", "OverviewManageSources");
+        var sourceAction = new IconActionButton(0xE72A, "Sources", "OverviewManageSources");
         sourceAction.Click += (_, _) => sources();
         var inspectSources = new IconActionButton(0xE72A, "Sources", "OverviewInspectSources");
         inspectSources.Click += (_, _) => sources();
@@ -42,9 +44,9 @@ internal sealed class SettingsOverview : StackPanel
         Children.Add(_sourceHealth);
         _preview = new IconActionButton(0xE7E7, "ActionPreview", "OverviewPreview");
         _preview.Click += (_, _) => preview();
-        var updateAction = new IconActionButton(Symbol.Download, "ActionCheckUpdates", "OverviewUpdates");
+        var updateAction = new IconActionButton(Symbol.Refresh, "ActionCheckUpdates", "OverviewUpdates");
         updateAction.Click += (_, _) => updates();
-        var configure = new IconActionButton(Symbol.Permissions, "Setup", "OverviewConfigureNotifications");
+        var configure = new IconActionButton(0xE72A, "Setup", "OverviewConfigureNotifications");
         configure.Click += (_, _) => setup();
         Children.Add(new SettingsSection("OverviewQuickActions",
             new SettingsRow(Symbol.Message, "Sources", sourceAction),

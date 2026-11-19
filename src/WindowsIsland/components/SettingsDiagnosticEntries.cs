@@ -17,6 +17,8 @@ internal sealed class SettingsDiagnosticEntries : StackPanel
 
         public EntryView(DiagnosticEntry entry)
         {
+            _details.Spacing = 6;
+            _details.Margin = new Thickness(36, 0, 0, 0);
             Row = new SettingsExpander(new SymbolIcon(Symbol.Important), "", "DiagnosticEntry." + entry.Id,
                 "DiagnosticOutcome." + entry.Id, localizeTitle: false) { ExpandOnHeaderTap = true };
             Row.Rows.Add(_details);

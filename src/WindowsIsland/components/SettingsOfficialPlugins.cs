@@ -38,7 +38,10 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
     {
         _library = library;
         _open = open;
+        Spacing = SettingsTokens.ControlSpacing;
         var sourceNotice = LocalizedUI.Text("PluginDefaultSourceNotice", SettingsTokens.DescriptionTextSize, secondary: true);
+        sourceNotice.TextWrapping = TextWrapping.Wrap;
+        sourceNotice.Margin = new Thickness(SettingsTokens.RowPadding, 0, SettingsTokens.RowPadding, 4);
         AutomationProperties.SetAutomationId(sourceNotice, "PluginDefaultSourceNotice");
         Children.Add(sourceNotice);
         var toolbar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = SettingsTokens.ControlSpacing };
@@ -50,15 +53,21 @@ internal sealed class SettingsOfficialPlugins : StackPanel, IDisposable
         LocalizedUI.Bind(_proxy, () => _proxy.PlaceholderText = Localization.Get("PluginProxyDirect"));
         AutomationProperties.SetAutomationId(_proxy, "PluginGitHubProxy");
         _status.TextWrapping = TextWrapping.Wrap;
-        Children.Add(new SettingsSection("PluginOfficial", new SettingsRow(Symbol.World, "PluginOfficial", toolbar),
-            SettingsContent.Wrap(_status), SettingsContent.Wrap(_notice)));
+        var sourceHeader = new StackPanel();
+        sourceHeader.Children.Add(new SettingsRow(Symbol.World, "PluginOfficial", toolbar) { ShowSeparator = false });
+        sourceHeader.Children.Add(SettingsContent.Wrap(_status));
+        sourceHeader.Children.Add(SettingsContent.Wrap(_notice));
+        Children.Add(sourceHeader);
         AutomationProperties.SetAutomationId(_empty, "PluginCatalogEmptyState");
-        Children.Add(_empty);
+        Children.Add(SettingsContent.Wrap(_empty));
         Children.Add(_plugins);
         var advanced = new SettingsExpander(new SymbolIcon(Symbol.Setting), "PluginAdvanced", "PluginAdvancedSettings")
         { ExpandOnHeaderTap = true };
-        advanced.Rows.Add(new SettingsRow(Symbol.Link, "PluginGitHubProxy", _save));
-        advanced.Rows.Add(new SettingsContent(false, _proxy));
+        advanced.Rows.Add(new SettingsRow(Symbol.Link, "PluginGitHubProxy", _save)
+        {
+            ShowSeparator = false, Padding = new Thickness(0, 4, 0, 0), MinHeight = 36
+        });
+        advanced.Rows.Add(_proxy);
         Children.Add(advanced);
         _save.Click += async (_, _) => await RunAsync(async _ =>
         {

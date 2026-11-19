@@ -1,3 +1,4 @@
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -13,8 +14,8 @@ internal sealed class AppIcon : Grid
 {
     public const double IconSize = 40;
     private readonly Border _image = new() { Visibility = Visibility.Collapsed };
-    private readonly TextBlock _fallback = IslandTheme.Text("", 24);
-    private readonly Border _placeholder = (Border)XamlReader.Load("<Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Background='{ThemeResource ControlFillColorSecondaryBrush}' />");
+    private readonly TextBlock _fallback = IslandTheme.Text("", 18);
+    private readonly Border _placeholder = (Border)XamlReader.Load("<Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' Background='{ThemeResource ControlFillColorSecondaryBrush}' BorderBrush='{ThemeResource ControlStrokeColorDefaultBrush}' BorderThickness='1' />");
     private bool _circular;
     private int _version;
     private byte[]? _bytes;
@@ -27,18 +28,20 @@ internal sealed class AppIcon : Grid
     {
         Width = Height = size;
         VerticalAlignment = VerticalAlignment.Center;
-        _fallback.FontSize = size * 0.52;
+        _fallback.FontSize = Math.Max(9, Math.Round(size * 0.45));
+        _fallback.FontWeight = FontWeights.SemiBold;
         _fallback.HorizontalAlignment = HorizontalAlignment.Center;
         _fallback.TextAlignment = TextAlignment.Center;
         _fallback.MaxLines = 1;
         _placeholder.Child = _fallback;
+        SetCircular(false);
         Children.Add(_placeholder);
         Children.Add(_image);
         AutomationProperties.SetAccessibilityView(_fallback, AccessibilityView.Raw);
         SetAutomationId(automationId);
         Loaded += OnLoaded;
         Unloaded += (_, _) => ObserveRoot(null);
-        SizeChanged += (_, _) => RefreshDecode();
+        SizeChanged += (_, _) => { SetCircular(_circular); RefreshDecode(); };
     }
 
     private void OnLoaded(object sender, RoutedEventArgs args)
@@ -68,8 +71,9 @@ internal sealed class AppIcon : Grid
     public void SetCircular(bool circular)
     {
         _circular = circular;
+        var squircle = Math.Clamp(Math.Round(Width * 0.25), 4, 12);
         CornerRadius = _image.CornerRadius = new CornerRadius(circular ? Width / 2 : 0);
-        _placeholder.CornerRadius = new CornerRadius(circular ? Width / 2 : 4);
+        _placeholder.CornerRadius = new CornerRadius(circular ? Width / 2 : squircle);
         if (_image.Background is ImageBrush brush) brush.Stretch = circular ? Stretch.UniformToFill : Stretch.Uniform;
     }
 

@@ -20,7 +20,14 @@ internal sealed class SettingsSetupFlow : StackPanel
         AutomationProperties.SetAutomationId(_status, "InitializationStatus");
         LocalizedUI.SetAutomationName(_progress, "SetupProgress");
         _status.TextWrapping = TextWrapping.Wrap;
-        Children.Add(new SettingsContent(false, LocalizedUI.Text("SetupOptionalHint", 12, secondary: true), _progress, _status));
+        var hint = LocalizedUI.Text("SetupOptionalHint", 12, secondary: true);
+        hint.TextWrapping = TextWrapping.Wrap;
+        var summary = new SettingsContent(false, hint, _progress, _status)
+        {
+            Spacing = SettingsTokens.ControlSpacing,
+            Margin = new Thickness(SettingsTokens.RowPadding, 4, SettingsTokens.RowPadding, 0)
+        };
+        Children.Add(summary);
         Children.Add(new SettingsSection("SetupStepInitialize", initialization));
         Children.Add(new SettingsSection("SetupStepAccess", permission));
         _check = new SettingsRow(Symbol.Refresh, "SetupVerify", check);

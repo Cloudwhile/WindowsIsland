@@ -1,8 +1,10 @@
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Markup;
+using Microsoft.UI.Xaml.Media;
 using Windows.Foundation;
 using WindowsIsland.Contracts;
 using WindowsIsland.Services;
@@ -13,9 +15,9 @@ internal sealed class PinnedPanel : Grid
 {
     private readonly Grid _header = new() { ColumnSpacing = 12 };
     private readonly TextBlock _value = IslandTheme.Text("", 18);
-    private readonly TextBlock _title = IslandTheme.Text("", 16);
-    private readonly TextBlock _body = IslandTheme.Text("", 14, secondary: true);
-    private readonly StackPanel _details = new() { Spacing = 12 };
+    private readonly TextBlock _title = IslandTheme.Text("", 14);
+    private readonly TextBlock _body = IslandTheme.Text("", 13, secondary: true);
+    private readonly StackPanel _details = new() { Spacing = 12, Padding = new Thickness(0, 0, 4, 2) };
     private readonly StackPanel _controls = new() { Spacing = 12 };
     private readonly ContentControl _custom = new() { IsTabStop = false };
     private readonly ScrollViewer _scroll;
@@ -33,16 +35,21 @@ internal sealed class PinnedPanel : Grid
     {
         RowSpacing = 12;
         RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         _header.ColumnDefinitions.Add(new ColumnDefinition());
         _header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _value.FontFamily = new FontFamily("Cascadia Mono, Consolas");
+        _value.FontWeight = FontWeights.SemiBold;
         var close = new IconActionButton(Symbol.Cancel, "ActionClose", "PinnedPanelClose") { AllowFocusOnInteraction = false };
         close.Click += (_, _) => Dismissed?.Invoke();
         Grid.SetColumn(close, 1);
         _header.Children.Add(_value); _header.Children.Add(close);
-        _body.TextWrapping = TextWrapping.Wrap;
-        _body.IsTextSelectionEnabled = true;
+        _title.FontWeight = FontWeights.SemiBold;
         _title.TextWrapping = TextWrapping.Wrap;
+        _body.TextWrapping = TextWrapping.Wrap;
+        _body.LineHeight = 19;
+        _body.LineStackingStrategy = LineStackingStrategy.BlockLineHeight;
+        _body.IsTextSelectionEnabled = true;
         _details.Children.Add(_title); _details.Children.Add(_body); _details.Children.Add(_controls); _details.Children.Add(_custom);
         _scroll = new ScrollViewer
         {
@@ -66,6 +73,8 @@ internal sealed class PinnedPanel : Grid
             _body.Text = content.Body ?? "";
             _body.Visibility = string.IsNullOrWhiteSpace(content.Body) ? Visibility.Collapsed : Visibility.Visible;
             var bottom = NotificationPlacement.Anchor(position).Y == 1;
+            RowDefinitions[0].Height = bottom ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+            RowDefinitions[1].Height = bottom ? GridLength.Auto : new GridLength(1, GridUnitType.Star);
             Grid.SetRow(_header, bottom ? 1 : 0);
             Grid.SetRow(_scroll, bottom ? 0 : 1);
             var models = content.Controls?.ToArray() ?? [];
@@ -158,10 +167,62 @@ internal sealed class PinnedPanel : Grid
     {
         var width = Math.Max(1, Math.Min(420, availableWidth));
         var height = Math.Max(1, Math.Min(620, availableHeight));
-        Width = Math.Max(1, width - 34);
-        _scroll.MaxHeight = Math.Max(1, height - 34 - 36 - RowSpacing);
-        Measure(new Size(Width, double.PositiveInfinity));
-        return new Size(width, Math.Min(height, DesiredSize.Height + 34));
+        var innerWidth = Math.Max(1, width - NotificationLayout.HorizontalPadding * 2);
+        Width = innerWidth;
+        EnsureTemplates(this);
+        _header.Measure(new Size(innerWidth, double.PositiveInfinity));
+        var headerHeight = Math.Max(36, Math.Ceiling(_header.DesiredSize.Height));
+        var maxScroll = Math.Max(48, height - NotificationLayout.VerticalPadding * 2 - headerHeight - RowSpacing);
+        _scroll.MaxHeight = maxScroll;
+        _details.Measure(new Size(innerWidth, double.PositiveInfinity));
+        var detailsHeight = Math.Ceiling(_details.DesiredSize.Height);
+        if (_controls.Visibility == Visibility.Visible && _controls.Children.Count > 0)
+        {
+            var measuredControls = 0d;
+            var minimumControls = 0d;
+            foreach (var child in _controls.Children.OfType<FrameworkElement>())
+            {
+                child.Measure(new Size(innerWidth, double.PositiveInfinity));
+                measuredControls += child.DesiredSize.Height;
+                minimumControls += Math.Max(child.DesiredSize.Height, MinimumControlHeight(child));
+            }
+            detailsHeight += Math.Ceiling(Math.Max(0, minimumControls - measuredControls));
+        }
+        var scrollHeight = Math.Min(maxScroll, detailsHeight);
+        Measure(new Size(innerWidth, headerHeight + RowSpacing + scrollHeight));
+        return new Size(width, Math.Min(height, Math.Ceiling(headerHeight + RowSpacing + scrollHeight + NotificationLayout.VerticalPadding * 2)));
+    }
+
+    private static double MinimumControlHeight(FrameworkElement element) => element switch
+    {
+        ToggleSwitch { Header: not null } => 62,
+        ToggleSwitch => 36,
+        Slider { Header: not null } => 62,
+        Slider => 36,
+        Button => 32,
+        _ => 0
+    };
+
+    private static void EnsureTemplates(DependencyObject root)
+    {
+        if (root is Control control) control.ApplyTemplate();
+        switch (root)
+        {
+            case Panel panel:
+                foreach (var child in panel.Children) EnsureTemplates(child);
+                break;
+            case ScrollViewer { Content: DependencyObject content }:
+                EnsureTemplates(content);
+                break;
+            case ContentControl { Content: DependencyObject content }:
+                EnsureTemplates(content);
+                break;
+            case Border { Child: DependencyObject child }:
+                EnsureTemplates(child);
+                break;
+        }
+        var count = VisualTreeHelper.GetChildrenCount(root);
+        for (var index = 0; index < count; index++) EnsureTemplates(VisualTreeHelper.GetChild(root, index));
     }
 
     // 复用既有不激活输入层。原生控件继续负责呈现、自动化与值事件，鼠标不激活 WinUI 窗口。
