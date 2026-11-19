@@ -19,6 +19,15 @@ internal sealed class IslandSurface : FlyoutPresenter, IDisposable
     private AppSettings _settings = new();
     private bool _disposed, _effectsSubscribed;
 
+    public bool IsHighContrast
+    {
+        get
+        {
+            try { return _theme?.HighContrast ?? true; }
+            catch (COMException) { return true; }
+        }
+    }
+
     public IslandSurface(UIElement content, WindowId windowId)
     {
         Content = content;

@@ -15,7 +15,7 @@ internal sealed partial class PluginManager
         else context.Dispatcher.TryEnqueue(() => action());
     }, id => id switch
     {
-        BuiltInPluginIds.Power => new PowerBackend(context),
+        BuiltInPluginIds.Power => new PowerBackend(context, settings),
         BuiltInPluginIds.System => new SystemBackend(context),
         _ => null
     }, external => new PluginDesktopBroker(external.Manifest, external.HostRoot, external.Directory));
@@ -42,15 +42,22 @@ internal sealed partial class PluginManager
         }
     }
 
-    private sealed class PowerBackend(BuiltInPluginContext context) : SourceBackend(BuiltInPluginIds.Power)
+    private sealed class PowerBackend(BuiltInPluginContext context, SettingsStore settings)
+        : SourceBackend(BuiltInPluginIds.Power), IPowerQuotaBackend
     {
+        private PowerQuotaSettings _quota = PowerQuotaSettings.From(settings);
         private PowerService? _service;
         public override PluginStatus Status => new(PluginConnectionState.Connected);
+        public void ConfigureQuota(PowerQuotaSettings quota)
+        {
+            _quota = quota;
+            if (!IsDisposed) _service?.ConfigureQuota(quota);
+        }
         public override Task StartAsync()
         {
             if (!IsDisposed && _service is null)
             {
-                _service = new PowerService(context.Window, context.Dispatcher);
+                _service = new PowerService(context.Window, context.Dispatcher, _quota);
                 _service.Received += Publish;
             }
             return Task.CompletedTask;

@@ -16,6 +16,7 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
     private long? _bytes;
     private readonly Func<string, Task<PluginSettingsModel?>>? _settings;
     private readonly string _id;
+    private readonly StackPanel? _powerQuotaSlot;
     private SettingsContent _fields = null!;
 
     /// <summary>创建可选择和复制的插件详情。</summary>
@@ -25,6 +26,11 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
         _id = definition.Id;
         _settings = settings;
         _metadata = definition.Metadata;
+        if (_id == BuiltInPluginIds.Power)
+        {
+            _powerQuotaSlot = new StackPanel { Visibility = Visibility.Collapsed };
+            Children.Add(_powerQuotaSlot);
+        }
         Group("PluginBasicInformation");
         Field("PluginVersion", _metadata?.Version, definition.Id + ".Version");
         var type = Field("PluginType", null, definition.Id + ".Type", placeholder: false);
@@ -98,7 +104,13 @@ internal sealed class SettingsPluginDetails : SettingsContent, IDisposable
             var bytes = _read ? _bytes : _metadata is null ? null : await _metadata.ReadSizeAsync();
             var model = _settings is null ? null : await _settings(_id);
             if (_disposed) return;
-            if (model is { Fields.Count: > 0 })
+            if (_id == BuiltInPluginIds.Power && model is not null && _powerQuotaSlot is not null)
+            {
+                _powerQuotaSlot.Children.Clear();
+                _powerQuotaSlot.Children.Add(new SettingsSection("PowerQuotaGroup", new PowerQuotaEditor(model.Settings)));
+                _powerQuotaSlot.Visibility = Visibility.Visible;
+            }
+            else if (model is { Fields.Count: > 0 })
                 Children.Add(new SettingsSection("PluginSettingsGroup", new PluginSettingsEditor(_id, model)));
             _settingsLoaded = model is not null;
             _bytes = bytes;

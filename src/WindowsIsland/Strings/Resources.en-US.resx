@@ -441,6 +441,60 @@
   <data name="PowerBattery" xml:space="preserve">
     <value>Battery {0}%</value>
   </data>
+  <data name="PowerLowBattery" xml:space="preserve">
+    <value>Low battery</value>
+  </data>
+  <data name="PowerLowBatteryBody" xml:space="preserve">
+    <value>{0}% remaining · Connect charger</value>
+  </data>
+  <data name="PowerCriticalBattery" xml:space="preserve">
+    <value>Critical battery</value>
+  </data>
+  <data name="PowerCriticalBatteryBody" xml:space="preserve">
+    <value>Only {0}% left · Plug in now</value>
+  </data>
+  <data name="PowerChargeLimitReached" xml:space="preserve">
+    <value>Charge limit reached</value>
+  </data>
+  <data name="PowerChargeLimitBody" xml:space="preserve">
+    <value>Charged to {0}% · Ready to unplug</value>
+  </data>
+  <data name="PowerQuotaGroup" xml:space="preserve">
+    <value>Battery level reminders</value>
+  </data>
+  <data name="PowerLowQuota" xml:space="preserve">
+    <value>Low battery reminder</value>
+  </data>
+  <data name="PowerLowQuotaDetail" xml:space="preserve">
+    <value>Notify once when discharging reaches this level</value>
+  </data>
+  <data name="PowerCriticalQuota" xml:space="preserve">
+    <value>Critical battery alert</value>
+  </data>
+  <data name="PowerCriticalQuotaDetail" xml:space="preserve">
+    <value>Notify again if battery drops to the critical level</value>
+  </data>
+  <data name="PowerChargeLimitQuota" xml:space="preserve">
+    <value>Charge limit reminder</value>
+  </data>
+  <data name="PowerChargeLimitQuotaDetail" xml:space="preserve">
+    <value>Notify when charging reaches this target level</value>
+  </data>
+  <data name="PowerQuotaStatusBelowOn" xml:space="preserve">
+    <value>On · ≤ {0}%</value>
+  </data>
+  <data name="PowerQuotaStatusBelowOff" xml:space="preserve">
+    <value>Off · ≤ {0}%</value>
+  </data>
+  <data name="PowerQuotaStatusAboveOn" xml:space="preserve">
+    <value>On · ≥ {0}%</value>
+  </data>
+  <data name="PowerQuotaStatusAboveOff" xml:space="preserve">
+    <value>Off · ≥ {0}%</value>
+  </data>
+  <data name="PowerQuotaThresholdLabel" xml:space="preserve">
+    <value>{0} threshold percentage</value>
+  </data>
   <data name="TrayConnecting" xml:space="preserve">
     <value>Not connected</value>
   </data>

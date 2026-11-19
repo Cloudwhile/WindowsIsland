@@ -87,6 +87,7 @@
     <Compile Include="../../src/WindowsIsland/Services/WindowsPreferenceStore.cs" Link="WindowsPreferenceStore.cs" />
     <Compile Include="../../src/WindowsIsland/Services/StartupElevation.cs" Link="StartupElevation.cs" />
     <Compile Include="../../src/WindowsIsland/Services/PowerState.cs" Link="PowerState.cs" />
+    <Compile Include="../../src/WindowsIsland/Services/PowerMotionProfile.cs" Link="PowerMotionProfile.cs" />
     <Compile Include="../../src/WindowsIsland/Services/MessengerPopupRules.cs" Link="MessengerPopupRules.cs" />
     <Compile Include="../../src/WindowsIsland/Services/AppSettings.cs" Link="AppSettings.cs" />
     <Compile Include="../../src/WindowsIsland/Services/PluginPreferences.cs" Link="PluginPreferences.cs" />

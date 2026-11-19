@@ -16,6 +16,12 @@ public sealed partial class MainWindow : Window
     private readonly IslandSurface _root;
     private readonly Grid _host = new();
     private readonly Grid _surfaceLayer;
+    private readonly Grid _auraLayer = new()
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        VerticalAlignment = VerticalAlignment.Stretch,
+        IsHitTestVisible = false
+    };
     private readonly PluginManager _plugins;
     private readonly PluginLibrary _pluginLibrary;
     private readonly SettingsStore _settings;
@@ -41,6 +47,8 @@ public sealed partial class MainWindow : Window
     private RectInt32 _workArea;
     private RectInt32? _lastBounds;
     private int _gameModeRevision;
+    private long _lastGameModeCheckTick = long.MinValue;
+    private UserNotificationState _cachedGameModeState = UserNotificationState.Unknown;
     private IslandNotification? _current => _scheduler.Message;
     private readonly bool _verification;
     private bool _showUpdateResult;
@@ -69,6 +77,7 @@ public sealed partial class MainWindow : Window
         };
         _surfaceLayer.Children.Add(_root);
         _host.Children.Add(_surfaceLayer);
+        _host.Children.Add(_auraLayer);
         Content = _host;
         SystemBackdrop = new OverlayBackdrop();
         _root.Language = Localization.Language;
@@ -117,7 +126,9 @@ public sealed partial class MainWindow : Window
         };
 
         _motion = new IslandMotion(_surfaceLayer, _islandContent, SurfaceMargin,
-            () => _settings.Current.Animations, () => _settings.Current.OpacityTransitions, _position);
+            () => _settings.Current.Animations, () => _settings.Current.OpacityTransitions, _position,
+            _auraLayer, _notificationPanel.Badge,
+            () => (_root.ActualTheme == ElementTheme.Light, _root.IsHighContrast));
         _motion.Settled += FinishPresentation;
         _merge = DispatcherQueue.CreateTimer();
         _merge.Interval = TimeSpan.FromMilliseconds(125);
@@ -251,7 +262,7 @@ public sealed partial class MainWindow : Window
             }
         }
         if (previous.MuteDuringGames != settings.MuteDuringGames || previous.MuteDuringFullScreen != settings.MuteDuringFullScreen)
-            RefreshGameMode();
+            RefreshGameMode(force: true);
         _router.ApplySettings(settings);
         if (!_router.HasPending) _merge.Stop();
         if (_current is not null && !settings.Allows(_current)) DismissNotification(animate: false);
@@ -337,16 +348,31 @@ public sealed partial class MainWindow : Window
         var settings = _settings.Current;
         var state = settings.MuteDuringGames || settings.MuteDuringFullScreen
             ? await Task.Run(GameModeDetector.ReadState) : UserNotificationState.Unknown;
-        if (!_closed && _exitTask is null && revision == _gameModeRevision) ApplyGameMode(state);
+        if (!_closed && _exitTask is null && revision == _gameModeRevision)
+        {
+            _cachedGameModeState = state;
+            _lastGameModeCheckTick = Environment.TickCount64;
+            ApplyGameMode(state);
+        }
     }
 
-    private bool RefreshGameMode()
+    private bool RefreshGameMode(bool force = false)
     {
         if (_closed) return true;
         _gameModeRevision++;
         var settings = _settings.Current;
-        return ApplyGameMode(settings.MuteDuringGames || settings.MuteDuringFullScreen
-            ? GameModeDetector.ReadState() : UserNotificationState.Unknown);
+        if (!settings.MuteDuringGames && !settings.MuteDuringFullScreen)
+        {
+            _cachedGameModeState = UserNotificationState.Unknown;
+            return ApplyGameMode(UserNotificationState.Unknown);
+        }
+        var now = Environment.TickCount64;
+        if (force || unchecked(now - _lastGameModeCheckTick) > 300)
+        {
+            _cachedGameModeState = GameModeDetector.ReadState();
+            _lastGameModeCheckTick = now;
+        }
+        return ApplyGameMode(_cachedGameModeState);
     }
 
     private bool ApplyGameMode(UserNotificationState state)

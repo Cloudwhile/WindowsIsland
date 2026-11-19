@@ -7,6 +7,7 @@ internal static class NativeWindow
 {
     private sealed record ContentBounds(int X, int Y, int Width, int Height, int Radius);
     private static readonly Dictionary<nint, ContentBounds> HitAreas = [];
+    private static readonly HashSet<nint> Subclassed = [];
     private const uint FrameStyles = 0x00CF0000, FrameExtendedStyles = 0x00020301;
     private const nuint FrameSubclassId = 3;
     private static readonly SubclassProc FrameCallback = BorderlessWindowProc;
@@ -31,7 +32,9 @@ internal static class NativeWindow
     {
         const long noActivate = 0x08000000, toolWindow = 0x80, appWindow = 0x40000, transparent = 0x20, layered = 0x80000;
         var style = GetWindowLongPtr(hwnd, -20).ToInt64();
-        SetWindowLongPtr(hwnd, -20, (nint)((style | noActivate | toolWindow | transparent | layered) & ~appWindow));
+        var desired = (style | noActivate | toolWindow | transparent | layered) & ~appWindow;
+        if (style == desired) return;
+        SetWindowLongPtr(hwnd, -20, (nint)desired);
         SetLayeredWindowAttributes(hwnd, 0, 255, 2);
         SetWindowPos(hwnd, (nint)(-1), 0, 0, 0, 0, 0x33);
     }
@@ -52,15 +55,22 @@ internal static class NativeWindow
 
     public static void RemoveSystemBorder(nint hwnd)
     {
-        if (!SetWindowSubclass(hwnd, FrameCallback, FrameSubclassId, 0))
+        var firstInstall = Subclassed.Add(hwnd);
+        if (firstInstall && !SetWindowSubclass(hwnd, FrameCallback, FrameSubclassId, 0))
+        {
+            Subclassed.Remove(hwnd);
             throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
         var style = GetWindowLongPtr(hwnd, -16).ToInt64();
         var extended = GetWindowLongPtr(hwnd, -20).ToInt64();
         var frameChanged = (style & FrameStyles) != 0 || (extended & FrameExtendedStyles) != 0;
-        SetWindowLongPtr(hwnd, -16, (nint)((style & ~((long)FrameStyles)) | 0x80000000L));
-        SetWindowLongPtr(hwnd, -20, (nint)(extended & ~((long)FrameExtendedStyles)));
         if (frameChanged)
+        {
+            SetWindowLongPtr(hwnd, -16, (nint)((style & ~((long)FrameStyles)) | 0x80000000L));
+            SetWindowLongPtr(hwnd, -20, (nint)(extended & ~((long)FrameExtendedStyles)));
             SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x37);
+        }
+        if (!firstInstall && !frameChanged) return;
         SetWindowRgn(hwnd, 0, false);
         ExtendGlass(hwnd);
         int noCorners = 1, noBorder = unchecked((int)0xFFFFFFFE);
@@ -115,7 +125,7 @@ internal static class NativeWindow
             Marshal.StructureToPtr(change, lParam, fDeleteOld: false);
             return result;
         }
-        if (message == 0x0082) { HitAreas.Remove(hwnd); RemoveWindowSubclass(hwnd, FrameCallback, FrameSubclassId); } // WM_NCDESTROY
+        if (message == 0x0082) { HitAreas.Remove(hwnd); Subclassed.Remove(hwnd); RemoveWindowSubclass(hwnd, FrameCallback, FrameSubclassId); } // WM_NCDESTROY
         return DefSubclassProc(hwnd, message, wParam, lParam);
     }
 

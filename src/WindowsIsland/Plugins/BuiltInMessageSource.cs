@@ -7,6 +7,7 @@ internal abstract class BuiltInMessageSource(string id, string displayName) : IM
 {
     private IPluginContext? _context;
     private bool _disposed, _started;
+    protected IPluginContext? Context => _context;
     protected IMessageSourceBackend? Backend { get; private set; }
     public string Id => id;
     public string DisplayName => displayName;
@@ -31,8 +32,11 @@ internal abstract class BuiltInMessageSource(string id, string displayName) : IM
             .GetService<IMessageSourceBackend>() ?? throw new NotSupportedException("Source backend is unavailable.");
         _started = true;
         Backend.NotificationReceived += Publish;
+        OnBackendStarting(Backend);
         await Backend.StartAsync();
     }
+
+    protected virtual void OnBackendStarting(IMessageSourceBackend backend) { }
 
     protected virtual void Publish(PluginNotification notification)
     {

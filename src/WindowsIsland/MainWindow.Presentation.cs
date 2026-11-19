@@ -78,6 +78,8 @@ public sealed partial class MainWindow
         var state = _scheduler.State;
         var pinned = _scheduler.Pinned is not null;
         var expanded = _scheduler.ExpandedKind;
+        var previousExpanded = _presentedExpanded;
+        var previousMessage = _presentedMessage;
         var changed = state != _presentedState || expanded != _presentedExpanded || pinned != _presentedPinned || _current != _presentedMessage;
         _presentedExpanded = expanded;
         _presentedState = state;
@@ -105,6 +107,7 @@ public sealed partial class MainWindow
         Size target;
         if (expanded == IslandExpandedKind.Pinned)
         {
+            _root.MaxHeight = Math.Max(NotificationLayout.MaxHeight, _workArea.Height / _scale - 24);
             target = _islandContent.Panel.MeasureWindow(_workArea.Width / _scale - 24, _workArea.Height / _scale - 24);
             _root.Padding = new Thickness(16);
         }
@@ -132,18 +135,21 @@ public sealed partial class MainWindow
         _islandContent.SetContentWidth(target.Width - (state == IslandState.Compact ? 26 : NotificationLayout.HorizontalPadding * 2), state, pinned);
         _root.Width = _surfaceLayer.Width = Math.Max(_surfaceLayer.Width, target.Width);
         _root.Height = _surfaceLayer.Height = Math.Max(_surfaceLayer.Height, target.Height);
+        var previousVisible = wasVisible && previousExpanded == IslandExpandedKind.Message ? previousMessage : null;
+        var motionKind = newMessage && expanded == IslandExpandedKind.Message
+            ? PowerEvents.ResolveTransitionMotion(_current, previousVisible) : IslandMotionKind.Default;
+        if (!wasVisible) _motion.PrimeColdOpen(target, motionKind);
         _surfaceVisible = true;
         ApplyBounds();
-        NativeWindow.ConfigureOverlay(_hwnd);
         if (!wasVisible)
         {
             NativeWindow.ShowWithoutActivation(_hwnd, () => AppWindow.Show(false));
             NativeWindow.RemoveSystemBorder(_hwnd);
             NativeWindow.ConfigureOverlay(_hwnd);
-            NativeWindow.EnsureTopmost(_hwnd);
         }
+        else NativeWindow.ConfigureOverlay(_hwnd);
         _host.UpdateLayout();
-        _motion.Show(previous, target, wasVisible, newMessage, animate);
+        _motion.Show(previous, target, wasVisible, newMessage, animate, motionKind);
         if (expanded == IslandExpandedKind.Pinned) UpdateInputRegion(_width, _height);
     }
 

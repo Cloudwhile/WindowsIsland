@@ -228,6 +228,7 @@ powerEvent.Update(unplugged);
 var powerNotification = powerEvent.Update(plugged)!;
 Check(powerNotification.Source == NotificationSource.Power && router.Receive(powerNotification)?.Notification == powerNotification,
     "Power events do not depend on system notification permission");
+PowerMotionChecks.Run(Check);
 
 Check(MessengerIdentity.FromProcess("Weixin") == "wechat" && MessengerIdentity.FromProcess("Telegram") == "telegram", "Local hook clients are recognized");
 Check(MessengerIdentity.FromProcess("QQ") is null && MessengerIdentity.FromProcess("QQNT") is null,

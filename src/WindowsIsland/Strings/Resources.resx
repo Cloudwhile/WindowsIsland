@@ -441,6 +441,60 @@
   <data name="PowerBattery" xml:space="preserve">
     <value>电量 {0}%</value>
   </data>
+  <data name="PowerLowBattery" xml:space="preserve">
+    <value>电量偏低</value>
+  </data>
+  <data name="PowerLowBatteryBody" xml:space="preserve">
+    <value>剩余 {0}% · 请及时充电</value>
+  </data>
+  <data name="PowerCriticalBattery" xml:space="preserve">
+    <value>电量严重不足</value>
+  </data>
+  <data name="PowerCriticalBatteryBody" xml:space="preserve">
+    <value>仅剩 {0}% · 请立即充电</value>
+  </data>
+  <data name="PowerChargeLimitReached" xml:space="preserve">
+    <value>已达充电上限</value>
+  </data>
+  <data name="PowerChargeLimitBody" xml:space="preserve">
+    <value>已充至 {0}% · 可断开电源</value>
+  </data>
+  <data name="PowerQuotaGroup" xml:space="preserve">
+    <value>电量额度提醒</value>
+  </data>
+  <data name="PowerLowQuota" xml:space="preserve">
+    <value>低电量提醒</value>
+  </data>
+  <data name="PowerLowQuotaDetail" xml:space="preserve">
+    <value>未连接电源且电量降至该额度时提醒一次</value>
+  </data>
+  <data name="PowerCriticalQuota" xml:space="preserve">
+    <value>紧急低电提醒</value>
+  </data>
+  <data name="PowerCriticalQuotaDetail" xml:space="preserve">
+    <value>电量继续降至紧急额度时再次提醒</value>
+  </data>
+  <data name="PowerChargeLimitQuota" xml:space="preserve">
+    <value>充电上限提醒</value>
+  </data>
+  <data name="PowerChargeLimitQuotaDetail" xml:space="preserve">
+    <value>连接电源充至目标额度时提醒断开电源</value>
+  </data>
+  <data name="PowerQuotaStatusBelowOn" xml:space="preserve">
+    <value>已开启 · ≤ {0}%</value>
+  </data>
+  <data name="PowerQuotaStatusBelowOff" xml:space="preserve">
+    <value>已关闭 · ≤ {0}%</value>
+  </data>
+  <data name="PowerQuotaStatusAboveOn" xml:space="preserve">
+    <value>已开启 · ≥ {0}%</value>
+  </data>
+  <data name="PowerQuotaStatusAboveOff" xml:space="preserve">
+    <value>已关闭 · ≥ {0}%</value>
+  </data>
+  <data name="PowerQuotaThresholdLabel" xml:space="preserve">
+    <value>{0}额度百分比</value>
+  </data>
   <data name="TrayConnecting" xml:space="preserve">
     <value>未连接</value>
   </data>
