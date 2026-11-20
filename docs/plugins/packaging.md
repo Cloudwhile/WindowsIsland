@@ -39,20 +39,23 @@ Get-FileHash artifacts/plugin-example/Example.Notifications-1.0.0.zip -Algorithm
 
 完整端点与字段规则见[目录接口契约](./catalog.md)。官方开发者身份仅认 `winiofficial`；目录中其他开发者仍按三方权限处理。
 
-默认插件源使用按开发者分组的索引。公开仓库应与开发者索引一致，包上传到该 GitHub 仓库的 Release 附件中，下载地址使用对应版本的 HTTPS ZIP 链接。
+默认插件源 v2 使用按开发者分组的索引（`/api/v2/sources`、`/api/v2/sources/{developerId}/plugins`）。同一开发者可为不同插件使用不同的公开 GitHub 仓库；每个包上传到对应插件自己的仓库 Release 附件中，下载地址使用该仓库对应版本的 HTTPS ZIP 链接。来源的 `repositoryUrl` 只是按 URL 字符串升序排序后的首个已收录仓库，不限定插件可使用的仓库。
 
 目录项应提供以下信息：
 
 | 字段 | 说明 |
 | --- | --- |
 | `id` / `name` / `version` | 与包内插件对应的身份和版本 |
-| `developerId` / `repositoryUrl` | 与所属开发者来源一致 |
+| `developerId` | 与所属开发者来源一致，且与包内声明一致 |
+| `repositoryUrl` | 该插件自己的有效公开 GitHub 仓库，与包内声明一致 |
 | `downloadUrl` | 该仓库公开 Release 的 ZIP 附件地址 |
 | `sha256` | ZIP 的 64 位小写十六进制 SHA-256 摘要 |
 | `minHostVersion` | 由包内 `minimumHostVersion` 映射的最低宿主严格 SemVer；包内省略或为 `null` 时为 `0.0.0` |
 | `contractVersion` | 所需合约大版本 |
 | `permissions` / `description` | 能力声明与说明 |
 | `network` | 可选的联网须知，包内缺失时可由默认源补充 |
+
+旧版 v1 仍要求同一开发者的全部插件来自单一仓库；出现多个仓库时对应响应整体返回非 200，不提供部分结果。旧客户端保留完整合法的旧缓存，需升级到支持 v2 的客户端后才能从该多仓库来源获取新的目录安装或更新。
 
 开发者可在[开放平台](https://wini-plugins.abszero.cc/)使用 GitHub 登录、选择公开仓库和 Release 附件并提交审核；直发账号 `winiofficial` 由管理员管理。平台只托管元数据与索引，ZIP 保留在开发者自己的 GitHub Release 中。收录与审核不会因为包内声明官方来源而自动生效。
 

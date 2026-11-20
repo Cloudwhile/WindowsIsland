@@ -1,4 +1,4 @@
-# 平台目录协议（高级）
+# 平台目录协议 v2（高级）
 
 即使是默认插件源，我们也不能完全保证插件的稳定性和安全性，使用前请谨慎核查。
 
@@ -17,8 +17,8 @@
 | C6 | 请求带 `Cache-Control: no-cache`；只有 HTTP 200 成功，304 及其他状态均表示源不可用。 |
 
 ```http
-GET {base}/api/sources
-GET {base}/api/sources/{developerId}/plugins
+GET {base}/api/v2/sources
+GET {base}/api/v2/sources/{developerId}/plugins
 ```
 
 这里的 `{base}` 指去除末尾斜杠后的基地址。下方使用 `catalog.example` 演示结构。
@@ -42,12 +42,12 @@ GET {base}/api/sources/{developerId}/plugins
     "developerId": "winiofficial",
     "developerName": "winiofficial",
     "repositoryUrl": "https://github.com/example/plugins",
-    "pluginsUrl": "https://catalog.example/api/sources/winiofficial/plugins"
+    "pluginsUrl": "https://catalog.example/api/v2/sources/winiofficial/plugins"
   }
 ]
 ```
 
-`example/plugins` 仅演示地址结构。实际条目必须使用自己的公开仓库，并与下载附件保持一致。
+`example/plugins` 仅演示地址结构。v2 来源的 `repositoryUrl` 是该开发者所有已收录仓库按 URL 字符串升序排序后的首项，用作代表性元数据，不限定插件条目可使用的仓库。每个插件条目必须声明自己的有效公开 GitHub 仓库，下载附件与包内仓库声明均与该条目一致。
 
 版本索引可附带 `network` 对象，字段与[清单中的联网须知](./manifest.md#条款与联网须知)相同。默认插件源可在包内缺失时提供此声明；包内开发者声明优先。
 
@@ -59,16 +59,16 @@ GET {base}/api/sources/{developerId}/plugins
 | --- | --- |
 | C13 | `developerId` 匹配 `^[a-z][a-z0-9_]*$`，最长 64 字符，全局唯一；官方身份是 `winiofficial`。 |
 | C14 | `developerName` 非空、最长 200；`repositoryUrl` 精确为 `https://github.com/{owner}/{repo}`，两段各匹配 `^[A-Za-z0-9_.-]+$`，无尾斜杠、`.git` 后缀或额外路径段。 |
-| C15 | `pluginsUrl` 逐字等于当前基地址下的 `/api/sources/{developerId}/plugins`。 |
+| C15 | `pluginsUrl` 逐字等于当前基地址下的 `/api/v2/sources/{developerId}/plugins`。 |
 | C16 | 来源最多 512 个，每源最多 2048 个插件，全目录最多 8192 个插件；超限拒绝。 |
 | C17 | `id` 为 `wini_plugin_<name>`，name 匹配 `^[a-z][a-z0-9_]*$`，完整标识最长 80；全目录唯一，不得占用内置保留标识，包括 `wini_plugin_countdown`。 |
-| C18 | 插件的 `developerId`、`repositoryUrl` 与所属来源逐字一致。 |
+| C18 | 插件的 `developerId` 与所属来源逐字一致；插件自己的 `repositoryUrl` 必须符合 C14 的 GitHub 仓库格式，可与来源的代表性仓库不同。 |
 | C19 | `name` 非空、最长 200；`description` 必须存在，可为空字符串，最长 8000。 |
 | C20 | `version`、`minHostVersion` 为严格 SemVer 2.0，数字标识不得有前导零；比较忽略 `+` 后的构建元数据。 |
 | C21 | `contractVersion` 是至少为 1 的 JSON 整数；`1.0`、`1e0`、`"1"` 均无效。 |
 | C22 | `permissions` 是最多 64 项的数组，每项非空、最长 80、匹配 `^[a-z][a-z0-9_]*$`，不得重复；平台收录时要求标签已登记，宿主接受格式合法的自定义标签，但不因此授予额外能力。 |
 | C23 | `sha256` 必须由服务端发送为 64 位小写十六进制；下载校验比较时双方统一小写，大小写差异不导致校验失败。 |
-| C24 | `downloadUrl` 是 HTTPS、域名恰为 `github.com`、默认端口，无 userinfo、query 或 fragment；路径精确为对应仓库的 `/releases/download/{tag}/{file}.zip`。tag 和附件名各为单个非空段，不含 `..`、编码分隔符（包括 `%2F`、`%5C`）或额外路径段。 |
+| C24 | `downloadUrl` 是 HTTPS、域名恰为 `github.com`、默认端口，无 userinfo、query 或 fragment；路径精确为插件条目自身 `repositoryUrl` 对应仓库的 `/releases/download/{tag}/{file}.zip`。tag 和附件名各为单个非空段，不含 `..`、编码分隔符（包括 `%2F`、`%5C`）或额外路径段。 |
 
 平台预置权限标签包括 `notifications`、`settings`、`network`、`process`、`filesystem`、`native`、`automation`；旧 `wechat` 标签保留但不再授予专用监听。开发者可登记不重名的自定义标签；实际授予范围见[权限与诊断](./permissions.md)。桌面范围保存在包内 `desktop`，不在目录 API 中重复声明。
 
@@ -99,6 +99,12 @@ GET {base}/api/sources/{developerId}/plugins
 ```powershell
 (Get-FileHash ./example.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 ```
+
+## 目录 API 版本与旧客户端兼容
+
+v2 使用 `/api/v2/sources` 与 `/api/v2/sources/{developerId}/plugins`，支持同一开发者的插件来自多个公开 GitHub 仓库。目录 API 版本与插件的 `contractVersion` 相互独立。
+
+旧版 v1 端点 `/api/sources` 与 `/api/sources/{developerId}/plugins` 保留单仓库约束：条目的仓库须与来源仓库逐字一致。同一开发者包含多个仓库时，v1 来源列表或该开发者索引整体返回非 200，不过滤条目、不返回部分成功结果。旧客户端保留此前完整合法的缓存；升级到支持 v2 的客户端前，不能从该多仓库来源获取新的目录安装或更新。失败本身不代表下架，也不影响已安装插件继续运行。
 
 ## 版本与兼容性
 
