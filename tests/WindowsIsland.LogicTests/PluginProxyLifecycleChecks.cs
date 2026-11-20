@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using WindowsIsland.Contracts;
 using WindowsIsland.Plugins;
@@ -60,8 +58,7 @@ internal static class PluginProxyLifecycleChecks
         {
             external.Unload();
             await external.VerifyUnloadAsync().WaitAsync(TimeSpan.FromSeconds(9));
-            var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(paths.Root.ToUpperInvariant() + "\n" + id)))[..40].ToLowerInvariant();
-            Marshal.ThrowExceptionForHR(DeleteAppContainerProfile("WindowsIsland.Plugin." + digest));
+            Marshal.ThrowExceptionForHR(DeleteAppContainerProfile(SandboxProcess.ProfileName(paths.Root, id)));
         }
         Check(true, "Confirmed proxy termination permits code removal without a mapped-worker race: " + mode);
         Directory.Delete(code, recursive: true);

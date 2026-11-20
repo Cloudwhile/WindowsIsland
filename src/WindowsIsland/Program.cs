@@ -1,5 +1,6 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using WindowsIsland.Plugins;
 using WindowsIsland.Services;
 
 namespace WindowsIsland;
@@ -14,9 +15,15 @@ internal static class Program
         if (InitializationInstaller.TryHandle(arguments, out result)) { Environment.ExitCode = result; return; }
         if (InitializationElevation.TryHandle(arguments, out result)) { Environment.ExitCode = result; return; }
         var verification = arguments.Contains("--verify-local");
+        var appDataRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsIsland");
+        if (!verification && OperatingSystem.IsWindows())
+        {
+            try { SandboxAccess.ProtectHostDataRoot(appDataRoot); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or PluginException) { }
+        }
         var settings = new SettingsStore(verification ? Path.Combine(AppContext.BaseDirectory, "verification-settings.json") : null);
         Diagnostics.Initialize(verification ? Path.Combine(AppContext.BaseDirectory, "verification-diagnostics")
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsIsland", "Diagnostics"),
+            : Path.Combine(appDataRoot, "Diagnostics"),
             settings.Current.LocalDiagnostics);
         AppDomain.CurrentDomain.UnhandledException += OnUnhandled;
         TaskScheduler.UnobservedTaskException += OnUnobserved;

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
+using WindowsIsland.Plugins;
 
 namespace WindowsIsland.Plugin.Cli;
 
@@ -14,10 +13,10 @@ internal static class TestProfile
             || Path.GetFileName(Path.GetDirectoryName(root)) != "tests"
             || Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(root))) != ".wini")
             throw new InvalidOperationException("Invalid SDK test root.");
-        var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(root.ToUpperInvariant() + "\n" + id)))[..40].ToLowerInvariant();
+        var profile = SandboxProcess.ProfileName(root, id);
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var result = DeleteAppContainerProfile("WindowsIsland.Plugin." + identity);
+            var result = DeleteAppContainerProfile(profile);
             if (result >= 0 || result is unchecked((int)0x80070002) or unchecked((int)0x80070490)) return;
             if (attempt == 4) throw new IOException("无法清理本次 SDK 测试容器。", result);
             await Task.Delay(100);

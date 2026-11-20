@@ -15,6 +15,23 @@ internal static class SandboxAccess
         Directory.CreateDirectory(directory);
         ApplyDirectory(directory, WindowsIdentity.GetCurrent().User ?? throw new InvalidOperationException(), null, false);
     }
+
+    // Strip inherited package-cache ACEs (such as S-1-15-3-<host package>) from host settings
+    // and diagnostics without touching per-plugin ACL trees under Plugins/.
+    public static void ProtectHostDataRoot(string root)
+    {
+        ProtectHostDirectory(root);
+        var owner = WindowsIdentity.GetCurrent().User ?? throw new InvalidOperationException();
+        foreach (var file in Directory.EnumerateFiles(root))
+        {
+            PluginPaths.CheckLinks(file);
+            PluginFileSafety.CheckSingleLink(file);
+            ApplyFile(file, owner, null, false);
+        }
+        var diagnostics = Path.Combine(root, "Diagnostics");
+        if (Directory.Exists(diagnostics)) ProtectTree(diagnostics);
+        else ProtectHostDirectory(diagnostics);
+    }
     // Replace broad/inherited grants on private directories. Never add ALL APPLICATION PACKAGES.
     public static void ProtectTree(string directory, SecurityIdentifier? sandbox = null, bool writable = false)
     {
@@ -27,18 +44,20 @@ internal static class SandboxAccess
         {
             PluginPaths.CheckLinks(item);
             if (Directory.Exists(item)) ApplyDirectory(item, owner, sandbox, writable);
-            else
-            {
-                var acl = new FileSecurity();
-                acl.SetAccessRuleProtection(true, false);
-                foreach (var identity in new[] { owner, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null) })
-                    acl.AddAccessRule(new(identity, FileSystemRights.FullControl, AccessControlType.Allow));
-                if (sandbox is not null) acl.AddAccessRule(new(sandbox, writable ? FileSystemRights.Modify : FileSystemRights.ReadAndExecute, AccessControlType.Allow));
-                new FileInfo(item).SetAccessControl(acl);
-                if (writable) LowLabel(item);
-            }
+            else ApplyFile(item, owner, sandbox, writable);
         }
         if (writable) LowLabel(directory);
+    }
+
+    private static void ApplyFile(string path, SecurityIdentifier owner, SecurityIdentifier? sandbox, bool writable)
+    {
+        var acl = new FileSecurity();
+        acl.SetAccessRuleProtection(true, false);
+        foreach (var identity in new[] { owner, new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null) })
+            acl.AddAccessRule(new(identity, FileSystemRights.FullControl, AccessControlType.Allow));
+        if (sandbox is not null) acl.AddAccessRule(new(sandbox, writable ? FileSystemRights.Modify : FileSystemRights.ReadAndExecute, AccessControlType.Allow));
+        new FileInfo(path).SetAccessControl(acl);
+        if (writable) LowLabel(path);
     }
 
     private static void ApplyDirectory(string path, SecurityIdentifier owner, SecurityIdentifier? sandbox, bool writable)

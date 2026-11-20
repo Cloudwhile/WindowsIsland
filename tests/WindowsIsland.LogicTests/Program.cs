@@ -7,6 +7,19 @@ if (args.FirstOrDefault() == "--plugin-contract")
     return;
 }
 
+if (args is ["--sandbox-profile"])
+{
+    var profileChecks = 0;
+    WindowsIsland.LogicTests.SandboxProfileChecks.Run((condition, name) =>
+    {
+        if (!condition) throw new InvalidOperationException(name);
+        profileChecks++;
+        Console.WriteLine($"PASS {name}");
+    });
+    Console.WriteLine($"{profileChecks} sandbox profile checks passed.");
+    return;
+}
+
 if (args is ["--plugin-audit"])
 {
     await WindowsIsland.LogicTests.PluginStaticSettingsChecks.RunAsync();
@@ -259,6 +272,7 @@ await DiagnosticReportCacheChecks.RunAsync(Check);
 await WindowsIsland.LogicTests.PluginDirectoryChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginNotificationChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginIsolationProtocolChecks.RunAsync();
+WindowsIsland.LogicTests.SandboxProfileChecks.Run(Check);
 await WindowsIsland.LogicTests.PluginNetworkBrokerChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginProxyLifecycleChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginEvolutionChecks.RunAsync();

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.ComponentModel;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
@@ -15,6 +16,11 @@ internal sealed record SandboxLaunch(PluginManifest Manifest, string HostRoot, s
 // Fail closed: the worker is resumed only after its OS token and enclosing job have been verified.
 internal sealed class SandboxProcess : IDisposable
 {
+    // Packaged hosts create child AppContainers whose moniker is limited to 50 characters.
+    internal const int MaxProfileNameLength = 50;
+    internal const string ProfilePrefix = "WindowsIsland.Plugin.";
+    private const int ProfileIdentityLength = 28;
+
     private nint _process, _job;
     private readonly object _processGate = new();
     private int _disposed;
@@ -25,6 +31,13 @@ internal sealed class SandboxProcess : IDisposable
     public int ProcessId { get; private set; }
     public string Sid { get; private set; } = "";
     public uint? ExitCode { get { lock (_processGate) return _process != 0 && SandboxNative.GetExitCodeProcess(_process, out var code) && code != 259 ? code : null; } }
+
+    internal static string ProfileIdentity(string hostRoot, string pluginId) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            Path.GetFullPath(hostRoot).ToUpperInvariant() + "\n" + pluginId)))[..ProfileIdentityLength].ToLowerInvariant();
+
+    internal static string ProfileName(string hostRoot, string pluginId) =>
+        ProfilePrefix + ProfileIdentity(hostRoot, pluginId);
 
     public SandboxProcess(SandboxLaunch plugin)
     {
@@ -44,8 +57,9 @@ internal sealed class SandboxProcess : IDisposable
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         PluginPaths.CheckTree(plugin.Directory);
         Directory.CreateDirectory(plugin.DataDirectory);
-        var identity = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(plugin.HostRoot).ToUpperInvariant() + "\n" + plugin.Manifest.Id)))[..40].ToLowerInvariant();
-        var profile = "WindowsIsland.Plugin." + identity;
+        SandboxAccess.ProtectHostDirectory(plugin.HostRoot);
+        var identity = ProfileIdentity(plugin.HostRoot, plugin.Manifest.Id);
+        var profile = ProfilePrefix + identity;
         var result = SandboxNative.CreateAppContainerProfile(profile, profile, "Windows Island isolated plugin", 0, 0, out var sid);
         if (result == unchecked((int)0x800700B7)) result = SandboxNative.DeriveAppContainerSidFromAppContainerName(profile, out sid);
         Marshal.ThrowExceptionForHR(result);
@@ -152,27 +166,82 @@ internal sealed class SandboxProcess : IDisposable
     [SupportedOSPlatform("windows")]
     private void VerifyToken(SecurityIdentifier expected)
     {
+        var packageFamily = CurrentPackageFamilyName();
+        var parentRids = packageFamily is null ? null : PackageFamilyRids(packageFamily);
+        var implicitCapability = ImplicitParentPackageCapability(expected, packageFamily);
         SandboxNative.Check(SandboxNative.OpenProcessToken(_process, 10, out var token));
         try
         {
-            void Read(int kind, Action<nint> verify)
+            void Read(int kind, Action<nint, uint> verify)
             {
                 SandboxNative.GetTokenInformation(token, kind, 0, 0, out var size);
                 if (size is 0 or > 65536) throw new InvalidOperationException($"Invalid sandbox token class {kind}, error {Marshal.GetLastWin32Error()}.");
                 var memory = Marshal.AllocHGlobal((int)size);
-                try { SandboxNative.Check(SandboxNative.GetTokenInformation(token, kind, memory, size, out _)); verify(memory); }
+                try { SandboxNative.Check(SandboxNative.GetTokenInformation(token, kind, memory, size, out var returned)); verify(memory, returned); }
                 finally { Marshal.FreeHGlobal(memory); }
             }
-            Read(29, memory => { if (Marshal.ReadInt32(memory) != 1) throw new InvalidOperationException("AppContainer required."); });
-            VerifyPackageIsolation(token, expected);
-            Read(31, memory => { if (!new SecurityIdentifier(Marshal.ReadIntPtr(memory)).Equals(expected)) throw new InvalidOperationException("Sandbox identity mismatch."); });
-            Read(30, memory => { if (Marshal.ReadInt32(memory) != 0) throw new InvalidOperationException("Sandbox capabilities must be empty."); });
+            Read(29, (memory, _) => { if (Marshal.ReadInt32(memory) != 1) throw new InvalidOperationException("AppContainer required."); });
+            VerifyPackageIsolation(token, expected, parentRids is null ? null : "S-1-15-2-" + parentRids);
+            Read(31, (memory, _) => { if (!new SecurityIdentifier(Marshal.ReadIntPtr(memory)).Equals(expected)) throw new InvalidOperationException("Sandbox identity mismatch."); });
+            Read(30, (memory, size) => VerifyCapabilities(memory, size, implicitCapability));
         }
         finally { SandboxNative.CloseHandle(token); }
     }
 
     [SupportedOSPlatform("windows")]
-    private static void VerifyPackageIsolation(nint token, SecurityIdentifier expected)
+    internal static string? CurrentPackageFamilyName()
+    {
+        uint length = 0;
+        var status = SandboxNative.GetCurrentPackageFamilyName(ref length, null);
+        if (status == 15700) return null; // APPMODEL_ERROR_NO_PACKAGE.
+        if (status != 122 || length == 0) throw new Win32Exception(status);
+        var buffer = new StringBuilder(checked((int)length));
+        status = SandboxNative.GetCurrentPackageFamilyName(ref length, buffer);
+        if (status != 0) throw new Win32Exception(status);
+        return buffer.ToString();
+    }
+
+    internal static string PackageFamilyRids(string packageFamilyName)
+    {
+        var hash = SHA256.HashData(Encoding.Unicode.GetBytes(packageFamilyName.ToLowerInvariant()));
+        var rids = new uint[7];
+        for (var index = 0; index < 7; index++)
+            rids[index] = BinaryPrimitives.ReadUInt32LittleEndian(hash.AsSpan(index * 4, 4));
+        return string.Join('-', rids);
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal static SecurityIdentifier? ImplicitParentPackageCapability(SecurityIdentifier expectedAppContainerSid, string? packageFamilyName)
+    {
+        if (string.IsNullOrEmpty(packageFamilyName)) return null;
+        var rids = PackageFamilyRids(packageFamilyName);
+        var parentPrefix = "S-1-15-2-" + rids + "-";
+        if (!expectedAppContainerSid.Value.StartsWith(parentPrefix, StringComparison.Ordinal)
+            || expectedAppContainerSid.Value.Length <= parentPrefix.Length)
+            throw new InvalidOperationException("Packaged sandbox must belong to the host package.");
+        return new SecurityIdentifier("S-1-15-3-" + rids);
+    }
+
+    [SupportedOSPlatform("windows")]
+    internal static void VerifyCapabilities(nint memory, uint size, SecurityIdentifier? allowedParentPackageCapability)
+    {
+        if (size < sizeof(int)) throw new InvalidOperationException("Invalid sandbox capability buffer.");
+        var count = Marshal.ReadInt32(memory);
+        if (count == 0) return;
+        // Packaged hosts spawn child AppContainers; the kernel attaches only the host package's
+        // implicit capability SID (S-1-15-3-<parent package RIDs>) even with zero requested capabilities.
+        if (allowedParentPackageCapability is null || count != 1)
+            throw new InvalidOperationException("Sandbox capabilities must be empty.");
+        var header = nint.Size;
+        var entrySize = Marshal.SizeOf<SandboxNative.SidAndAttributes>();
+        if (size < (uint)(header + entrySize)) throw new InvalidOperationException("Invalid sandbox capability buffer.");
+        var entry = Marshal.PtrToStructure<SandboxNative.SidAndAttributes>(memory + header);
+        if (entry.Sid == 0 || !new SecurityIdentifier(entry.Sid).Equals(allowedParentPackageCapability))
+            throw new InvalidOperationException("Sandbox capabilities must be empty.");
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static void VerifyPackageIsolation(nint token, SecurityIdentifier expected, string? parentPackageSid = null)
     {
         // Class 46 is rejected by GetTokenInformation on some supported Windows builds.
         // Verify the actual access-check boundary instead: its own SID must work while the
@@ -194,7 +263,8 @@ internal sealed class SandboxProcess : IDisposable
                 }
                 finally { Marshal.FreeHGlobal(privileges); SandboxNative.LocalFree(descriptor); }
             }
-            if (CanAccess("AC") || !CanAccess(expected.Value)) throw new InvalidOperationException("LPAC access isolation is required.");
+            if (CanAccess("AC") || !CanAccess(expected.Value) || (parentPackageSid is not null && CanAccess(parentPackageSid)))
+                throw new InvalidOperationException("LPAC access isolation is required.");
         }
         finally { SandboxNative.CloseHandle(impersonation); }
     }
