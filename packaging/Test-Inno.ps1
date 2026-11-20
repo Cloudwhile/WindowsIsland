@@ -96,8 +96,32 @@ function Exercise-Update([string[]]$distribution) {
 }
 $mode = if ($Machine) { @('/ALLUSERS','/PORTABLE=0') } else { @('/CURRENTUSER','/PORTABLE=1') }
 try {
+    if ($source -notmatch '(?m)^PrivilegesRequired=admin\r?$' -or
+        $source -notmatch '(?m)^PrivilegesRequiredOverridesAllowed=commandline\r?$' -or
+        $source -match '\{srcexe\}') {
+        throw 'Installer must default to native Inno elevation without self-relaunching {srcexe}.'
+    }
     & $compiler '/Q' "/DAppVersion=$version" "/DPublishDirectory=$payload" "/DPackagingDirectory=$packaging" "/DOutputDirectory=$work" (Join-Path $packaging 'WindowsIsland.iss')
     if ($LASTEXITCODE -ne 0) { throw 'Isolated Inno build failed.' }
+    $stream = [IO.File]::OpenRead($installer)
+    try {
+        $headerBytes = [byte[]]::new([Math]::Min(2097152L, $stream.Length))
+        $readCount = $stream.Read($headerBytes, 0, $headerBytes.Length)
+        $manifestText = [Text.Encoding]::ASCII.GetString($headerBytes, 0, $readCount)
+    } finally { $stream.Dispose() }
+    if ($manifestText -notmatch 'requestedExecutionLevel\s+level="asInvoker"') {
+        throw 'Installer manifest must remain asInvoker so /CURRENTUSER portable mode stays unelevated.'
+    }
+    $decoy = Join-Path $work 'decoy-cwd'
+    New-Item -ItemType Directory -Path $decoy -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $decoy 'portable.marker'), '', [Text.UTF8Encoding]::new($false))
+    $rejected = Start-Process -FilePath $installer -WorkingDirectory $decoy -ArgumentList @('/CURRENTUSER','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/LOG="' + (Join-Path $work 'reject-currentuser.log') + '"')) -WindowStyle Hidden -PassThru
+    try {
+        if (!$rejected.WaitForExit(30000) -or $rejected.ExitCode -eq 0) {
+            throw 'Installer must reject non-portable /CURRENTUSER invocations and ignore portable.marker in the working directory.'
+        }
+    } finally { $rejected.Dispose() }
+    'PASS installer defaults to native admin elevation while keeping asInvoker manifest and rejecting non-portable /CURRENTUSER'
     Run-Installer $installer ($mode + @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="' + $installed + '"'),('/LOG="' + (Join-Path $work 'install.log') + '"')))
     foreach ($file in @('WindowsIsland.exe','Unregister-Package.ps1','en-US/WindowsIsland.resources.dll')) {
         if (!(Test-Path -LiteralPath (Join-Path $installed $file))) { throw "Missing installed file: $file" }

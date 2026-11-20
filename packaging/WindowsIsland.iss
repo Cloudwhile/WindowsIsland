@@ -18,7 +18,7 @@ DefaultDirName={code:GetDefaultDirName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 UsePreviousAppDir=yes
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -111,27 +111,21 @@ end;
 
 function InitializeSetup(): Boolean;
 var
-  Mode, Directory, Parameters: String;
-  Index, ResultCode: Integer;
+  Mode, Directory: String;
   EventHandle: THandle;
   EventName: String;
 begin
   Directory := ExpandConstant('{param:DIR|}');
   Mode := ExpandConstant('{param:PORTABLE|auto}');
-  PortableMode := (Mode = '1') or ((Mode = 'auto') and FileExists(AddBackslash(Directory) + 'portable.marker'));
+  PortableMode := (Mode = '1') or ((Mode = 'auto') and (Directory <> '') and FileExists(AddBackslash(Directory) + 'portable.marker'));
   Result := True;
   if IsPortable() then begin
     if IsAdminInstallMode then begin
-      SuppressibleMsgBox('Portable mode requires a non-elevated installation. Remove /ALLUSERS.', mbError, MB_OK, IDOK);
+      SuppressibleMsgBox('Portable mode requires a non-elevated installation. Pass /CURRENTUSER with /PORTABLE=1.', mbError, MB_OK, IDOK);
       Result := False;
     end;
   end else if not IsAdminInstallMode then begin
-    { Inno handles the /ALLUSERS elevation and retains its original-user token. }
-    Parameters := '/ALLUSERS';
-    for Index := 1 to ParamCount do
-      if (CompareText(ParamStr(Index), '/CURRENTUSER') <> 0) and (CompareText(ParamStr(Index), '/ALLUSERS') <> 0) then
-        Parameters := Parameters + ' "' + ParamStr(Index) + '"';
-    ShellExec('', ExpandConstant('{srcexe}'), Parameters, '', SW_SHOWNORMAL, ewNoWait, ResultCode);
+    SuppressibleMsgBox('Standard installation requires administrator privileges. Remove /CURRENTUSER or pass /PORTABLE=1 for portable mode.', mbError, MB_OK, IDOK);
     Result := False;
   end;
   if Result and IsUpdate() then begin
