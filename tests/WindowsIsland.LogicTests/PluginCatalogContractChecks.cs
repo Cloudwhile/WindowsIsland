@@ -13,7 +13,7 @@ internal static class PluginCatalogContractChecks
     internal static void Check(bool condition, string message) => PluginDirectoryChecks.Check(condition, message);
     internal static string Root() => Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "catalog-contract", Guid.NewGuid().ToString("N"));
     internal static PluginSource Source(string developer = "winiofficial", string? address = null) => new(developer, "开发者", "https://github.com/example/plugins",
-        (address ?? PluginCatalogClient.DefaultBaseUrl) + "api/sources/" + developer + "/plugins");
+        (address ?? PluginCatalogClient.DefaultBaseUrl) + "api/v2/sources/" + developer + "/plugins");
     internal static PluginCatalogEntry Entry(string developer = "winiofficial", string id = "wini_plugin_fixture") => new(id, "示例插件", "1.0.0",
         "https://github.com/example/plugins/releases/download/v1.0.0/plugin.zip", new string('a', 64), "0.0.0", 1,
         ["notifications", "settings"], "", "https://github.com/example/plugins", developer);
@@ -31,7 +31,7 @@ internal static class PluginCatalogContractChecks
             Hygienic &= request.Method == HttpMethod.Get && request.Headers.CacheControl?.NoCache == true
                 && request.Headers.All(h => h.Key.Equals("Cache-Control", StringComparison.OrdinalIgnoreCase))
                 && !request.RequestUri!.OriginalString.Contains('?');
-            return Send is not null ? Send(request, token) : Task.FromResult(Response(request.RequestUri!.AbsolutePath.EndsWith("/api/sources", StringComparison.Ordinal) ? Sources : Plugins));
+            return Send is not null ? Send(request, token) : Task.FromResult(Response(request.RequestUri!.AbsolutePath.EndsWith("/api/v2/sources", StringComparison.Ordinal) ? Sources : Plugins));
         }
     }
     internal static HttpResponseMessage Response(string json, HttpStatusCode status = HttpStatusCode.OK) => new(status)
@@ -43,6 +43,7 @@ internal static class PluginCatalogContractChecks
     public static async Task RunAsync()
     {
         await PluginPlatformContractChecks.RunAsync();
+        await PluginCatalogV2Checks.RunAsync();
         await ValidationAsync();
         await TransportAsync();
         await PluginCatalogCacheChecks.RunAsync();
@@ -87,7 +88,7 @@ internal static class PluginCatalogContractChecks
         {
             ("C17", Entry() with { Id = "wini_plugin_countdown" }), ("C17", Entry() with { Id = "wini_plugin_System" }),
             ("C17", Entry() with { Id = "wini_plugin_1x" }), ("C17", Entry() with { Id = "wini_plugin_" + new string('a',69) }),
-            ("C18", Entry() with { DeveloperId = "other" }), ("C18", Entry() with { RepositoryUrl = "https://github.com/Example/plugins" }),
+            ("C18", Entry() with { DeveloperId = "other" }), ("C18", Entry() with { RepositoryUrl = "https://github.com/example/plugins.git" }),
             ("C19", Entry() with { Name = "" }), ("C19", Entry() with { Name = new string('a',201) }),
             ("C19", Entry() with { Description = new string('a',8001) }), ("C19", Entry() with { Description = null! }),
             ("C20", Entry() with { Version = "v1.0.0" }), ("C20", Entry() with { Version = "1.00.0" }),
@@ -141,7 +142,7 @@ internal static class PluginCatalogContractChecks
         using var client = new PluginCatalogClient(transport);
         var empty = await client.FetchAsync(PluginCatalogClient.DefaultBaseUrl, default);
         Check(empty.Listed.Length == 0 && empty.Failures.Length == 0 && transport.Hygienic
-            && transport.Requests.Single().AbsolutePath == "/api/sources", "C5/C6/C9/C12/C33: empty official directory is valid; requests are anonymous exact GETs with no-cache");
+            && transport.Requests.Single().AbsolutePath == "/api/v2/sources", "C5/C6/C9/C12/C33: empty official directory is valid; requests are anonymous exact GETs with no-cache");
         transport.Sources = Json(Enumerable.Range(0,512).Select(i => Source("dev"+i)));
         transport.Plugins = "[]";
         var boundary = await client.FetchAsync(PluginCatalogClient.DefaultBaseUrl, default);

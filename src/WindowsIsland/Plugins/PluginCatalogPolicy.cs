@@ -27,19 +27,19 @@ internal static partial class PluginCatalogPolicy
         if (source is null || !Identifier(source.DeveloperId, 64)) Fail(PluginErrorCode.SourceMetadata, "C13");
         if (string.IsNullOrWhiteSpace(source!.DeveloperName) || source.DeveloperName.Length > 200 || !Repository(source.RepositoryUrl))
             Fail(PluginErrorCode.SourceMetadata, "C14");
-        if (source.IndexUrl != baseUri.AbsoluteUri + "api/sources/" + source.DeveloperId + "/plugins") Fail(PluginErrorCode.SourceMetadata, "C15");
+        if (source.IndexUrl != baseUri.AbsoluteUri + "api/v2/sources/" + source.DeveloperId + "/plugins") Fail(PluginErrorCode.SourceMetadata, "C15");
     }
     public static void Entry(PluginCatalogEntry? entry, PluginSource source)
     {
         if (entry is null || !PluginId.IsValid(entry.Id) || entry.Id.Length > 80 || PluginManifestReader.Reserved(entry.Id)) Fail(PluginErrorCode.IndexMetadata, "C17");
-        if (entry!.DeveloperId != source.DeveloperId || entry.RepositoryUrl != source.RepositoryUrl) Fail(PluginErrorCode.IndexMetadata, "C18");
+        if (entry!.DeveloperId != source.DeveloperId || !Repository(entry.RepositoryUrl)) Fail(PluginErrorCode.IndexMetadata, "C18");
         if (string.IsNullOrWhiteSpace(entry.Name) || entry.Name.Length > 200 || entry.Description is null || entry.Description.Length > 8000) Fail(PluginErrorCode.IndexMetadata, "C19");
         if (!CatalogVersion.TryParse(entry.Version, out _) || !CatalogVersion.TryParse(entry.MinHostVersion, out _)) Fail(PluginErrorCode.IndexMetadata, "C20");
         if (entry.ContractVersion < 1) Fail(PluginErrorCode.IndexMetadata, "C21");
         if (entry.Permissions is null || entry.Permissions.Length > 64 || entry.Permissions.Any(p => !Identifier(p, 80))
             || entry.Permissions.Distinct(StringComparer.Ordinal).Count() != entry.Permissions.Length) Fail(PluginErrorCode.IndexMetadata, "C22");
         if (entry.Sha256 is not { Length: 64 } || !entry.Sha256.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) Fail(PluginErrorCode.IndexMetadata, "C23");
-        if (!Download(entry.DownloadUrl, source.RepositoryUrl)) Fail(PluginErrorCode.IndexMetadata, "C24");
+        if (!Download(entry.DownloadUrl, entry.RepositoryUrl)) Fail(PluginErrorCode.IndexMetadata, "C24");
         try
         {
             PluginManifestReader.ValidateSecurityMetadata(new(entry.Id, entry.Name, entry.Version, "unused.dll", "Unused",

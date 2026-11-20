@@ -24,7 +24,7 @@ internal sealed class PluginCatalogClient : IDisposable
     public async Task<PluginCatalogFetch> FetchAsync(string address, CancellationToken token)
     {
         var baseUri = new Uri(PluginCatalogPolicy.BaseAddress(address));
-        var sources = await JsonAsync<PluginSource>(new Uri(baseUri, "api/sources"), token);
+        var sources = await JsonAsync<PluginSource>(new Uri(baseUri, "api/v2/sources"), token);
         if (sources.Length > 512) throw new PluginException(PluginErrorCode.SourceList, "目录来源列表过大。", "C16");
         if (sources.Any(s => s is null)
             || sources.Select(s => s.DeveloperId).Distinct(StringComparer.Ordinal).Count() != sources.Length)

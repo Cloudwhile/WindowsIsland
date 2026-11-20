@@ -3,7 +3,7 @@
     "developerId": "winiofficial",
     "developerName": "WindowsIsland",
     "repositoryUrl": "https://github.com/example/plugins",
-    "pluginsUrl": "https://wini-plugins.abszero.cc/api/sources/winiofficial/plugins"
+    "pluginsUrl": "https://wini-plugins.abszero.cc/api/v2/sources/winiofficial/plugins"
   },
   "entry": {
     "id": "wini_plugin_demo",

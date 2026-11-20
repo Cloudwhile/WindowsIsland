@@ -30,7 +30,32 @@ internal static class PluginSourceChecks
         var entry = new PluginCatalogEntry(manifest.Id, manifest.Name, manifest.Version,
             "https://github.com/example/plugins/releases/download/v1.0.0/plugin.zip", Convert.ToHexStringLower(SHA256.HashData(mock.Package)),
             "0.0.0", PluginContract.Version, manifest.Permissions, "测试来源", manifest.RepositoryUrl, manifest.DeveloperId);
-        mock.Sources = JsonSerializer.Serialize(new[] { new PluginSource("example", "示例开发者", manifest.RepositoryUrl, new Uri(new Uri(PluginCatalogClient.DefaultBaseUrl), "api/sources/example/plugins").AbsoluteUri) });
+        var source = new PluginSource("example", "示例开发者", "https://github.com/example/representative",
+            new Uri(new Uri(PluginCatalogClient.DefaultBaseUrl), "api/v2/sources/example/plugins").AbsoluteUri);
+        mock.Sources = JsonSerializer.Serialize(new[] { source });
+        mock.Plugins = JsonSerializer.Serialize(new[] { entry });
+        await library.Catalog.RefreshAsync();
+        var second = entry with { Id = "wini_plugin_second", RepositoryUrl = "https://github.com/another/second",
+            DownloadUrl = "https://github.com/another/second/releases/download/v1.0.0/second.zip" };
+        mock.Plugins = JsonSerializer.Serialize(new[] { entry, second });
+        await library.Catalog.RefreshAsync();
+        var mixed = library.Catalog.State.Sources.Single();
+        Check(!library.Catalog.State.Unavailable && mixed.Plugins.Length == 2,
+            "V2 HTTP: a representative source repository does not constrain either plugin repository");
+        foreach (var invalid in new[] { second with { DownloadUrl = entry.DownloadUrl }, second with { DeveloperId = "other" } })
+        {
+            mock.Plugins = JsonSerializer.Serialize(new[] { entry, invalid });
+            await library.Catalog.RefreshAsync();
+            Check(library.Catalog.State.Failure == PluginErrorCode.IndexMetadata
+                && ReferenceEquals(mixed, library.Catalog.State.Sources.Single()),
+                "V2 HTTP: cross-repository downloads and cross-developer entries reject the whole index and retain cache");
+        }
+        mock.Sources = JsonSerializer.Serialize(new[] { source with { IndexUrl = source.IndexUrl.Replace("/v2/", "/") } });
+        await library.Catalog.RefreshAsync();
+        Check(library.Catalog.State.Failure == PluginErrorCode.SourceMetadata
+            && ReferenceEquals(mixed, library.Catalog.State.Sources.Single()),
+            "V2 HTTP: a legacy v1 plugins URL cannot redirect the explicit v2 client or replace its cache");
+        mock.Sources = JsonSerializer.Serialize(new[] { source });
         mock.Plugins = JsonSerializer.Serialize(new[] { entry });
         await library.Catalog.RefreshAsync();
         await CheckProxyAsync(paths, library.Catalog);
@@ -263,7 +288,7 @@ internal static class PluginSourceChecks
                     HttpListenerContext context;
                     try { context = await _listener.GetContextAsync(); } catch (Exception) { break; }
                     var path = context.Request.Url!.AbsolutePath;
-                    var bytes = path == "/package.zip" ? Package : Encoding.UTF8.GetBytes(path == "/api/sources" ? Sources : Plugins);
+                    var bytes = path == "/package.zip" ? Package : Encoding.UTF8.GetBytes(path == "/api/v2/sources" ? Sources : Plugins);
                     context.Response.StatusCode = Fail || FailPlugins && path.EndsWith("/plugins", StringComparison.Ordinal) ? 503 : 200;
                     context.Response.ContentType = path == "/package.zip" ? "application/zip" : "application/json";
                     context.Response.ContentLength64 = bytes.Length;

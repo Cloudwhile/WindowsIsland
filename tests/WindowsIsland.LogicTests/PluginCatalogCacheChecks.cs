@@ -34,8 +34,8 @@ internal static class PluginCatalogCacheChecks
         foreach (var address in new[] { "http://localhost:8080/", "http://127.0.0.1/", "http://[::1]/", "https://example.com/sub///" })
             Check(PluginCatalogPolicy.BaseAddress(address).EndsWith('/') && !PluginCatalogPolicy.BaseAddress(address).EndsWith("//"), "C2/C5: HTTPS or loopback HTTP base normalizes trailing slashes");
         Check(!catalog.State.Unavailable && catalog.State.BaseUrl == PluginCatalogClient.DefaultBaseUrl
-            && transport.Requests[^2].AbsoluteUri == PluginCatalogClient.DefaultBaseUrl + "api/sources"
-            && transport.Requests[^1].AbsoluteUri == PluginCatalogClient.DefaultBaseUrl + "api/sources/winiofficial/plugins",
+            && transport.Requests[^2].AbsoluteUri == PluginCatalogClient.DefaultBaseUrl + "api/v2/sources"
+            && transport.Requests[^1].AbsoluteUri == PluginCatalogClient.DefaultBaseUrl + "api/v2/sources/winiofficial/plugins",
             "C1/C5: the host uses the fixed official source and exact endpoints");
         using (var restarted = new PluginCatalogService(paths))
         {

@@ -8,7 +8,7 @@ namespace WindowsIsland.Plugins;
 
 internal sealed record PluginCatalogState(string BaseUrl, PluginSourceIndex[] Sources, bool Busy = false, bool Unavailable = false,
     bool Fresh = false, DateTimeOffset? LastSync = null, string GitHubProxy = "", bool Disabled = false,
-    PluginErrorCode? Failure = null, string[]? Listed = null, string[]? Known = null, string[]? FreshDevelopers = null)
+    PluginErrorCode? Failure = null, string[]? Listed = null, string[]? Known = null, string[]? FreshDevelopers = null, int CatalogVersion = 2)
 {
     [JsonIgnore] public PluginSourceIndex[] AvailableSources => Disabled ? [] : Sources.Where(s =>
         Listed is null || Listed.Contains(s.Source.DeveloperId, StringComparer.Ordinal)).ToArray();
@@ -49,7 +49,8 @@ internal sealed class PluginCatalogService : IDisposable
             try { proxy = GitHubDownloadProxy.Normalize(proxy); } catch (PluginException) { proxy = ""; }
             // 旧版自定义源的缓存不能作为官方目录使用；独立保留有效的下载代理。
             lock (_gate) if (!_disposed && !_attempted) _state = new(address, [], GitHubProxy: proxy);
-            if (json["baseUrl"] is not JsonValue b || !b.TryGetValue<string>(out var raw) || raw != address) return;
+            if (json["baseUrl"] is not JsonValue b || !b.TryGetValue<string>(out var raw) || raw != address
+                || json["catalogVersion"] is not JsonValue v || !v.TryGetValue<int>(out var version) || version != 2) return;
             json["baseUrl"] = address;
             json["gitHubProxy"] = proxy;
             var cached = json.Deserialize<PluginCatalogState>(PluginManifestReader.Json) ?? throw new JsonException();

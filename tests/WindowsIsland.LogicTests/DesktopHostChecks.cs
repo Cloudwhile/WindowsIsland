@@ -171,9 +171,9 @@ internal static class DesktopHostChecks
             var address = request.RequestUri?.AbsoluteUri;
             HttpContent content = address switch
             {
-                PluginCatalogClient.DefaultBaseUrl+"api/sources" => new StringContent(JsonSerializer.Serialize(new[] {
-                    new PluginSource(entry.DeveloperId,"winiofficial",entry.RepositoryUrl,PluginCatalogClient.DefaultBaseUrl+"api/sources/"+entry.DeveloperId+"/plugins") },PluginManifestReader.Json)),
-                PluginCatalogClient.DefaultBaseUrl+"api/sources/winiofficial/plugins" => new StringContent(JsonSerializer.Serialize(new[]{entry},PluginManifestReader.Json)),
+                PluginCatalogClient.DefaultBaseUrl+"api/v2/sources" => new StringContent(JsonSerializer.Serialize(new[] {
+                    new PluginSource(entry.DeveloperId,"winiofficial",entry.RepositoryUrl,PluginCatalogClient.DefaultBaseUrl+"api/v2/sources/"+entry.DeveloperId+"/plugins") },PluginManifestReader.Json)),
+                PluginCatalogClient.DefaultBaseUrl+"api/v2/sources/winiofficial/plugins" => new StringContent(JsonSerializer.Serialize(new[]{entry},PluginManifestReader.Json)),
                 _ when address==entry.DownloadUrl=>new ByteArrayContent(package),
                 _=>throw new InvalidOperationException("Unexpected catalog request.")
             };

@@ -30,7 +30,7 @@ internal static class PluginCatalogSecurityChecks
             Permissions = Permissions, Author = "作者", Network = new(["https://example.com"], "上传插件自有状态", ["插件状态"]) };
         if (sourceNotice && !developerNotice) manifest = manifest with { Network = null };
         var package = await File.ReadAllBytesAsync(PluginInstallationChecks.Zip(root,manifest));
-        var transport = new Transport { Sources = Json(new[] { Source(developer) }) };
+        var transport = new Transport { Sources = Json(new[] { Source(developer) with { RepositoryUrl = "https://github.com/example/representative" } }) };
         var entry = Entry(developer) with { Permissions = Permissions, Sha256 = Convert.ToHexStringLower(SHA256.HashData(package)) };
         if (sourceNotice) entry = entry with { Network = new(["https://example.org"], "默认插件源提供的用途", ["插件自有内容"], "默认插件源提供的联网须知") };
         transport.Plugins = Json(new[] { entry });
@@ -105,11 +105,13 @@ internal static class PluginCatalogSecurityChecks
                     && manager.Snapshot().Single().StatusKey == "Off" && PluginManifestReader.Read(code+".bak").Version == "1.0.0",
                     "C7/C21-C24/C32: rejected new index leaves installed instance, enablement, backup and old cache untouched");
             }
-            foreach (var mismatch in new[] { "hash", "id", "version" })
+            foreach (var mismatch in new[] { "hash", "id", "version", "repository", "developer" })
             {
                 var payload = manifest with { Version = "3.0.0" };
                 if (mismatch == "id") payload = payload with { Id = "wini_plugin_other" };
                 if (mismatch == "version") payload = payload with { Version = "3.0.1" };
+                if (mismatch == "repository") payload = payload with { RepositoryUrl = "https://github.com/example/representative" };
+                if (mismatch == "developer") payload = payload with { DeveloperId = "other" };
                 package = await File.ReadAllBytesAsync(PluginInstallationChecks.Zip(root,payload));
                 var candidate = entry with { Version = "3.0.0", Sha256 = mismatch == "hash" ? new string('0',64) : Convert.ToHexStringLower(SHA256.HashData(package)) };
                 transport.Plugins = Json(new[] { candidate });
