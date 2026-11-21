@@ -74,7 +74,11 @@ internal static class PluginConsentPolicy
     {
         var path = PluginHostFiles.PathFor(external.HostRoot, "host-settings", external.Manifest.Id);
         PluginPaths.CheckLinks(path + ".tmp");
-        if (File.Exists(path + ".tmp")) PluginFileSafety.CheckSingleLink(path + ".tmp");
+        if (File.Exists(path + ".tmp"))
+        {
+            PluginFileSafety.CheckSingleLink(path + ".tmp");
+            if (OperatingSystem.IsWindows()) SandboxAccess.ProtectHostFile(path + ".tmp");
+        }
         return path;
     }
     internal static string? ReadGeneration(string root, string id)

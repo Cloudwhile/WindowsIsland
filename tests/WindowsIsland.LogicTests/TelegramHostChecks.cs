@@ -115,8 +115,7 @@ internal static class TelegramHostChecks
         {
             await manager.ShutdownAsync();
             if (external is not null) await external.VerifyUnloadAsync();
-            var digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(paths.Root.ToUpperInvariant()+"\n"+Manifest.Id)))[..40].ToLowerInvariant();
-            DeleteAppContainerProfile("WindowsIsland.Plugin."+digest);
+            DeleteAppContainerProfile(SandboxProcess.ProfileName(paths.Root, Manifest.Id));
         }
         async Task UntilAsync(Func<bool> condition)
         {

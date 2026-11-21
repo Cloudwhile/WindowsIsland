@@ -34,6 +34,7 @@ internal static class PluginSettingsUiChecks
         }
         try
         {
+            if (OperatingSystem.IsWindows()) SandboxAccess.ResetHostDataRootProtection();
             var store = new SettingsStore(Path.Combine(output, "verification-settings.json"));
             store.Save(new(SetupCompleted: true, SystemNotifications: false, WeChat: false, Telegram: false, Power: false));
             Diagnostics.Initialize(Path.Combine(output, "verification-diagnostics"), true);

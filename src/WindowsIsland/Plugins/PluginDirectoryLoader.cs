@@ -15,6 +15,7 @@ internal sealed class ExternalPlugin(PluginPaths paths, PluginManifest manifest,
     public PluginTrust Trust => PluginTrust.Read(this);
     public IMessageSource Create()
     {
+        if (OperatingSystem.IsWindows()) SandboxAccess.EnsureHostDataRootProtected();
         PluginManifestReader.ValidateForHost(Manifest, ReleaseVersion.Current.Tag);
         if (!PluginConsentPolicy.HasConsent(this)) throw new UnauthorizedAccessException("Plugin consent is required.");
         PluginPaths.CheckTree(Directory);

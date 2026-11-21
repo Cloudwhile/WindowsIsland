@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Text;
+using WindowsIsland.Plugins;
 
 namespace WindowsIsland.PluginSecurityTests;
 
@@ -16,11 +15,11 @@ internal static class ProfileCleanup
         foreach (var id in new[] { "wini_plugin_security_fixture", "wini_plugin_security_peer", "wini_plugin_security_lifecycle", "wini_plugin_security_stopping" })
         {
             var hostRoot = Path.Combine(root, "host-private");
-            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(hostRoot).ToUpperInvariant() + "\n" + id)))[..40].ToLowerInvariant();
+            var profile = SandboxProcess.ProfileName(hostRoot, id);
             var result = 0;
             for (var retry = 0; retry < 5; retry++)
             {
-                result = DeleteAppContainerProfile("WindowsIsland.Plugin." + hash);
+                result = DeleteAppContainerProfile(profile);
                 if (result >= 0 || result is unchecked((int)0x80070002) or unchecked((int)0x80070490)) break;
                 await Task.Delay(50);
             }

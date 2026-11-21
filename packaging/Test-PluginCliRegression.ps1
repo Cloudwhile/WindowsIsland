@@ -52,7 +52,7 @@ foreach($mode in @('wrong-source','no-permission','invalid-pinned','throw-start'
     $cleanup=Get-Content "$($test[0].FullName)/cleanup.json" -Raw | ConvertFrom-Json
     Assert ($cleanup.profileRemoved -and $cleanup.allWorkersExited) "$mode confirms worker exit and container cleanup"
     $sha=[Security.Cryptography.SHA256]::Create()
-    try {$identity=[BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($test[0].FullName.ToUpperInvariant()+"`n"+'wini_plugin_cli_regression'))).Replace('-','').Substring(0,40).ToLowerInvariant()}
+    try {$identity=[BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($test[0].FullName.ToUpperInvariant()+"`n"+'wini_plugin_cli_regression'))).Replace('-','').Substring(0,28).ToLowerInvariant()}
     finally {$sha.Dispose()}
     $sidPointer=[IntPtr]::Zero
     [Runtime.InteropServices.Marshal]::ThrowExceptionForHR([CliRegressionProfile]::DeriveAppContainerSidFromAppContainerName('WindowsIsland.Plugin.'+$identity,[ref]$sidPointer))

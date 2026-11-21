@@ -8,7 +8,11 @@ internal static class PluginHostFiles
         var directory = PluginPaths.Relative(root, area);
         if (OperatingSystem.IsWindows()) SandboxAccess.ProtectHostDirectory(directory);
         var path = PluginPaths.Relative(directory, id + ".json");
-        if (File.Exists(path)) PluginFileSafety.CheckSingleLink(path);
+        if (File.Exists(path))
+        {
+            PluginFileSafety.CheckSingleLink(path);
+            if (OperatingSystem.IsWindows()) SandboxAccess.ProtectHostFile(path);
+        }
         return path;
     }
 

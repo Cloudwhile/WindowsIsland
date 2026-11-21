@@ -157,6 +157,11 @@ internal sealed partial class PluginManager : IDisposable
                 var operation = "Create";
                 try
                 {
+                    if (external is not null && OperatingSystem.IsWindows())
+                    {
+                        await Task.Run(SandboxAccess.EnsureHostDataRootProtected);
+                        if (!StillEnabled()) continue;
+                    }
                     var plugin = external is null ? entry.Registration.Create() : await Task.Run(entry.Registration.Create);
                     if (!StillEnabled())
                     {
@@ -210,7 +215,8 @@ internal sealed partial class PluginManager : IDisposable
                 }
                 catch (Exception error)
                 {
-                    if (!_disposed && (starting is null || ReferenceEquals(entry.Plugin, starting))) Fail(entry, error, operation);
+                    if (!_disposed && (starting is null ? StillEnabled() : ReferenceEquals(entry.Plugin, starting)))
+                        Fail(entry, error, operation);
                 }
             }
         }

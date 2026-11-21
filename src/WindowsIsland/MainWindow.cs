@@ -23,7 +23,7 @@ public sealed partial class MainWindow : Window
         IsHitTestVisible = false
     };
     private readonly PluginManager _plugins;
-    private readonly PluginLibrary _pluginLibrary;
+    private readonly PluginLibrary? _pluginLibrary;
     private readonly SettingsStore _settings;
     private readonly UpdateCheckService _updates;
     private SettingsWindow? _settingsWindow;
@@ -102,10 +102,13 @@ public sealed partial class MainWindow : Window
         AppWindow.Hide();
         NativeWindow.ConfigureOverlay(_hwnd);
         _plugins = BuiltInPlugins.Create(new(DispatcherQueue, _hwnd, verification), settings);
-        var pluginPaths = new PluginPaths(verification ? Path.Combine(AppContext.BaseDirectory, "verification-plugins") : null);
-        _plugins.ConfigureDirectories(pluginPaths);
-        InitializePluginApprovals();
-        _pluginLibrary = new PluginLibrary(_plugins, pluginPaths, settings: settings);
+        if (!verification)
+        {
+            var pluginPaths = new PluginPaths();
+            _plugins.ConfigureDirectories(pluginPaths);
+            InitializePluginApprovals();
+            _pluginLibrary = new PluginLibrary(_plugins, pluginPaths, settings: settings);
+        }
         _updates.Changed += OnUpdateCheckChanged;
         _plugins.Received += ReceiveNotification;
         _plugins.PinnedChanged += ReceivePinned;
@@ -163,7 +166,7 @@ public sealed partial class MainWindow : Window
             _settings.Changed -= OnSettingsChanged;
             _updates.Dispose();
             _updates.Changed -= OnUpdateCheckChanged;
-            _pluginLibrary.Dispose();
+            _pluginLibrary?.Dispose();
             _pulse.Stop();
             _motion.Dispose();
             _root.Dispose();
@@ -185,7 +188,7 @@ public sealed partial class MainWindow : Window
     {
         if (_started || _closed || _exitTask is not null) return;
         _started = true;
-        await _pluginLibrary.Catalog.LoadAsync();
+        if (_pluginLibrary is not null) await _pluginLibrary.Catalog.LoadAsync();
         if (_closed || _exitTask is not null) return;
         if (!_verification) _ = _updates.StartOnce();
         await PollGameModeAsync();
@@ -211,7 +214,7 @@ public sealed partial class MainWindow : Window
 
     private void OnUpdateCheckChanged()
     {
-        if (!_verification && !_closed && _updates.State.Busy) _ = _pluginLibrary.Catalog.RefreshAsync();
+        if (!_verification && !_closed && _updates.State.Busy && _pluginLibrary is not null) _ = _pluginLibrary.Catalog.RefreshAsync();
     }
 
     private async Task InitializeApplicationAsync()
