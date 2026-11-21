@@ -10,7 +10,7 @@ if (args.FirstOrDefault() == "--plugin-contract")
 if (args is ["--sandbox-profile"])
 {
     var profileChecks = 0;
-    WindowsIsland.LogicTests.SandboxProfileChecks.Run((condition, name) =>
+    await WindowsIsland.LogicTests.SandboxProfileChecks.RunAsync((condition, name) =>
     {
         if (!condition) throw new InvalidOperationException(name);
         profileChecks++;
@@ -272,7 +272,7 @@ await DiagnosticReportCacheChecks.RunAsync(Check);
 await WindowsIsland.LogicTests.PluginDirectoryChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginNotificationChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginIsolationProtocolChecks.RunAsync();
-WindowsIsland.LogicTests.SandboxProfileChecks.Run(Check);
+await WindowsIsland.LogicTests.SandboxProfileChecks.RunAsync(Check);
 await WindowsIsland.LogicTests.PluginNetworkBrokerChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginProxyLifecycleChecks.RunAsync();
 await WindowsIsland.LogicTests.PluginEvolutionChecks.RunAsync();

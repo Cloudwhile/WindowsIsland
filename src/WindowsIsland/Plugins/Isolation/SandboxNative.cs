@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace WindowsIsland.Plugins;
 
@@ -57,4 +58,25 @@ internal static class SandboxNative
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode)] internal static extern uint SetNamedSecurityInfo(string path, uint objectType, uint information, nint owner, nint group, nint dacl, nint sacl);
     [DllImport("kernel32.dll")] internal static extern nint LocalFree(nint pointer);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] internal static extern int GetCurrentPackageFamilyName(ref uint length, StringBuilder? name);
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct FileInformation
+    {
+        public uint Attributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME Created, Accessed, Written;
+        public uint VolumeSerial, SizeHigh, SizeLow, NumberOfLinks, IndexHigh, IndexLow;
+    }
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern SafeFileHandle CreateFile(string fileName, uint desiredAccess, uint shareMode, nint securityAttributes, uint creationDisposition, uint flagsAndAttributes, nint templateFile);
+    [DllImport("kernel32.dll")] internal static extern nint GetCurrentProcess();
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DuplicateHandle(nint sourceProcessHandle, SafeFileHandle sourceHandle, nint targetProcessHandle, out SafeFileHandle targetHandle, uint desiredAccess, bool inheritHandle, uint options);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetFileInformationByHandle(SafeFileHandle handle, out FileInformation information);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetSecurityDescriptorDacl(nint descriptor, out bool present, out nint dacl, out bool defaulted);
+    [DllImport("advapi32.dll")]
+    internal static extern uint SetSecurityInfo(SafeFileHandle handle, int objectType, uint securityInfo, nint owner, nint group, nint dacl, nint sacl);
 }

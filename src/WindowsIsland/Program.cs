@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using WindowsIsland.Plugins;
@@ -16,15 +17,30 @@ internal static class Program
         if (InitializationElevation.TryHandle(arguments, out result)) { Environment.ExitCode = result; return; }
         var verification = arguments.Contains("--verify-local");
         var appDataRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsIsland");
-        if (!verification && OperatingSystem.IsWindows())
+        Exception? hostDataProtectionError = null;
+        if (OperatingSystem.IsWindows())
         {
-            try { SandboxAccess.ProtectHostDataRoot(appDataRoot); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or PluginException) { }
+            if (verification) SandboxAccess.DisableExternalPlugins();
+            else
+            {
+                SandboxAccess.RequireHostDataRootProtection(appDataRoot);
+                try { SandboxAccess.ProtectHostDataRoot(appDataRoot); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or PluginException)
+                {
+                    hostDataProtectionError = error;
+                    SandboxAccess.RecordHostDataRootFailure(error);
+                }
+            }
         }
         var settings = new SettingsStore(verification ? Path.Combine(AppContext.BaseDirectory, "verification-settings.json") : null);
         Diagnostics.Initialize(verification ? Path.Combine(AppContext.BaseDirectory, "verification-diagnostics")
             : Path.Combine(appDataRoot, "Diagnostics"),
             settings.Current.LocalDiagnostics);
+        if (hostDataProtectionError is not null)
+        {
+            Diagnostics.Capture(DiagnosticArea.Application, hostDataProtectionError, "ProtectHostDataRoot");
+            Trace.WriteLine(hostDataProtectionError);
+        }
         AppDomain.CurrentDomain.UnhandledException += OnUnhandled;
         TaskScheduler.UnobservedTaskException += OnUnobserved;
         try

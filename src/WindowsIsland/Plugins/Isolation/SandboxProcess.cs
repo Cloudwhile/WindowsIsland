@@ -55,6 +55,7 @@ internal sealed class SandboxProcess : IDisposable
     private void Launch(SandboxLaunch plugin)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
+        SandboxAccess.EnsureHostDataRootProtected();
         PluginPaths.CheckTree(plugin.Directory);
         Directory.CreateDirectory(plugin.DataDirectory);
         SandboxAccess.ProtectHostDirectory(plugin.HostRoot);
