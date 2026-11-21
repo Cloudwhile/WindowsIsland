@@ -1,11 +1,12 @@
-# Windows Island v0.1.1
+# Windows Island v0.1.2
 
 消息岛将 Windows 桌面通知汇集到屏幕边缘，在你选择的位置显示应用图标、会话头像和消息内容，保持当前应用的输入焦点。
 
 ## 更新内容
 
-- 修复已初始化应用身份的打包宿主启动外部插件时因 AppContainer 名称超过 50 字符限制及隐式宿主包能力校验导致 LPAC 沙箱初始化失败（`0x80070057`）的问题。
-- 在宿主启动、插件授权记录读取与沙箱启动前加固宿主数据目录、设置、诊断与宿主专属插件记录的 ACL，并校验硬链接/重解析点；根目录加固未完成或处于验证模式时阻止启动外部插件。
+- 修复已初始化应用身份的打包宿主启动外部插件时，因 Desktop Bridge VFS 虚拟 AppData 路径无法被子 LPAC 进程访问导致 `WindowsIsland.PluginWorker` 在初始化就绪校验（`VerifyReadyAsync`）阶段退出的问题；启动子进程前统一解析真实 NTFS 物理路径。
+- 修复插件沙箱进程提前退出或管道断开时 `IsolationRpc` 误报 `TaskCanceledException` 并触发后台未观察任务异常（`UnobservedTaskException`）的问题。
+- 在沙箱就绪校验失败时将非零子进程退出码写入诊断异常 `HResult`，便于本机诊断导出定位原生启动状态。
 
 ## 功能
 
@@ -34,7 +35,7 @@
 
 适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。发布包已包含运行时。
 
-- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.1/WindowsIsland-0.1.1-win-x64.exe) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.1/WindowsIsland-0.1.1-win-x64.exe.sha256)
-- [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.1/WindowsIsland-0.1.1-win-x64.zip) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.1/WindowsIsland-0.1.1-win-x64.zip.sha256)
-- [插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.1/WindowsIsland.Contracts.0.1.1.nupkg) · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.1/WindowsIsland.Plugin.Cli.0.1.1.nupkg) · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.1/WindowsIsland.Plugin.Samples.0.1.1.zip)
+- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.exe) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.exe.sha256)
+- [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.zip) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.zip.sha256)
+- [插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Contracts.0.1.2.nupkg) · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Cli.0.1.2.nupkg) · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Samples.0.1.2.zip)
 - [使用文档](https://wini-docs.abszero.cc/) · [插件开发](https://wini-docs.abszero.cc/plugins)
