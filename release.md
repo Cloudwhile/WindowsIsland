@@ -1,41 +1,33 @@
 # Windows Island v0.1.2
 
-消息岛将 Windows 桌面通知汇集到屏幕边缘，在你选择的位置显示应用图标、会话头像和消息内容，保持当前应用的输入焦点。
+> [!IMPORTANT]
+>
+> 消息岛的维护更新版本，适用于 Windows 10 2004 及以上版本和 Windows 11（x64）设备，推荐已完成系统通知初始化并使用外部插件的用户升级。升级保留已有设置、已安装插件及本地数据。
 
-## 更新内容
+## Highlights
 
-- 修复已初始化应用身份的打包宿主启动外部插件时，因 Desktop Bridge VFS 虚拟 AppData 路径无法被子 LPAC 进程访问导致 `WindowsIsland.PluginWorker` 在初始化就绪校验（`VerifyReadyAsync`）阶段退出的问题；启动子进程前统一解析真实 NTFS 物理路径。
-- 修复插件沙箱进程提前退出或管道断开时 `IsolationRpc` 误报 `TaskCanceledException` 并触发后台未观察任务异常（`UnobservedTaskException`）的问题。
-- 在沙箱就绪校验失败时将非零子进程退出码写入诊断异常 `HResult`，便于本机诊断导出定位原生启动状态。
+- 修复已完成系统通知初始化的应用实例启动外部插件（如微信等独立插件）时初始化失败的问题。
+- 改善外部插件沙箱异常退出或连接断开时的错误处理，消除误报取消错误和后台未处理异常。
 
-## 功能
+## Fixed
 
-- 内置系统通知和电源来源，电源支持接入、充电、断电、充满及可配置的低电量、紧急低电与充电上限提醒；Telegram 与微信通过独立官方插件接入，收录状态以 **插件管理 → 发现插件** 列表为准，请从该列表安装并阅读条款后启用。各来源拥有独立开关、连接状态及重试入口。
-- 普通消息显示约五秒，新消息重新计时；跨来源的相同消息合并展示，重新连接不重放历史消息。
-- 支持插件固定内容、展开详情及按钮、开关、滑块交互；普通消息优先显示。
-- 提供八个位置、动画、毛玻璃、背景透明度和透明度过渡，适配 Windows 明暗主题。
-- 游戏与全屏静音可独立设置，系统免打扰单独控制。
-- 支持手动导入插件 ZIP、插件设置、启停、更新与删除；提供独立插件合约和开发文档。
-- 支持简体中文、English 和跟随系统，设置自动保存。
-- 应用内更新提供版本说明、下载进度、传输速率及中断续传，更新后保留偏好。
-- 本机诊断支持预览、复制、导出和清除，不自动上传报告。
+- 修复已初始化应用身份的宿主启动外部插件时，因受隔离插件进程无法读取打包虚拟目录中的运行时与插件文件而导致启动就绪失败的问题。
+- 修复外部插件进程提前退出或通信管道断开时误报取消错误并触发后台未观察任务异常的问题。
+- 完善插件隔离启动失败时的本机诊断信息，在不记录本地路径和异常正文的前提下保留非零进程退出状态码，便于本机导出排查。
 
-## 开始使用
+## Upgrade Notes
 
-1. 下载安装器，选择目录并按提示授权；也可完整解压便携包后运行 `WindowsIsland.exe`。
-2. 按需在 **初始化** 页完成系统通知初始化与通知访问授权。已连接的微信等独立来源和通知预览可直接使用。
-3. 在 **消息来源** 页开启需要的来源，在 **外观** 页调整位置与显示效果。
-4. 关闭设置后，消息岛继续在系统托盘运行；安装版可在初始化页开启开机自启。
+- 已安装版本可在设置 → **更新** 页直接检查并升级；也可手动下载 [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.exe)（[SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.exe.sha256)）覆盖安装，安装器会自动关闭同目录运行中的消息岛实例。
+- 便携版用户请先退出消息岛，再完整解压 [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.zip)（[SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.zip.sha256)）；删除便携目录前，请先在 **初始化** 页注销通知包登记并等待应用退出。
+- 插件开发资源：[插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Contracts.0.1.2.nupkg)（[SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Contracts.0.1.2.nupkg.sha256)） · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Cli.0.1.2.nupkg)（[SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Cli.0.1.2.nupkg.sha256)） · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Samples.0.1.2.zip)（[SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Samples.0.1.2.zip.sha256)）。
+- 升级保留既有设置、消息来源偏好、已安装插件与本地数据；**接收预发布更新** 默认关闭，可在更新页自行开启。
 
-安装器在覆盖安装时关闭同目录的消息岛实例。卸载保留用户数据；便携版删除前，请在初始化页注销通知包登记并等待应用退出。
+## Compatibility
 
-**接收预发布更新** 默认关闭，可在更新页自行开启。
+- Windows 10 2004 及以上版本、Windows 11，x64 设备；发布包已包含运行时。
+- 微信与 Telegram 等独立官方插件需通过 **插件管理 → 发现插件** 安装并启用，且对应桌面客户端已登录。
+- 检查更新和发现插件需要能够连接 GitHub、`raw.githubusercontent.com` 及插件目录服务（[使用文档](https://wini-docs.abszero.cc/) · [插件开发](https://wini-docs.abszero.cc/plugins)）。
 
-## 下载
+## Full Changelog
 
-适用于 Windows 10 2004 及以上版本和 Windows 11，x64 设备。发布包已包含运行时。
-
-- [Windows 安装器](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.exe) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.exe.sha256)
-- [ZIP 便携版](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.zip) · [SHA-256](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland-0.1.2-win-x64.zip.sha256)
-- [插件 SDK](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Contracts.0.1.2.nupkg) · [CLI 工具](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Cli.0.1.2.nupkg) · [插件示例](https://github.com/Cloudwhile/WindowsIsland/releases/download/v0.1.2/WindowsIsland.Plugin.Samples.0.1.2.zip)
-- [使用文档](https://wini-docs.abszero.cc/) · [插件开发](https://wini-docs.abszero.cc/plugins)
+[查看 v0.1.1 至 v0.1.2 的完整变更](https://github.com/Cloudwhile/WindowsIsland/compare/v0.1.1...v0.1.2)。
