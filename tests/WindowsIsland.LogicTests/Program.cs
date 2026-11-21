@@ -20,6 +20,12 @@ if (args is ["--sandbox-profile"])
     return;
 }
 
+if (args is ["--isolation-rpc"])
+{
+    await WindowsIsland.LogicTests.PluginIsolationProtocolChecks.RunAsync();
+    return;
+}
+
 if (args is ["--plugin-audit"])
 {
     await WindowsIsland.LogicTests.PluginStaticSettingsChecks.RunAsync();

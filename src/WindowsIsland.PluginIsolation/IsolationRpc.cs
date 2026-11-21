@@ -29,29 +29,41 @@ public sealed class IsolationRpc : IDisposable
 
     public async Task<T?> CallAsync<T>(string method, object? payload = null, CancellationToken token = default)
     {
-        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (string.IsNullOrEmpty(method) || method.Length > 48 || _pending.Count >= 32)
             throw new InvalidDataException("Invalid sandbox request.");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
-        timeout.CancelAfter(TimeSpan.FromMinutes(2));
+        using var callTimeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        callTimeout.CancelAfter(TimeSpan.FromMinutes(2));
+        using var writeTimeout = CancellationTokenSource.CreateLinkedTokenSource(callTimeout.Token, _lifetime.Token);
         var id = Interlocked.Increment(ref _sequence);
         var result = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!_pending.TryAdd(id, result)) throw new InvalidOperationException();
         try
         {
-            await WriteAsync(new(id, method, JsonSerializer.SerializeToElement(payload, Json)), timeout.Token);
-            var data = await result.Task.WaitAsync(timeout.Token);
+            if (Volatile.Read(ref _disposed) != 0)
+                throw new IOException("Sandbox connection closed.");
+            await WriteAsync(new(id, method, JsonSerializer.SerializeToElement(payload, Json)), writeTimeout.Token);
+            var data = await result.Task.WaitAsync(callTimeout.Token);
             return data.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined ? default : data.Deserialize<T>(Json);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested && !callTimeout.IsCancellationRequested)
+        {
+            throw new IOException("Sandbox connection closed.");
         }
         catch (OperationCanceledException)
         {
+            ObserveFault(result.Task);
             using var cancelWrite = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             cancelWrite.CancelAfter(TimeSpan.FromMilliseconds(500));
             try { await WriteAsync(new(id, null, JsonSerializer.SerializeToElement<object?>(null), Cancelled: true), cancelWrite.Token); }
             catch { Dispose(); }
             throw;
         }
-        finally { _pending.TryRemove(id, out _); }
+        finally
+        {
+            _pending.TryRemove(id, out _);
+            ObserveFault(result.Task);
+        }
     }
 
     private async Task WriteAsync(Packet packet, CancellationToken token)
@@ -120,14 +132,29 @@ public sealed class IsolationRpc : IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        try { _lifetime.Cancel(); }
+        try
+        {
+            foreach (var key in _pending.Keys)
+                if (_pending.TryRemove(key, out var item)) item.TrySetException(new IOException("Sandbox connection closed."));
+            _lifetime.Cancel();
+        }
         catch (AggregateException) { }
         finally
         {
-            foreach (var item in _pending.Values) item.TrySetException(new IOException("Sandbox connection closed."));
             try { _input.Dispose(); }
             finally { _output.Dispose(); }
         }
+    }
+
+    private static void ObserveFault(Task task)
+    {
+        if (task.IsCompleted)
+        {
+            if (task.IsFaulted) _ = task.Exception;
+            return;
+        }
+        _ = task.ContinueWith(static completed => _ = completed.Exception,
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 }
 

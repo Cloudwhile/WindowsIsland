@@ -30,6 +30,8 @@ internal sealed class SandboxProcess : IDisposable
     public AnonymousPipeServerStream Output { get; } = new(PipeDirection.Out, HandleInheritability.Inheritable);
     public int ProcessId { get; private set; }
     public string Sid { get; private set; } = "";
+    public string CodeDirectory { get; private set; } = "";
+    public string DataDirectory { get; private set; } = "";
     public uint? ExitCode { get { lock (_processGate) return _process != 0 && SandboxNative.GetExitCodeProcess(_process, out var code) && code != 259 ? code : null; } }
 
     internal static string ProfileIdentity(string hostRoot, string pluginId) =>
@@ -72,8 +74,11 @@ internal sealed class SandboxProcess : IDisposable
             SandboxAccess.ProtectTree(plugin.Directory, principal);
             SandboxAccess.ProtectTree(plugin.DataDirectory, principal, writable: true);
             var runtime = PrepareRuntime(plugin, identity, principal);
-            var executable = Path.Combine(runtime, "WindowsIsland.PluginWorker.exe");
-            var temporary = Path.Combine(plugin.DataDirectory, "temp");
+            CodeDirectory = SandboxAccess.PhysicalDirectory(plugin.Directory);
+            DataDirectory = SandboxAccess.PhysicalDirectory(plugin.DataDirectory);
+            var physicalRuntime = SandboxAccess.PhysicalDirectory(runtime);
+            var executable = Path.Combine(physicalRuntime, "WindowsIsland.PluginWorker.exe");
+            var temporary = Path.Combine(DataDirectory, "temp");
             Directory.CreateDirectory(temporary);
             var variables = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -81,7 +86,7 @@ internal sealed class SandboxProcess : IDisposable
                 ["windir"] = Environment.GetFolderPath(Environment.SpecialFolder.Windows),
                 ["SystemDrive"] = Path.GetPathRoot(Environment.GetFolderPath(Environment.SpecialFolder.Windows))!.TrimEnd('\\'),
                 ["TEMP"] = temporary, ["TMP"] = temporary,
-                ["USERPROFILE"] = plugin.DataDirectory, ["LOCALAPPDATA"] = plugin.DataDirectory, ["APPDATA"] = plugin.DataDirectory,
+                ["USERPROFILE"] = DataDirectory, ["LOCALAPPDATA"] = DataDirectory, ["APPDATA"] = DataDirectory,
                 ["DOTNET_EnableDiagnostics"] = "0", ["DOTNET_EnableDiagnostics_IPC"] = "0",
                 ["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1", ["COMPlus_EnableDiagnostics"] = "0",
                 ["DOTNET_DISABLE_GUI_ERRORS"] = "1"
@@ -113,7 +118,7 @@ internal sealed class SandboxProcess : IDisposable
                 SandboxNative.Check(SandboxNative.UpdateProcThreadAttribute(attributes, 0, 0x20002, handles, (nuint)(2 * nint.Size), 0, 0));
                 var startup = new SandboxNative.StartupInfoEx { Info = new() { Size = (uint)Marshal.SizeOf<SandboxNative.StartupInfoEx>() }, Attributes = attributes };
                 var command = new StringBuilder('"' + executable + "\" --read-handle " + Output.GetClientHandleAsString() + " --write-handle " + Input.GetClientHandleAsString());
-                SandboxNative.Check(SandboxNative.CreateProcess(executable, command, 0, 0, true, 0x08080404, environment, runtime, ref startup, out var process));
+                SandboxNative.Check(SandboxNative.CreateProcess(executable, command, 0, 0, true, 0x08080404, environment, physicalRuntime, ref startup, out var process));
                 _process = process.Process; thread = process.Thread; ProcessId = checked((int)process.ProcessId);
                 VerifyToken(principal);
                 _job = SandboxNative.CreateJobObject(0, null);
@@ -155,7 +160,12 @@ internal sealed class SandboxProcess : IDisposable
         }
         catch (Exception error)
         {
-            throw new IOException("Sandbox bootstrap failed with native status " + (ExitCode?.ToString("X8") ?? "unavailable"), error);
+            for (var attempt = 0; attempt < 5 && ExitCode is null && !token.IsCancellationRequested; attempt++)
+                await Task.Delay(50);
+            var status = ExitCode;
+            var failure = new IOException("Sandbox bootstrap failed with native status " + (status?.ToString("X8") ?? "unavailable"), error);
+            if (status is { } code && code != 0) failure.HResult = unchecked((int)code);
+            throw failure;
         }
         lock (_processGate)
         {

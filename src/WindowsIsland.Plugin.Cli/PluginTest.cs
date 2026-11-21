@@ -43,8 +43,8 @@ internal static class PluginTest
                     await process.VerifyReadyAsync(rpc, timeout.Token);
                     var granted = manifest.Permissions.Where(p => p is "notifications" or "settings" or "network").ToArray();
                     await rpc.CallAsync<WorkerDescription>("initialize", new WorkerInitialization(manifest,
-                        Path.Combine(testRoot, "data", index.ToString()), granted, null,
-                        HostVersion: typeof(IIslandPlugin).Assembly.GetName().Version!.ToString(), CodeDirectory: stage), timeout.Token);
+                        process.DataDirectory, granted, null,
+                        HostVersion: typeof(IIslandPlugin).Assembly.GetName().Version!.ToString(), CodeDirectory: process.CodeDirectory), timeout.Token);
                     await rpc.CallAsync<WorkerDescription>("start", token: timeout.Token);
                     await Task.Delay(scenario.WaitMilliseconds, timeout.Token);
                     await host.WaitForActivity(timeout.Token);

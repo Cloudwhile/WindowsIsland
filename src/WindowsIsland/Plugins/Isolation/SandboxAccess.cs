@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Runtime.Versioning;
+using System.Text;
 
 namespace WindowsIsland.Plugins;
 
@@ -105,6 +106,45 @@ internal static class SandboxAccess
         PluginPaths.CheckLinks(file);
         PluginFileSafety.CheckSingleLink(file);
         ApplyFile(file, WindowsIdentity.GetCurrent().User ?? throw new InvalidOperationException(), null, false);
+    }
+
+    // Resolve Desktop Bridge virtualized AppData paths to their physical NTFS directory path
+    // so child LPAC workers (which do not inherit Desktop Bridge VFS redirection) can load
+    // hostfxr/runtime, plugin code, and writable data directly.
+    public static string PhysicalDirectory(string directory)
+    {
+        PluginPaths.CheckLinks(directory);
+        using var handle = SandboxNative.CreateFile(directory, 0x80u, 7u, 0, 3u, 0x02200000u, 0);
+        if (handle.IsInvalid) throw SecurityError(Marshal.GetLastWin32Error());
+        if (!SandboxNative.GetFileInformationByHandle(handle, out var info)) throw SecurityError(Marshal.GetLastWin32Error());
+        if ((info.Attributes & (uint)FileAttributes.ReparsePoint) != 0)
+            throw new PluginException(PluginErrorCode.Path, "插件目录不能包含符号链接或重解析点。");
+        if ((info.Attributes & (uint)FileAttributes.Directory) == 0)
+            throw new IOException("Expected a directory.");
+        var capacity = 260u;
+        var buffer = new StringBuilder((int)capacity);
+        var length = SandboxNative.GetFinalPathNameByHandle(handle, buffer, capacity, 0);
+        if (length == 0) throw SecurityError(Marshal.GetLastWin32Error());
+        if (length >= capacity)
+        {
+            capacity = length + 1;
+            buffer = new StringBuilder(checked((int)capacity));
+            length = SandboxNative.GetFinalPathNameByHandle(handle, buffer, capacity, 0);
+            if (length == 0) throw SecurityError(Marshal.GetLastWin32Error());
+            if (length >= capacity) throw new IOException("Final path exceeds buffer capacity.");
+        }
+        var resolved = Path.TrimEndingDirectorySeparator(NormalizeFinalPath(buffer.ToString(0, checked((int)length))));
+        PluginPaths.CheckLinks(resolved);
+        return resolved;
+    }
+
+    internal static string NormalizeFinalPath(string path)
+    {
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+            return @"\\" + path[8..];
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal))
+            return path[4..];
+        return path;
     }
 
     // Strip inherited package-cache ACEs (such as S-1-15-3-<host package>) from host settings

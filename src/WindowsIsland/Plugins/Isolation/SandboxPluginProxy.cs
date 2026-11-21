@@ -90,8 +90,8 @@ internal sealed class SandboxPluginProxy(ExternalPlugin external) : IMessageSour
         }
         try { await process.VerifyReadyAsync(_rpc!, _regularCommands.Token); }
         catch { Dispose(); throw; }
-        await CommandAsync("initialize", new WorkerInitialization(external.Manifest, external.DataDirectory,
-            external.Trust.Granted.ToArray(), context.PreviousVersion, context.HostVersion, external.Directory));
+        await CommandAsync("initialize", new WorkerInitialization(external.Manifest, process.DataDirectory,
+            external.Trust.Granted.ToArray(), context.PreviousVersion, context.HostVersion, process.CodeDirectory));
     }
 
     private async Task<object?> HandleAsync(string method, JsonElement payload, CancellationToken token)

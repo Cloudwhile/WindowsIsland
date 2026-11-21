@@ -118,6 +118,7 @@ internal static class SandboxProfileChecks
         }
 
         VerifyHardLinkProtection(check, parentCap, otherCap);
+        VerifyPhysicalDirectoryResolution(check);
         await VerifyHostDataRootLaunchGateAsync(check, parentCap);
 
         // Verify live Win32 profile create / existing-profile derive / delete cycle with the new <=50-char name.
@@ -259,6 +260,56 @@ internal static class SandboxProfileChecks
         }
         finally
         {
+            if (Directory.Exists(baseDir)) Directory.Delete(baseDir, recursive: true);
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void VerifyPhysicalDirectoryResolution(Action<bool, string> check)
+    {
+        check(SandboxAccess.NormalizeFinalPath(@"\\?\C:\Users\test\dir") == @"C:\Users\test\dir"
+            && SandboxAccess.NormalizeFinalPath(@"\\?\UNC\server\share\dir") == @"\\server\share\dir"
+            && SandboxAccess.NormalizeFinalPath(@"C:\Users\test\dir") == @"C:\Users\test\dir",
+            "NormalizeFinalPath strips extended-length prefixes for local and UNC paths");
+
+        var baseDir = Path.Combine(Environment.CurrentDirectory, "artifacts", "verification", "sandbox-physical-" + Guid.NewGuid().ToString("N"));
+        var targetDir = Path.Combine(baseDir, "target");
+        var regularFile = Path.Combine(baseDir, "sample.txt");
+        var junctionDir = Path.Combine(baseDir, "junction");
+        Directory.CreateDirectory(targetDir);
+        File.WriteAllText(regularFile, "data");
+        try
+        {
+            var resolved = SandboxAccess.PhysicalDirectory(targetDir);
+            check(!resolved.StartsWith(@"\\?\", StringComparison.Ordinal)
+                && Directory.Exists(resolved)
+                && string.Equals(Path.GetFileName(resolved), "target", StringComparison.OrdinalIgnoreCase),
+                "PhysicalDirectory resolves an existing directory to a clean physical path");
+
+            var fileRejected = false;
+            try { SandboxAccess.PhysicalDirectory(regularFile); }
+            catch (IOException) { fileRejected = true; }
+            check(fileRejected, "PhysicalDirectory rejects a regular file path");
+
+            using var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c mklink /J \"{junctionDir}\" \"{targetDir}\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            });
+            mklink?.WaitForExit(5000);
+            if (mklink?.ExitCode == 0 && Directory.Exists(junctionDir))
+            {
+                check(ThrowsPluginPathError(() => SandboxAccess.PhysicalDirectory(junctionDir)),
+                    "PhysicalDirectory rejects directory junctions and reparse points");
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(junctionDir)) Directory.Delete(junctionDir, recursive: false);
             if (Directory.Exists(baseDir)) Directory.Delete(baseDir, recursive: true);
         }
     }

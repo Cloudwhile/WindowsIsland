@@ -61,6 +61,48 @@ internal static class PluginIsolationProtocolChecks
         try { await stalledRpc.CallAsync<string>("echo", "bounded cancellation", deadline.Token).WaitAsync(TimeSpan.FromSeconds(2)); }
         catch (OperationCanceledException) { }
         Check(clock.Elapsed < TimeSpan.FromSeconds(2), "Cancellation stays bounded when the worker stops reading the pipe");
+
+        await VerifyDisconnectSurfacesIoWithoutUnobservedTaskExceptionAsync();
+    }
+
+    private static async Task VerifyDisconnectSurfacesIoWithoutUnobservedTaskExceptionAsync()
+    {
+        var unobserved = new List<Exception>();
+        EventHandler<UnobservedTaskExceptionEventArgs> onUnobserved = (_, args) =>
+        {
+            lock (unobserved) unobserved.Add(args.Exception);
+            args.SetObserved();
+        };
+        TaskScheduler.UnobservedTaskException += onUnobserved;
+        try
+        {
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                var pipeName = "WindowsIsland.DisconnectFixture." + Guid.NewGuid().ToString("N");
+                using var server = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                using var client = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                await Task.WhenAll(server.WaitForConnectionAsync(), client.ConnectAsync(2000));
+                using var rpc = new IsolationRpc(server, server, (_, _, _) => Task.FromResult<object?>(null));
+                var pending = rpc.CallAsync<bool>("ready");
+                // Simulate a worker exiting before answering "ready": closing the peer pipe immediately tears down RPC.
+                client.Dispose();
+                Exception? caught = null;
+                try { await pending.WaitAsync(TimeSpan.FromSeconds(2)); }
+                catch (Exception error) { caught = error; }
+                Check(caught is IOException, "Peer disconnect during in-flight RPC surfaces IOException rather than TaskCanceledException");
+                await rpc.Completion.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            lock (unobserved)
+                Check(unobserved.Count == 0, "Peer disconnect during in-flight RPC produces no UnobservedTaskException");
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= onUnobserved;
+        }
     }
 
     private static void Check(bool value, string message)
